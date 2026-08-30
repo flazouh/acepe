@@ -63,24 +63,20 @@ function withoutTrailingPeriod(message: string): string {
 
 const agentItems = $derived(
 	availableAgents.map((agent) => {
-		const installInFlight = agentStore.isInstalling(agent.id);
-		const readiness = agentStore.getAgentInstallationReadiness(agent.id);
-		const setupPending = readiness?.status === "pending";
+		const phase = agentStore.getAgentInstallPhase(agent.id);
 		const providerMetadata = agentStore.getProviderMetadata(agent.id) ?? agent.provider_metadata;
 		return {
 			id: agent.id,
 			name: agent.name,
 			providerBrand: providerMetadata?.providerBrand ?? null,
 			providerLabel: providerMetadata?.displayName ?? agent.name,
-			installed: readiness
-				? false
-				: agent.availability_kind
-					? agent.availability_kind.installed
-					: true,
-			installing: setupPending || (readiness === null && installInFlight),
+			// Setup keeps the row on the installable side until it finishes,
+			// so a half-set-up agent cannot be picked.
+			installed: phase.status === "idle" ? (agent.availability_kind?.installed ?? true) : false,
+			installing: phase.status === "installing" || phase.status === "preparing",
 			installError:
-				readiness?.status === "failed"
-					? `Agent setup failed: ${withoutTrailingPeriod(readiness.message)}. Click to retry.`
+				phase.status === "failed"
+					? `Agent setup failed: ${withoutTrailingPeriod(phase.message)}. Click to retry.`
 					: null,
 		};
 	})
@@ -88,8 +84,8 @@ const agentItems = $derived(
 
 function handleAgentInstall(agentId: string): void {
 	const agent = availableAgents.find((candidate) => candidate.id === agentId);
-	const readiness = agentStore.getAgentInstallationReadiness(agentId);
-	if (!agent || readiness?.status === "pending") {
+	const phase = agentStore.getAgentInstallPhase(agentId);
+	if (!agent || phase.status === "installing" || phase.status === "preparing") {
 		return;
 	}
 

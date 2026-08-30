@@ -245,11 +245,12 @@ const pipelineLayer = Layer.unwrap(
 // Lifted out of makeAcepeLive so the registered set is one named thing a test
 // can build and read (see bootstrap.test.ts), instead of a list buried in a
 // closure that only a running app could prove.
-export const LiveProviderAdaptersLive = Layer.unwrap(
+export const LiveProviderAdaptersLive = (managedAgentsDir: Option.Option<string>) =>
+	Layer.unwrap(
 	Effect.gen(function*() {
 		const claude = yield* makeLiveClaudeAdapter()
 		const codex = yield* makeLiveCodexAdapter({
-			cacheDir: Option.none(),
+			cacheDir: managedAgentsDir,
 			command: Option.none(),
 			args: Option.none(),
 			config: Option.none()
@@ -259,7 +260,7 @@ export const LiveProviderAdaptersLive = Layer.unwrap(
 		const copilot = yield* makeLiveCopilotAdapter()
 		return ProviderAdapterRegistryLive([claude, codex, opencode, cursor, copilot])
 	})
-)
+	)
 
 export const makeAcepeLive = (input: AcepeLiveInput) => {
 	const engine = engineAt(input.filename)
@@ -347,10 +348,18 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 	// agentCall field) can read live adapter presence off the same
 	// ProviderRegistry instance ProviderBridge resolves adapters from --
 	// one registry, two consumers, not two independently-probed registries.
-	const providerAdapters = LiveProviderAdaptersLive.pipe(
-		Layer.provide(BunHttpClient.layer),
-		Layer.provide(bunPlatform)
-	)
+	// One managed install directory, named once. AgentInstaller writes it and
+	// the Codex adapter's cachedCodexBinaryPath reads that exact layout
+	// (<dir>/<agentId>/meta.json plus the cmd it names) -- bootstrap used to
+	// hand the adapter Option.none() because no layer built the installer, so
+	// an installed agent was a directory nothing read.
+	const managedAgentsDir = Effect.gen(function*() {
+		const path = yield* Path.Path
+		return path.join(path.dirname(path.resolve(input.filename)), "agents")
+	})
+	const providerAdapters = Layer.unwrap(
+		Effect.map(managedAgentsDir, (dir) => LiveProviderAdaptersLive(Option.some(dir)))
+	).pipe(Layer.provide(BunHttpClient.layer), Layer.provide(bunPlatform))
 	const providerRegistry = ProviderRegistryLive.pipe(Layer.provide(providerAdapters))
 	// The agent installer the agentCall RPC's agent.install/agent.uninstall
 	// ops run. Its managed directory sits beside this instance's sqlite file,
@@ -361,12 +370,11 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 	// so per call rather than taking the whole app down.
 	const agentInstaller = Layer.unwrap(
 		Effect.gen(function*() {
-			const path = yield* Path.Path
 			const detected = platformKeyFromHost(process.platform, process.arch)
 			if (Option.isNone(detected)) {
 				return AgentInstallerUnsupportedPlatformLive(`${process.platform}-${process.arch}`)
 			}
-			const cacheDir = path.join(path.dirname(path.resolve(input.filename)), "agents")
+			const cacheDir = yield* managedAgentsDir
 			return AgentInstallerLive(defaultAgentInstallerOptions(cacheDir, detected.value))
 		})
 	).pipe(

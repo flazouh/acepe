@@ -240,7 +240,7 @@ Vitest.describe("live provider adapters", () => {
 			}).pipe(
 				// @effect-diagnostics-next-line strictEffectProvide:off
 				Effect.provide(
-					LiveProviderAdaptersLive.pipe(
+					LiveProviderAdaptersLive(Option.none()).pipe(
 						Layer.provide(BunHttpClient.layer),
 						Layer.provide(Platform),
 						Layer.fresh

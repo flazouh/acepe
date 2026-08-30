@@ -201,6 +201,22 @@ Vitest.describe("routeAgentCall agent.install", () => {
 		})
 	)
 
+	Vitest.it.effect("answers a blank agent id with a typed error, not a defect", () =>
+		Effect.gen(function*() {
+			const installedRef = yield* Ref.make(false)
+			const outcome = yield* Effect.result(
+				routeAgentCall({ op: "agent.install", agentId: "   " }).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(installEnv(installedRef))
+				)
+			)
+			Vitest.assert.strictEqual(outcome._tag, "Failure")
+			if (outcome._tag === "Failure") {
+				Vitest.assert.strictEqual(outcome.failure._tag, "RpcAgentCallError")
+			}
+		})
+	)
+
 	Vitest.it.effect("removes the managed install and answers with the list read back afterwards", () =>
 		Effect.gen(function*() {
 			const installedRef = yield* Ref.make(true)

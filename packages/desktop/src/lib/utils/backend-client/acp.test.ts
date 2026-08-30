@@ -410,15 +410,18 @@ describe("acp backend client", () => {
 						},
 					})
 				);
-				const agents = yield* acp.installAgent("opencode");
+				const result = yield* acp.installAgent("opencode");
 				expect(requests).toEqual([{ op: "agent.install", agentId: "opencode" }]);
-				expect(agents).toEqual([
-					{
-						id: "opencode",
-						name: "OpenCode",
-						availability_kind: { kind: "installable", installed: true },
-					},
-				]);
+				expect(result).toEqual({
+					version: "1.18.25",
+					agents: [
+						{
+							id: "opencode",
+							name: "OpenCode",
+							availability_kind: { kind: "installable", installed: true },
+						},
+					],
+				});
 			})
 		));
 
@@ -453,6 +456,24 @@ describe("acp backend client", () => {
 						availability_kind: { kind: "installable", installed: false },
 					},
 				]);
+			})
+		));
+
+	it("dies when the server answers an agentCall with the wrong op", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: () => Effect.succeed({ op: "agent.list", agents: [] }),
+					})
+				);
+				const outcome = yield* Effect.result(
+					acp.installAgent("opencode").pipe(Effect.catchCause(() => Effect.succeed("died")))
+				);
+				expect(Result.isSuccess(outcome)).toBe(true);
+				if (Result.isSuccess(outcome)) {
+					expect(outcome.success).toBe("died");
+				}
 			})
 		));
 

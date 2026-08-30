@@ -323,11 +323,13 @@ export function listAgents(): Effect.Effect<AgentInfo[], AppError> {
 }
 
 /**
- * Install an automatically provisioned agent. Answers with the agent list
- * the backend read back after installing, so no caller has to keep its own
- * idea of which agents are installed.
+ * Install an automatically provisioned agent. Answers with the version now on
+ * disk and the agent list the backend read back after installing, so no
+ * caller has to keep its own idea of which agents are installed.
  */
-export function installAgent(agentId: string): Effect.Effect<AgentInfo[], AppError> {
+export function installAgent(
+	agentId: string
+): Effect.Effect<{ readonly version: string; readonly agents: AgentInfo[] }, AppError> {
 	return backendClient.acp.installAgent(agentId);
 }
 

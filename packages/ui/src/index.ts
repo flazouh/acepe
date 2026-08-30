@@ -110,6 +110,7 @@ export {
 	AgentPanelFooter,
 	AgentPanelFooterChrome,
 	AgentPanelHeader,
+	AgentInstallingLabel,
 	AgentPanelInstallCard,
 	AgentPanelPreSessionWorktreeCard,
 	AgentPanelLayout,

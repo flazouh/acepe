@@ -40,6 +40,20 @@ export type AgentInstallationReadiness =
 	| { readonly status: "pending" }
 	| { readonly status: "failed"; readonly message: string };
 
+/**
+ * Where an agent is in the setup the picker starts: the backend install call,
+ * then the capability-catalog read that has to succeed before the agent can
+ * be selected. Every surface that shows setup reads this one phase, so the
+ * picker row and the pre-composer card cannot disagree about whether setup is
+ * still running -- they did, because one watched the install call and the
+ * other watched the readiness barrier.
+ */
+export type AgentInstallPhase =
+	| { readonly status: "idle" }
+	| { readonly status: "installing" }
+	| { readonly status: "preparing" }
+	| { readonly status: "failed"; readonly message: string };
+
 export class AgentStore {
 	agents = $state<Agent[]>([]);
 	agentsLoading = $state(false);
@@ -90,10 +104,11 @@ export class AgentStore {
 			this.installing[agentId] = true;
 			return api.installAgent(agentId);
 		}).pipe(
-			Effect.map((agents) => {
-				this.agents = agents.map(toAgent);
+			Effect.map((result) => {
+				this.agents = result.agents.map(toAgent);
 				delete this.installing[agentId];
-				logger.info("Agent installed successfully", { agentId });
+				logger.info("Agent installed successfully", { agentId, version: result.version });
+				toast.success(`Installed ${this.getAgent(agentId)?.name ?? agentId} ${result.version}`);
 			}),
 			Effect.mapError((error) => {
 				logger.error("Failed to install agent", error);
@@ -126,6 +141,20 @@ export class AgentStore {
 	 */
 	isInstalling(agentId: string): boolean {
 		return agentId in this.installing;
+	}
+
+	getAgentInstallPhase(agentId: string): AgentInstallPhase {
+		const readiness = this.installationReadiness[agentId];
+		if (readiness?.status === "failed") {
+			return { status: "failed", message: readiness.message };
+		}
+		if (this.isInstalling(agentId)) {
+			return { status: "installing" };
+		}
+		if (readiness?.status === "pending") {
+			return { status: "preparing" };
+		}
+		return { status: "idle" };
 	}
 
 	beginAgentInstallationReadiness(agentId: string): void {

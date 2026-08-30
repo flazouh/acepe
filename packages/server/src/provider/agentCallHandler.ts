@@ -6,7 +6,7 @@ import {
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import { AgentInstaller } from "./Services/AgentInstaller.ts"
-import { ProviderId } from "./Services/ProviderAdapter.ts"
+import { decodeProviderId } from "./Services/ProviderAdapter.ts"
 import { ProviderRegistry } from "./Services/ProviderRegistry.ts"
 
 // Routes the agentCall utility RPC's tagged-union request onto the
@@ -69,7 +69,13 @@ export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: Age
 		}
 		case "agent.install": {
 			const installer = yield* AgentInstaller
-			const agentId = ProviderId.make(request.agentId)
+			// decode, not ProviderId.make: `make` throws on an empty or
+			// untrimmed id, and a throw inside Effect.fn is a defect. A caller
+			// that names a nonsense agent gets the same typed
+			// RpcAgentCallError every other bad install answers with.
+			const agentId = yield* decodeProviderId(request.agentId).pipe(
+				Effect.mapError(toRpcAgentCallError(request.op))
+			)
 			// ensureLatest, not install: the picker's control is idempotent.
 			// An agent already at the registry's version stays where it is,
 			// and a stale one is replaced, which is what "Install" has to
@@ -87,7 +93,9 @@ export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: Age
 		}
 		case "agent.uninstall": {
 			const installer = yield* AgentInstaller
-			const agentId = ProviderId.make(request.agentId)
+			const agentId = yield* decodeProviderId(request.agentId).pipe(
+				Effect.mapError(toRpcAgentCallError(request.op))
+			)
 			yield* installer.uninstall(agentId).pipe(Effect.mapError(toRpcAgentCallError(request.op)))
 			const agents = yield* listAgents()
 			return {

@@ -108,6 +108,7 @@ export {
 } from "./agent-input-toolbar-voice.js";
 export { default as AgentInputVoiceRecordingOverlay } from "./agent-input-voice-recording-overlay.svelte";
 export { default as AgentPanelInstallCard } from "./agent-install-card.svelte";
+export { default as AgentInstallingLabel } from "./agent-installing-label.svelte";
 export { default as AgentMissingSceneEntry } from "./agent-missing-scene-entry.svelte";
 export { default as AgentPanel } from "./agent-panel.svelte";
 export { default as AgentPanelBrowserHeader } from "./agent-panel-browser-header.svelte";

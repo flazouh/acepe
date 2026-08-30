@@ -12,7 +12,7 @@
 		dropdownMenuItemTypographyClass,
 		dropdownMenuSectionTypographyClass,
 	} from "../dropdown-menu/dropdown-menu-typography.js";
-	import { TextShimmer } from "../text-shimmer/index.js";
+	import AgentInstallingLabel from "./agent-installing-label.svelte";
 	import { HugeiconsIcon } from "../icons/index.js";
 	import { BUTTON_CHIP_ICON_SIZE_PX } from "../button/variants.js";
 	import type { ButtonVariant } from "../button/index.js";
@@ -170,13 +170,10 @@
 									<span class="truncate {dropdownMenuItemTypographyClass} text-muted-foreground">
 										{capitalizeName(agent.name)}
 									</span>
-									<span
+									<AgentInstallingLabel
+										label={installingLabel}
 										class="{dropdownMenuSectionTypographyClass} text-muted-foreground"
-										role="status"
-										data-install-state="indeterminate"
-									>
-										<TextShimmer>{installingLabel}</TextShimmer>
-									</span>
+									/>
 								</div>
 							</div>
 						</div>

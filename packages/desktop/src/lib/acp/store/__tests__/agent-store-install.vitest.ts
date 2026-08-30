@@ -6,12 +6,14 @@ const mocks = vi.hoisted(() => ({
 	installAgent: vi.fn(),
 	listAgents: vi.fn(),
 	toastError: vi.fn(),
+	toastSuccess: vi.fn(),
 	uninstallAgent: vi.fn(),
 }));
 
 vi.mock("svelte-sonner", () => ({
 	toast: {
 		error: mocks.toastError,
+		success: mocks.toastSuccess,
 	},
 }));
 
@@ -36,13 +38,16 @@ describe("AgentStore installAgent", () => {
 		// returns that list, so the store must not make a second list call
 		// which could answer differently.
 		mocks.installAgent.mockReturnValue(
-			Effect.succeed([
-				{
-					id: "claude-code",
-					name: "Claude Code",
-					availability_kind: { kind: "installable" as const, installed: true },
-				},
-			])
+			Effect.succeed({
+				version: "2.1.186",
+				agents: [
+					{
+						id: "claude-code",
+						name: "Claude Code",
+						availability_kind: { kind: "installable" as const, installed: true },
+					},
+				],
+			})
 		);
 
 		const store = new AgentStore();
@@ -56,6 +61,7 @@ describe("AgentStore installAgent", () => {
 			installed: true,
 		});
 		expect(store.isInstalling("claude-code")).toBe(false);
+		expect(mocks.toastSuccess).toHaveBeenCalledWith("Installed Claude Code 2.1.186");
 	});
 
 	it("takes the uninstalled availability from the uninstall call's own answer", async () => {
@@ -116,6 +122,30 @@ describe("AgentStore installAgent", () => {
 		expect(mocks.toastError).toHaveBeenCalledWith(
 			"Failed to install agent: agent.install failed: Agent 'claude-code' has no binary distribution for platform 'darwin-aarch64'."
 		);
+	});
+
+	it("reports one setup phase for the install call and the catalog barrier", () => {
+		const store = new AgentStore();
+		expect(store.getAgentInstallPhase("claude-code")).toEqual({ status: "idle" });
+
+		// The picker opens the barrier before it starts the install, so both
+		// facts are set at once and the phase has to name the install.
+		store.beginAgentInstallationReadiness("claude-code");
+		store.installing["claude-code"] = true;
+		expect(store.getAgentInstallPhase("claude-code")).toEqual({ status: "installing" });
+
+		// The install answered; the catalog read is what is left.
+		delete store.installing["claude-code"];
+		expect(store.getAgentInstallPhase("claude-code")).toEqual({ status: "preparing" });
+
+		store.failAgentInstallationReadiness("claude-code", "Catalog refresh failed");
+		expect(store.getAgentInstallPhase("claude-code")).toEqual({
+			status: "failed",
+			message: "Catalog refresh failed",
+		});
+
+		store.completeAgentInstallationReadiness("claude-code");
+		expect(store.getAgentInstallPhase("claude-code")).toEqual({ status: "idle" });
 	});
 
 	it("keeps post-install catalog readiness failed until a retry begins and completes", () => {

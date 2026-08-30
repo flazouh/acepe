@@ -1,6 +1,8 @@
 <script lang="ts">
-import { TextShimmer } from "@acepe/ui";
-import { AgentPanelInstallCard as SharedAgentPanelInstallCard } from "@acepe/ui/agent-panel";
+import {
+	AgentInstallingLabel,
+	AgentPanelInstallCard as SharedAgentPanelInstallCard,
+} from "@acepe/ui/agent-panel";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import AgentIcon from "../../agent-icon.svelte";
 
@@ -20,24 +22,13 @@ const installTitle = $derived(`Setting up ${agentName}...`);
 const installSummary = "Downloading and verifying the agent";
 </script>
 
-<SharedAgentPanelInstallCard
-	title={installTitle}
-	summary={installSummary}
-	details={installSummary}
-	ariaLabel={`${installTitle} ${installSummary}`}
->
+<SharedAgentPanelInstallCard title={installTitle} summary={installSummary}>
 	{#snippet leading()}
 		<Spinner size={13} />
 		<AgentIcon {agentId} class="size-3 shrink-0" size={12} />
 	{/snippet}
 
 	{#snippet progressIndicator()}
-		<span
-			class="text-[0.6875rem] text-muted-foreground"
-			role="status"
-			data-install-state="indeterminate"
-		>
-			<TextShimmer>Installing…</TextShimmer>
-		</span>
+		<AgentInstallingLabel class="text-[0.6875rem] text-muted-foreground" />
 	{/snippet}
 </SharedAgentPanelInstallCard>

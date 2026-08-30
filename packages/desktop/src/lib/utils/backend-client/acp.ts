@@ -1,4 +1,6 @@
 import {
+	type AgentCallAgentInfo,
+	type AgentCallResult,
 	decodeApprovalRequestId,
 	decodeMessageId,
 	decodeProjectId,
@@ -39,17 +41,17 @@ import type { CustomAgentConfig } from "./types.js";
 // interaction.reply to the real provider adapter), rides the agentCall
 // utility RPC (listAgents), or is honestly unsupportedOnContract.
 //
-// The unsupportedOnContract methods below (agent install/uninstall,
-// preconnection discovery, the event bridge) are not behaviour
-// regressions: none of them has ever had a working Electrobun backend.
-// There is no install_agent/uninstall_agent/register_custom_agent/
-// authenticate_agent/cancel_agent_authentication/
-// list_preconnection_commands/list_preconnection_capabilities/
-// get_composer_mcp_catalog/get_event_bridge_info handler anywhere in
-// packages/electrobun-shell or packages/server -- every one of these calls
-// already fails today (an unresolved command invoke with no receiver). Marking
-// them unsupportedOnContract turns that into a typed, honest failure instead
-// of a silent hang, with zero change in what the app can actually do.
+// The unsupportedOnContract methods below (custom agent registration, agent
+// authentication, preconnection discovery, the event bridge) are not
+// behaviour regressions: none of them has ever had a working Electrobun
+// backend. There is no register_custom_agent/authenticate_agent/
+// cancel_agent_authentication/list_preconnection_commands/
+// list_preconnection_capabilities/get_composer_mcp_catalog/
+// get_event_bridge_info handler anywhere in packages/electrobun-shell or
+// packages/server -- every one of these calls already fails today (an
+// unresolved command invoke with no receiver). Marking them
+// unsupportedOnContract turns that into a typed, honest failure instead of a
+// silent hang, with zero change in what the app can actually do.
 //
 // listAgents, installAgent and uninstallAgent are the exceptions: all three
 // ride the agentCall utility RPC (packages/contracts/src/agentCall.ts), a
@@ -62,15 +64,26 @@ import type { CustomAgentConfig } from "./types.js";
 // dispatching them records an "installed" fact without any adapter having
 // done the work.
 
-const toAgentInfo = (agent: {
-	readonly id: string;
-	readonly name: string;
-	readonly availabilityKind: { readonly kind: "installable"; readonly installed: boolean };
-}): AgentInfo => ({
+const toAgentInfo = (agent: AgentCallAgentInfo): AgentInfo => ({
 	id: agent.id,
 	name: agent.name,
 	availability_kind: agent.availabilityKind,
 });
+
+// The agentCall result union echoes the request's `op` discriminant (see
+// packages/contracts/src/agentCall.ts), and TypeScript cannot tie a call's
+// request op to its response type. Narrow it at runtime, the same way
+// backend-client/git.ts narrows gitCall. A mismatch means the server routed
+// the request to the wrong branch, which is a wiring bug and not something
+// the caller can recover from, so it is a defect rather than a typed
+// AppError.
+const unwrapAgentCallResult = <Tag extends AgentCallResult["op"]>(
+	tag: Tag,
+	result: AgentCallResult
+): Effect.Effect<Extract<AgentCallResult, { op: Tag }>, AppError> =>
+	result.op === tag
+		? Effect.succeed(result as Extract<AgentCallResult, { op: Tag }>)
+		: Effect.die(new Error(`agentCall: expected op '${tag}', got '${result.op}'`));
 
 const emptySessionLifecycle = (status: SessionGraphLifecycle["status"]): SessionGraphLifecycle => ({
 	status,
@@ -512,9 +525,10 @@ export const acp = {
 	// ProviderBridge resolves real adapters from for session.create, so this
 	// only ever offers an agent Acepe can actually start a session with.
 	listAgents: Effect.fn("acp.listAgents")(function* () {
-		const result = yield* withRpcClient("acp.listAgents", (client) =>
+		const response = yield* withRpcClient("acp.listAgents", (client) =>
 			client.agentCall({ op: "agent.list" })
 		);
+		const result = yield* unwrapAgentCallResult("agent.list", response);
 		return result.agents.map(toAgentInfo);
 	}),
 
@@ -528,16 +542,21 @@ export const acp = {
 	// so there is no percentage to hand a caller. The picker shows an
 	// indeterminate installing state -- see agent-store.svelte.ts.
 	installAgent: Effect.fn("acp.installAgent")(function* (agentId: string) {
-		const result = yield* withRpcClient("acp.installAgent", (client) =>
+		const response = yield* withRpcClient("acp.installAgent", (client) =>
 			client.agentCall({ op: "agent.install", agentId })
 		);
-		return result.agents.map(toAgentInfo);
+		const result = yield* unwrapAgentCallResult("agent.install", response);
+		return {
+			version: result.version,
+			agents: result.agents.map(toAgentInfo),
+		};
 	}),
 
 	uninstallAgent: Effect.fn("acp.uninstallAgent")(function* (agentId: string) {
-		const result = yield* withRpcClient("acp.uninstallAgent", (client) =>
+		const response = yield* withRpcClient("acp.uninstallAgent", (client) =>
 			client.agentCall({ op: "agent.uninstall", agentId })
 		);
+		const result = yield* unwrapAgentCallResult("agent.uninstall", response);
 		return result.agents.map(toAgentInfo);
 	}),
 

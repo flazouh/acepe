@@ -3,42 +3,25 @@
 
 	import { LoadingIcon, HugeiconsIcon } from "../icons/index.js";
 
-	const SEGMENT_COUNT = 20;
-	const segmentIndexes = Array.from({ length: SEGMENT_COUNT }, (_, index) => index);
-
+	// The card carries no progress of its own. Installing an agent runs over a
+	// request/response call that reports nothing between start and finish, so
+	// the caller passes the indicator it wants to show for that wait. This
+	// used to own a 20-segment bar driven by a `progressPercent` prop; the
+	// only caller never had a percentage to give it, and the bar sat at 0 for
+	// the whole install.
 	interface Props {
 		title: string;
 		summary: string;
 		details?: string | null;
-		/**
-		 * Percentage of a determinate install. Leave it out when the caller
-		 * has no progress to report: the card then renders no progress bar
-		 * at all rather than a bar parked at 0%.
-		 */
-		progressPercent?: number | null;
-		ariaLabel?: string;
 		leading?: Snippet;
-		progressIndicator?: Snippet;
+		progressIndicator: Snippet;
 	}
 
-	let {
-		title,
-		summary,
-		details = null,
-		progressPercent = null,
-		ariaLabel,
-		leading,
-		progressIndicator,
-	}: Props = $props();
+	let { title, summary, details = null, leading, progressIndicator }: Props = $props();
 
 	let isExpanded = $state(false);
 
-	const clampedProgress = $derived(
-		progressPercent === null ? 0 : progressPercent < 0 ? 0 : progressPercent > 100 ? 100 : progressPercent
-	);
-	const filledSegmentCount = $derived(Math.round((clampedProgress / 100) * SEGMENT_COUNT));
 	const detailsText = $derived(details && details.length > 0 ? details : summary);
-	const progressAriaLabel = $derived(ariaLabel ?? `${title} ${summary}`);
 
 	function toggleExpanded(): void {
 		isExpanded = !isExpanded;
@@ -74,26 +57,7 @@
 		</div>
 
 		<div class="flex items-center gap-2 shrink-0">
-			{#if progressIndicator}
-				{@render progressIndicator()}
-			{:else if progressPercent !== null}
-				<div
-					class="voice-download-segments"
-					role="progressbar"
-					aria-label={progressAriaLabel}
-					aria-valuemin="0"
-					aria-valuemax="100"
-					aria-valuenow={clampedProgress}
-				>
-					{#each segmentIndexes as segmentIndex}
-						<span
-							class="voice-download-segment {segmentIndex < filledSegmentCount
-								? 'filled'
-								: ''}"
-						></span>
-					{/each}
-				</div>
-			{/if}
+			{@render progressIndicator()}
 			<HugeiconsIcon name="chevron-down" class="size-3 shrink-0 text-muted-foreground transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}"
 			/>
 		</div>
@@ -107,22 +71,3 @@
 		</div>
 	{/if}
 </div>
-
-<style>
-	.voice-download-segments {
-		display: inline-flex;
-		align-items: center;
-		gap: 2px;
-	}
-
-	.voice-download-segment {
-		width: 4px;
-		height: 10px;
-		border-radius: 9999px;
-		background: color-mix(in oklab, var(--muted-foreground) 18%, transparent);
-	}
-
-	.voice-download-segment.filled {
-		background: color-mix(in oklab, var(--foreground) 68%, transparent);
-	}
-</style>
