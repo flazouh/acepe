@@ -528,6 +528,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					session_count,
 					color,
 					show_external_cli_sessions,
+					sort_order,
 					scan_warmed_at
 				FROM projection_projects
 				ORDER BY updated_at DESC, project_id ASC

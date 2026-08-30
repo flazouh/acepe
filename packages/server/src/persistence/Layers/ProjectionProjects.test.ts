@@ -582,4 +582,38 @@ Vitest.layer(isolatedSnapshot())("ProjectionSnapshotQuery grades projects", (it)
 			])
 		})
 	)
+
+	// The snapshot query keeps its own SELECT, so a column the projection
+	// stores can still be missing here. A rank the sidebar cannot read back is
+	// a rank that does not survive a reload.
+	it.effect("carries the stored sidebar rank", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const projects = yield* ProjectionProjects
+			const query = yield* ProjectionSnapshotQuery
+			yield* projects.apply(
+				projectEvent(1, "ProjectCreated", NOW, {
+					projectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe"
+				}),
+				sql
+			)
+			yield* projects.apply(
+				projectEvent(2, "ProjectMetaUpdated", LATER, {
+					projectId,
+					sortOrder: 4
+				}),
+				sql
+			)
+			yield* checkpoint("projection.sessions", 2)
+			yield* checkpoint("projection.session-messages", 2)
+			yield* checkpoint("projection.turns", 2)
+			yield* checkpoint("projection.session-activities", 2)
+			yield* checkpoint("projection.pending-approvals", 2)
+			yield* checkpoint("projection.projects", 2)
+			const listed = yield* query.listProjects()
+			Vitest.assert.strictEqual(listed[0]?.sortOrder, 4)
+		})
+	)
 })
