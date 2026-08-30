@@ -123,6 +123,35 @@ function getProviderAwareSessionModelState(
 	return modelState as ProviderAwareSessionModelState;
 }
 
+/**
+ * Writes only the capability axes this answer actually carried into the
+ * per-agent cache. Absent is not empty: a deferred creation or a reconnect
+ * that said nothing about an axis must not delete what an earlier session
+ * cached -- that cache feeds the pre-start composer and settings.
+ */
+function cacheAnsweredCapabilityAxes(
+	agentId: string,
+	answered: {
+		readonly models: Model[] | undefined;
+		readonly providerMetadata: ProviderMetadataProjection | undefined;
+		readonly modelsDisplay: ModelsForDisplay | undefined;
+		readonly modes: Mode[] | undefined;
+	}
+): void {
+	if (answered.models !== undefined) {
+		preferencesStore.updateModelsCache(agentId, answered.models);
+	}
+	if (answered.providerMetadata !== undefined) {
+		preferencesStore.updateProviderMetadataCache(agentId, answered.providerMetadata);
+	}
+	if (answered.modelsDisplay !== undefined) {
+		preferencesStore.updateModelsDisplayCache(agentId, answered.modelsDisplay);
+	}
+	if (answered.modes !== undefined) {
+		preferencesStore.updateModesCache(agentId, answered.modes);
+	}
+}
+
 function canSendFromCanonical(reader: ISessionStateReader, sessionId: string): boolean {
 	return reader.getSessionCanSend(sessionId) === true;
 }
@@ -478,22 +507,12 @@ export class SessionConnectionManager {
 									}));
 						const modelsDisplay = modelState.modelsDisplay ?? undefined;
 
-						if (rawModels !== undefined) {
-							preferencesStore.updateModelsCache(options.agentId, availableModels);
-						}
-						// Absent is not empty: a deferred creation answers with no
-						// display/metadata because the provider has not connected
-						// yet, and deleting what an earlier session cached would
-						// blank the pre-start picker it feeds.
-						if (providerMetadata !== undefined) {
-							preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-						}
-						if (modelsDisplay !== undefined) {
-							preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
-						}
-						if (rawModes !== undefined) {
-							preferencesStore.updateModesCache(options.agentId, availableModes);
-						}
+						cacheAnsweredCapabilityAxes(options.agentId, {
+							models: rawModels === undefined ? undefined : availableModels,
+							providerMetadata,
+							modelsDisplay,
+							modes: rawModes === undefined ? undefined : availableModes,
+						});
 						this.transientProjectionManager.initializeTransientProjection(sessionId);
 						logger.info("Deferred session creation is pending provider identity promotion", {
 							sessionId,
@@ -700,19 +719,12 @@ export class SessionConnectionManager {
 							return applyInitialAutonomous.pipe(
 								Effect.map(() => {
 									// Cache available models and modes for settings/optimistic display
-									if (rawModels !== undefined) {
-										preferencesStore.updateModelsCache(options.agentId, availableModels);
-									}
-									// Absent is not empty -- see the deferred-creation branch above.
-									if (providerMetadata !== undefined) {
-										preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-									}
-									if (modelsDisplay !== undefined) {
-										preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
-									}
-									if (rawModes !== undefined) {
-										preferencesStore.updateModesCache(options.agentId, availableModes);
-									}
+									cacheAnsweredCapabilityAxes(options.agentId, {
+										models: rawModels === undefined ? undefined : availableModels,
+										providerMetadata,
+										modelsDisplay,
+										modes: rawModes === undefined ? undefined : availableModes,
+									});
 									logger.info("Provider model capabilities on session creation", {
 										sessionId,
 										agentId: options.agentId,
@@ -1030,19 +1042,12 @@ export class SessionConnectionManager {
 		);
 
 		// Cache available models and modes for settings/optimistic display
-		if (rawModels !== undefined) {
-			preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
-		}
-		// Absent is not empty -- see the deferred-creation branch in createSession.
-		if (providerMetadata !== undefined) {
-			preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
-		}
-		if (modelsDisplay !== undefined) {
-			preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay);
-		}
-		if (rawModes !== undefined) {
-			preferencesStore.updateModesCache(effectiveAgentId, availableModes);
-		}
+		cacheAnsweredCapabilityAxes(effectiveAgentId, {
+			models: rawModels === undefined ? undefined : availableModels,
+			providerMetadata,
+			modelsDisplay,
+			modes: rawModes === undefined ? undefined : availableModes,
+		});
 		logger.info("Provider model capabilities on session resume", {
 			sessionId,
 			agentId: effectiveAgentId,
