@@ -91,6 +91,7 @@ export const toRpcProject = (project: SessionProjectionSnapshot["projects"][numb
 	sessionCount: project.sessionCount,
 	color: project.color,
 	showExternalCliSessions: project.showExternalCliSessions,
+	sortOrder: project.sortOrder,
 	gitStatus: null
 })
 
@@ -160,6 +161,7 @@ const fillRpcProjectGitStatus = Effect.fn("fillRpcProjectGitStatus")(function*(
 		sessionCount: project.sessionCount,
 		color: project.color,
 		showExternalCliSessions: project.showExternalCliSessions,
+		sortOrder: project.sortOrder,
 		gitStatus
 	} satisfies RpcProjectedProject
 })

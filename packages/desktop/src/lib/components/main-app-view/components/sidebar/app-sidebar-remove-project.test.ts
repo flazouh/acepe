@@ -28,6 +28,7 @@ const projected: RpcProjectedProject = {
 	sessionCount: 2,
 	color: "indigo",
 	showExternalCliSessions: false,
+	sortOrder: null,
 	gitStatus: [],
 };
 

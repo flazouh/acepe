@@ -132,6 +132,7 @@ Vitest.describe("evolveProjectedProjects", () => {
 				sessionCount: 0,
 				color: defaultProjectColor("/tmp/acepe"),
 				showExternalCliSessions: false,
+				sortOrder: null,
 				scanWarmedAt: NOW
 			})
 			Vitest.assert.isTrue(isScanWarmed(project))
@@ -177,6 +178,48 @@ Vitest.describe("evolveProjectedProjects", () => {
 			const project = requireProject(state, projectId)
 			Vitest.assert.strictEqual(project.color, "pink")
 			Vitest.assert.strictEqual(project.title, "Acepe")
+		})
+	)
+
+	Vitest.it.effect("stores the sidebar rank from ProjectMetaUpdated", () =>
+		Effect.gen(function*() {
+			const state = yield* fold([
+				projectEvent(1, "ProjectCreated", NOW, {
+					projectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe"
+				}),
+				projectEvent(2, "ProjectMetaUpdated", LATER, {
+					projectId,
+					sortOrder: 2
+				})
+			])
+			const project = requireProject(state, projectId)
+			Vitest.assert.strictEqual(project.sortOrder, 2)
+			Vitest.assert.strictEqual(project.title, "Acepe")
+		})
+	)
+
+	Vitest.it.effect("keeps the sidebar rank when a later update renames the project", () =>
+		Effect.gen(function*() {
+			const state = yield* fold([
+				projectEvent(1, "ProjectCreated", NOW, {
+					projectId,
+					title: "Acepe",
+					workspaceRoot: "/tmp/acepe"
+				}),
+				projectEvent(2, "ProjectMetaUpdated", LATER, {
+					projectId,
+					sortOrder: 3
+				}),
+				projectEvent(3, "ProjectMetaUpdated", END, {
+					projectId,
+					title: "Acepe Desktop"
+				})
+			])
+			const project = requireProject(state, projectId)
+			Vitest.assert.strictEqual(project.sortOrder, 3)
+			Vitest.assert.strictEqual(project.title, "Acepe Desktop")
 		})
 	)
 

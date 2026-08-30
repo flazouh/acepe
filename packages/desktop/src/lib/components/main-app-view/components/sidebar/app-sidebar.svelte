@@ -361,104 +361,6 @@ let iconPickerImages = $state<string[]>([]);
 let iconPickerProjectPath = $state("");
 let reorderInFlight = $state(false);
 
-function copyProject(project: Project, sortOrder: number | undefined = project.sortOrder): Project {
-	return {
-		path: project.path,
-		name: project.name,
-		lastOpened: project.lastOpened,
-		createdAt: project.createdAt,
-		color: project.color,
-		sortOrder,
-		iconPath: project.iconPath ?? null,
-	};
-}
-
-function snapshotProjectSortOrders(projects: readonly Project[]): Map<string, number | undefined> {
-	const sortOrders = new Map<string, number | undefined>();
-	for (const project of projects) {
-		sortOrders.set(project.path, project.sortOrder);
-	}
-	return sortOrders;
-}
-
-function restoreProjectSortOrders(
-	projects: readonly Project[],
-	sortOrders: ReadonlyMap<string, number | undefined>
-): Project[] {
-	return projects.map((project) => {
-		if (!sortOrders.has(project.path)) {
-			return copyProject(project);
-		}
-
-		return copyProject(project, sortOrders.get(project.path));
-	});
-}
-
-function compareProjectOrder(a: Project, b: Project): number {
-	const aSortOrder = a.sortOrder ?? Number.POSITIVE_INFINITY;
-	const bSortOrder = b.sortOrder ?? Number.POSITIVE_INFINITY;
-	if (aSortOrder !== bSortOrder) {
-		return aSortOrder - bSortOrder;
-	}
-
-	return b.createdAt.getTime() - a.createdAt.getTime();
-}
-
-function getCurrentProjectOrder(projects: readonly Project[]): string[] {
-	return Array.from(projects)
-		.sort((a, b) => compareProjectOrder(a, b))
-		.map((project) => project.path);
-}
-
-function areProjectOrdersEqual(
-	currentOrder: readonly string[],
-	nextOrder: readonly string[]
-): boolean {
-	if (currentOrder.length !== nextOrder.length) {
-		return false;
-	}
-
-	return currentOrder.every((path, index) => path === nextOrder[index]);
-}
-
-function buildOptimisticProjectOrder(
-	projects: readonly Project[],
-	orderedPaths: readonly string[]
-): Project[] {
-	const projectByPath = new Map(projects.map((project) => [project.path, project]));
-	const remainingProjects = Array.from(projects).sort((a, b) => compareProjectOrder(a, b));
-	const reorderedProjects: Project[] = [];
-	const includedPaths = new Set<string>();
-
-	for (const path of orderedPaths) {
-		const project = projectByPath.get(path);
-		if (!project) {
-			continue;
-		}
-
-		reorderedProjects.push({
-			path: project.path,
-			name: project.name,
-			lastOpened: project.lastOpened,
-			createdAt: project.createdAt,
-			color: project.color,
-			sortOrder: reorderedProjects.length,
-			iconPath: project.iconPath ?? null,
-		});
-		includedPaths.add(project.path);
-	}
-
-	for (const project of remainingProjects) {
-		if (includedPaths.has(project.path)) {
-			continue;
-		}
-
-		reorderedProjects.push(copyProject(project, reorderedProjects.length));
-	}
-
-	return reorderedProjects;
-}
-
 function handleIconPickerOpenChange(open: boolean) {
 	iconPickerOpen = open;
 	if (!open) {
@@ -467,37 +369,29 @@ function handleIconPickerOpenChange(open: boolean) {
 	}
 }
 
+// The projection owns the order. Nothing is reordered here before the write
+// lands: an optimistic local rank is a second authority for the same fact, and
+// it was the thing that made a failed move snap back.
 function handleReorderProjects(orderedPaths: string[]) {
 	if (reorderInFlight) {
 		return;
 	}
 
-	const previousSortOrders = snapshotProjectSortOrders(projectManager.projects);
-	const previousProjects = projectManager.projects;
-	const currentOrder = getCurrentProjectOrder(previousProjects);
-	if (areProjectOrdersEqual(currentOrder, orderedPaths)) {
-		return;
-	}
-
 	reorderInFlight = true;
-	projectManager.projects = buildOptimisticProjectOrder(previousProjects, orderedPaths);
 
 	void Effect.runPromise(
 		projectManager.updateProjectOrder(orderedPaths).pipe(
-			Effect.catch((error) => {
-				projectManager.projects = restoreProjectSortOrders(previousProjects, previousSortOrders);
-				logger.error("[ProjectReorder] Failed to persist project order", {
-					error,
-					orderedPaths,
-				});
-				return Effect.fail(error);
-			}),
 			Effect.match({
 				onSuccess: () => {
 					reorderInFlight = false;
 				},
-				onFailure: () => {
+				onFailure: (error) => {
 					reorderInFlight = false;
+					toast.error(`Failed to reorder projects: ${error.message}`);
+					logger.error("[ProjectReorder] Failed to persist project order", {
+						error,
+						orderedPaths,
+					});
 				},
 			})
 		)

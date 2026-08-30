@@ -99,6 +99,9 @@ const projectMetaUpdatedPayload = (command: ProjectMetaUpdateCommand): ProjectMe
 	if (command.showExternalCliSessions !== undefined) {
 		draft.showExternalCliSessions = command.showExternalCliSessions
 	}
+	if (command.sortOrder !== undefined) {
+		draft.sortOrder = command.sortOrder
+	}
 	return draft
 }
 

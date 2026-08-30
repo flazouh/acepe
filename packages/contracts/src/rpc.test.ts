@@ -163,6 +163,7 @@ const snapshot: RpcSessionSnapshot = {
 			sessionCount: 1,
 			color: "cyan",
 			showExternalCliSessions: false,
+			sortOrder: null,
 			gitStatus: [],
 		},
 	],
@@ -399,6 +400,7 @@ describe("Schema-encoded boundary", () => {
 					sessionCount: 1,
 					color: "cyan",
 					showExternalCliSessions: false,
+					sortOrder: null,
 					gitStatus: [
 						{
 							path: "src/main.ts",

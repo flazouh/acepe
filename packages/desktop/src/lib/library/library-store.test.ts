@@ -39,6 +39,7 @@ const librarySnapshot: RpcSessionSnapshot = {
 			sessionCount: 1,
 			color: "cyan",
 			showExternalCliSessions: false,
+			sortOrder: null,
 			gitStatus: [],
 		},
 	],

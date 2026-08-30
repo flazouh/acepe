@@ -21,6 +21,7 @@ import { GitCallRequest, GitCallResult } from "./gitCall.ts"
 import { ProjectedMcpCatalog } from "./mcp.ts"
 import { ProjectedPreconnectionOptions } from "./preconnection.ts"
 import { ProjectColor } from "./projectColor.ts"
+import { ProjectSortOrder } from "./projectSortOrder.ts"
 import { GetProviderAccountUsageRequest, GetProviderAccountUsageResponse } from "./providerUsage.ts"
 import {
 	DiscoveredProviderProject,
@@ -297,6 +298,10 @@ export const RpcProjectedProject = Schema.Struct({
 	// this project. Always set: the projection stores false for a project
 	// that has never been toggled, so no reader has to invent a default.
 	showExternalCliSessions: Schema.Boolean,
+	// The project's dense rank in the sidebar. null means nobody has ever
+	// ordered this project, so it sorts after every ranked one. Readers render
+	// this rank; they never invent one of their own.
+	sortOrder: Schema.NullOr(ProjectSortOrder),
 	// null means git could not be read at all: no binary, no permission, or a
 	// schema mismatch. An empty array means git ran and the tree is clean. A
 	// review panel must not show "no changes" when git actually failed.

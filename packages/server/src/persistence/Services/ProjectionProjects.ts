@@ -7,6 +7,7 @@ import {
 	ProjectDeletedPayload,
 	ProjectId,
 	ProjectMetaUpdatedPayload,
+	ProjectSortOrder,
 	SessionCreatedPayload,
 	SessionDeletedPayload,
 	SessionId,
@@ -50,6 +51,10 @@ export const ProjectedProject = Schema.Struct({
 	// nobody has toggled, projects the useful default -- external provider
 	// sessions stay hidden.
 	showExternalCliSessions: Schema.Boolean,
+	// The project's dense rank in the sidebar. null means nobody has ever
+	// ordered this project, which is how every project starts and where a
+	// freshly added one stays until the first move ranks the whole list.
+	sortOrder: Schema.NullOr(ProjectSortOrder),
 	scanWarmedAt: IsoDateTime
 })
 export type ProjectedProject = typeof ProjectedProject.Type
@@ -79,6 +84,9 @@ const ProjectionProjectRow = Schema.Struct({
 	// 0021 colour migration test reads exactly that shape. Absent and null both
 	// mean the project never chose, which is the same as hiding.
 	show_external_cli_sessions: SqliteFlag.pipe(Schema.NullOr, Schema.optionalKey),
+	// A row written before migration 0033 has no such column at all. Absent and
+	// null both mean the project was never ranked.
+	sort_order: ProjectSortOrder.pipe(Schema.NullOr, Schema.optionalKey),
 	scan_warmed_at: IsoDateTime
 })
 
@@ -124,6 +132,7 @@ const projectedProjectFromRow = (row: typeof ProjectionProjectRow.Type): Project
 			row.show_external_cli_sessions === undefined
 		? DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS
 		: row.show_external_cli_sessions === 1,
+	sortOrder: row.sort_order === undefined ? null : row.sort_order,
 	scanWarmedAt: row.scan_warmed_at
 })
 
@@ -211,6 +220,10 @@ const projectProjectCreated = (
 				onNone: () => DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS,
 				onSome: (project) => project.showExternalCliSessions
 			})
+			const sortOrder = Option.match(current, {
+				onNone: () => null,
+				onSome: (project) => project.sortOrder
+			})
 			return putProject(state, {
 				projectId: payload.projectId,
 				title: payload.title,
@@ -221,6 +234,7 @@ const projectProjectCreated = (
 				sessionCount,
 				color,
 				showExternalCliSessions,
+				sortOrder,
 				scanWarmedAt: event.occurredAt
 			})
 		})
@@ -250,6 +264,7 @@ const projectProjectMetaUpdated = (
 						showExternalCliSessions: payload.showExternalCliSessions === undefined
 							? project.showExternalCliSessions
 							: payload.showExternalCliSessions,
+						sortOrder: payload.sortOrder === undefined ? project.sortOrder : payload.sortOrder,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -275,6 +290,7 @@ const projectProjectDeleted = (
 						sessionCount: project.sessionCount,
 						color: project.color,
 						showExternalCliSessions: project.showExternalCliSessions,
+						sortOrder: project.sortOrder,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -309,6 +325,7 @@ const projectSessionCreated = (
 						sessionCount: project.sessionCount + 1,
 						color: project.color,
 						showExternalCliSessions: project.showExternalCliSessions,
+						sortOrder: project.sortOrder,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -343,6 +360,7 @@ const projectSessionDeleted = (
 						sessionCount: project.sessionCount === 0 ? 0 : project.sessionCount - 1,
 						color: project.color,
 						showExternalCliSessions: project.showExternalCliSessions,
+						sortOrder: project.sortOrder,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})

@@ -67,7 +67,12 @@ export interface ProjectData {
 	last_opened?: string;
 	created_at: string;
 	color: string;
-	sort_order: number;
+	/**
+	 * The project's dense rank in the sidebar, straight off the projection.
+	 * null means nobody has ever ordered it, so it sorts after every ranked
+	 * project.
+	 */
+	sort_order: number | null;
 	icon_path?: string | null;
 	show_external_cli_sessions?: boolean;
 }

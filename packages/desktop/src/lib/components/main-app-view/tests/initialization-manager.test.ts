@@ -944,6 +944,7 @@ describe("InitializationManager", () => {
 					sessionCount: 1,
 					color: "cyan" as const,
 					showExternalCliSessions: false,
+					sortOrder: null,
 					gitStatus: [],
 				},
 			];
@@ -982,6 +983,7 @@ describe("InitializationManager", () => {
 					sessionCount: 2,
 					color: "cyan" as const,
 					showExternalCliSessions: false,
+					sortOrder: null,
 					gitStatus: [],
 				},
 			];
@@ -1023,6 +1025,7 @@ describe("InitializationManager", () => {
 					sessionCount: 1,
 					color: "cyan" as const,
 					showExternalCliSessions: false,
+					sortOrder: null,
 					gitStatus: [],
 				},
 			];

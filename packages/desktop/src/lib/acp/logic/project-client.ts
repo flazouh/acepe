@@ -96,7 +96,7 @@ function normalizeCachedProject(project: ProjectData): ProjectData | null {
 		typeof project.name !== "string" ||
 		typeof project.created_at !== "string" ||
 		typeof project.color !== "string" ||
-		typeof project.sort_order !== "number"
+		(typeof project.sort_order !== "number" && project.sort_order !== null)
 	) {
 		return null;
 	}
@@ -171,7 +171,7 @@ function projectToCachedProjectData(project: Project): ProjectData {
 		last_opened: project.lastOpened ? projectDateToStorageString(project.lastOpened) : undefined,
 		created_at: projectDateToStorageString(project.createdAt),
 		color: project.color,
-		sort_order: project.sortOrder ?? 0,
+		sort_order: project.sortOrder ?? null,
 		icon_path: project.iconPath ?? null,
 		show_external_cli_sessions: project.showExternalCliSessions,
 	};
@@ -196,7 +196,7 @@ export class ProjectClient {
 			lastOpened: project.last_opened ? new Date(project.last_opened) : undefined,
 			createdAt: new Date(project.created_at),
 			color: resolveProjectColor(project.color),
-			sortOrder: project.sort_order,
+			sortOrder: project.sort_order ?? undefined,
 			iconPath: convertIconPath(project.icon_path ?? null),
 			showExternalCliSessions: project.show_external_cli_sessions,
 		};

@@ -576,6 +576,7 @@ Vitest.layer(isolatedSnapshot())("ProjectionSnapshotQuery grades projects", (it)
 					sessionCount: 1,
 					color: defaultProjectColor("/tmp/acepe"),
 					showExternalCliSessions: false,
+					sortOrder: null,
 					scanWarmedAt: NOW
 				}
 			])

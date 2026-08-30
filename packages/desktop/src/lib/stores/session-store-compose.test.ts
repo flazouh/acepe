@@ -377,6 +377,7 @@ it("openLibrary reads projects without opening a session", () =>
 								sessionCount: 3,
 								color: "cyan" as const,
 								showExternalCliSessions: false,
+								sortOrder: null,
 								gitStatus: null,
 							},
 						],
@@ -431,6 +432,7 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 				sessionCount: 1,
 				color: "cyan" as const,
 				showExternalCliSessions: false,
+				sortOrder: null,
 				gitStatus: null,
 			});
 			const librarySnapshot: RpcSessionSnapshot = {
@@ -504,6 +506,7 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 				sessionCount: 1,
 				color: "cyan" as const,
 				showExternalCliSessions: false,
+				sortOrder: null,
 				gitStatus: null,
 			});
 			const librarySnapshot: RpcSessionSnapshot = {

@@ -185,6 +185,7 @@ describe("selectedProjectWorkspaceRoot", () => {
 					sessionCount: 0,
 					color: "cyan" as const,
 					showExternalCliSessions: false,
+					sortOrder: null,
 					gitStatus: [],
 				},
 			],

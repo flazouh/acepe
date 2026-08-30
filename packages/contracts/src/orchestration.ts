@@ -4,6 +4,7 @@ import * as Schema from "effect/Schema"
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { FileGitStatus } from "./fileIndex.ts"
 import { ProjectColor } from "./projectColor.ts"
+import { ProjectSortOrder } from "./projectSortOrder.ts"
 import {
 	GitBlameLine,
 	GitFileDiff,
@@ -125,6 +126,9 @@ export const ProjectMetaUpdateCommand = Schema.Struct({
 	// Per-project sidebar visibility for provider sessions Acepe never
 	// started. Omitted means "leave the stored preference alone".
 	showExternalCliSessions: Schema.optionalKey(Schema.Boolean),
+	// The project's place in the sidebar. Omitted means "leave the stored rank
+	// alone", so a move dispatches one command per project it actually moved.
+	sortOrder: Schema.optionalKey(ProjectSortOrder),
 })
 export type ProjectMetaUpdateCommand = typeof ProjectMetaUpdateCommand.Type
 

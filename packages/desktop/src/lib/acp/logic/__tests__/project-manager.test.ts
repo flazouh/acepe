@@ -22,6 +22,7 @@ function libraryProject(overrides: Partial<RpcProjectedProject> = {}): RpcProjec
 		sessionCount: 1,
 		color: "cyan",
 		showExternalCliSessions: false,
+		sortOrder: null,
 		gitStatus: [],
 		...overrides,
 	};

@@ -21,29 +21,68 @@ import type { ProjectAcepeConfig, ProjectData } from "./types.js";
 
 const decodeProjectColor = Schema.decodeUnknownEffect(ProjectColor);
 
-// color is a canonical color name owned by the projection, never a local guess.
+// color and sort_order are canonical values owned by the projection, never a
+// local guess.
 const mapProject = (row: RpcProjectedProject): ProjectData => ({
 	path: row.workspaceRoot,
 	name: row.title,
 	last_opened: row.updatedAt,
 	created_at: row.createdAt,
 	color: row.color,
-	sort_order: 0,
+	sort_order: row.sortOrder,
 	icon_path: null,
 	show_external_cli_sessions: row.showExternalCliSessions,
 });
+
+export interface RankedProject {
+	readonly row: RpcProjectedProject;
+	readonly sortOrder: number;
+}
+
+/**
+ * Turns a requested order into dense ranks 0..n-1.
+ *
+ * Paths the snapshot does not know are skipped, and projects the caller did not
+ * mention keep their relative order at the end of the list. Two projects can
+ * share a workspace root, so a path matches the first unranked row that carries
+ * it and the other one lands in the tail.
+ */
+export const rankProjectsForOrder = (
+	rows: readonly RpcProjectedProject[],
+	orderedPaths: readonly string[]
+): RankedProject[] => {
+	const ranked: RankedProject[] = [];
+	const taken = new Set<RpcProjectedProject>();
+	for (const path of orderedPaths) {
+		for (const row of rows) {
+			if (row.workspaceRoot === path && !taken.has(row)) {
+				taken.add(row);
+				ranked.push({ row, sortOrder: ranked.length });
+				break;
+			}
+		}
+	}
+	for (const row of rows) {
+		if (!taken.has(row)) {
+			ranked.push({ row, sortOrder: ranked.length });
+		}
+	}
+	return ranked;
+};
 
 const loadVisibleProjects = Effect.fn("loadVisibleProjects")(function* () {
 	const snapshot = yield* withRpcClient("projects.snapshot", (client) =>
 		client.snapshot(librarySnapshotRequest())
 	);
+	const rows: RpcProjectedProject[] = [];
 	const visible: ProjectData[] = [];
 	for (const row of snapshot.projects) {
 		if (row.deletedAt === null) {
+			rows.push(row);
 			visible.push(mapProject(row));
 		}
 	}
-	return { snapshot, visible };
+	return { snapshot, rows, visible };
 });
 
 const findProjectedByPath = (
@@ -174,8 +213,9 @@ export const projects = {
 			last_opened: existing.updatedAt,
 			created_at: existing.createdAt,
 			color: decodedColor,
-			sort_order: 0,
+			sort_order: existing.sortOrder,
 			icon_path: null,
+			show_external_cli_sessions: existing.showExternalCliSessions,
 		};
 	}),
 
@@ -201,6 +241,13 @@ export const projects = {
 		_iconPath: string | null
 	): Effect.Effect<ProjectData, AppError> => unsupportedOnContract("projects.updateProjectIcon"),
 
+	backfillProjectIcons: (): Effect.Effect<number, AppError> => Effect.succeed(0),
+
+	browseProjectIcon: (): Effect.Effect<string | null, AppError> => Effect.succeed(null),
+
+	listProjectImages: (_projectPath: string): Effect.Effect<string[], AppError> =>
+		Effect.succeed([]),
+
 	getProjectAcepeConfig: (_path: string): Effect.Effect<ProjectAcepeConfig, AppError> =>
 		unsupportedOnContract("projects.getProjectAcepeConfig"),
 
@@ -210,14 +257,36 @@ export const projects = {
 	): Effect.Effect<ProjectAcepeConfig, AppError> =>
 		unsupportedOnContract("projects.saveProjectAcepeConfig"),
 
-	updateProjectOrder: (_orderedPaths: string[]): Effect.Effect<ProjectData[], AppError> =>
-		unsupportedOnContract("projects.updateProjectOrder"),
+	// Dispatches the canonical rank for every project the move actually moved,
+	// then answers with the list it just wrote. Reading the snapshot back here
+	// would answer with the old ranks: dispatch commits the event, but the SQL
+	// projection catches up on its own fiber. The authoritative rows arrive with
+	// the ProjectMetaUpdated refresh.
+	updateProjectOrder: Effect.fn("projects.updateProjectOrder")(function* (orderedPaths: string[]) {
+		const loaded = yield* loadVisibleProjects();
+		const ranked = rankProjectsForOrder(loaded.rows, orderedPaths);
+		for (const entry of ranked) {
+			if (entry.row.sortOrder === entry.sortOrder) {
+				continue;
+			}
+			const commandId = yield* nextCommandId("project-meta-update-sort-order");
+			yield* withRpcClient("project.meta.update", (client) =>
+				client.dispatch(
+					ProjectMetaUpdateCommand.make({
+						type: "project.meta.update",
+						commandId,
+						projectId: entry.row.projectId,
+						sortOrder: entry.sortOrder,
+					})
+				)
+			);
+		}
+		return ranked.map((entry) => ({ ...mapProject(entry.row), sort_order: entry.sortOrder }));
+	}),
 
 	addProject: Effect.fn("projects.addProject")(function* (path: string, name: string) {
 		yield* dispatchProjectCreate(path, name);
 	}),
-
-	backfillProjectIcons: (): Effect.Effect<number, AppError> => Effect.succeed(0),
 
 	removeProject: Effect.fn("projects.removeProject")(function* (path: string) {
 		const existing = yield* requireProjectedByPath("project.delete", path);
@@ -232,9 +301,4 @@ export const projects = {
 	}),
 
 	browseProject: (): Effect.Effect<ProjectData | null, AppError> => Effect.succeed(null),
-
-	browseProjectIcon: (): Effect.Effect<string | null, AppError> => Effect.succeed(null),
-
-	listProjectImages: (_projectPath: string): Effect.Effect<string[], AppError> =>
-		Effect.succeed([]),
 };

@@ -31,6 +31,7 @@ import projectionSessionsModels from "./Migrations/0028_projection_sessions_mode
 import projectionProjectsShowExternalCliSessions from "./Migrations/0030_projection_projects_show_external_cli_sessions.ts"
 import repairTranscriptWhitespace from "./Migrations/0031_repair_transcript_whitespace.ts"
 import projectionVoiceProgress from "./Migrations/0032_projection_voice_progress.ts"
+import projectionProjectsSortOrder from "./Migrations/0033_projection_projects_sort_order.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -66,7 +67,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0029_projection_session_messages_last_sequence": projectionSessionMessagesLastSequence,
 	"0030_projection_projects_show_external_cli_sessions": projectionProjectsShowExternalCliSessions,
 	"0031_repair_transcript_whitespace": repairTranscriptWhitespace,
-	"0032_projection_voice_progress": projectionVoiceProgress
+	"0032_projection_voice_progress": projectionVoiceProgress,
+	"0033_projection_projects_sort_order": projectionProjectsSortOrder
 })
 
 export const runMigrations = SqliteMigrator.run({

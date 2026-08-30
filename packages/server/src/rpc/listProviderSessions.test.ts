@@ -44,6 +44,7 @@ const project = (showExternalCliSessions: boolean): ProjectedProject => ({
 	sessionCount: 2,
 	color: "cyan",
 	showExternalCliSessions,
+	sortOrder: null,
 	scanWarmedAt: NOW
 })
 

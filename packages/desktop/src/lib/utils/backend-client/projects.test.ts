@@ -14,7 +14,7 @@ import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 
 import { setAppRpcClientForTest } from "../../rpc/app-client.ts";
-import { projects } from "./projects.ts";
+import { projects, rankProjectsForOrder } from "./projects.ts";
 
 const unusedIndex = {
 	projectPath: "/tmp/p",
@@ -37,6 +37,7 @@ const projectedWithColor = (color: ProjectColor): RpcProjectedProject => ({
 	sessionCount: 2,
 	color,
 	showExternalCliSessions: false,
+	sortOrder: null,
 	gitStatus: [],
 });
 
@@ -73,6 +74,30 @@ afterEach(() => {
 	setAppRpcClientForTest(null);
 });
 
+const rowAt = (
+	id: string,
+	workspaceRoot: string,
+	sortOrder: number | null
+): RpcProjectedProject => ({
+	...projected,
+	projectId: ProjectId.make(id),
+	title: workspaceRoot,
+	workspaceRoot,
+	sortOrder,
+});
+
+const sortOrderCommands = (
+	commands: readonly OrchestrationCommand[]
+): { projectId: string; sortOrder: number | undefined }[] => {
+	const written: { projectId: string; sortOrder: number | undefined }[] = [];
+	for (const command of commands) {
+		if (command.type === "project.meta.update") {
+			written.push({ projectId: command.projectId, sortOrder: command.sortOrder });
+		}
+	}
+	return written;
+};
+
 describe("projects rpc facade", () => {
 	it("maps library snapshot projects onto ProjectData", () =>
 		Effect.runPromise(
@@ -86,7 +111,8 @@ describe("projects rpc facade", () => {
 						last_opened: "2026-08-23T10:00:00.000Z",
 						created_at: "2026-08-23T09:00:00.000Z",
 						color: "indigo",
-						sort_order: 0,
+						// Straight off the projection: the facade never invents a rank.
+						sort_order: null,
 						icon_path: null,
 						// Carried through so the sidebar checkbox can show the stored
 						// value instead of guessing a default the server disagrees with.
@@ -149,6 +175,67 @@ describe("projects rpc facade", () => {
 				const command = dispatched[0];
 				expect(command?.type).toBe("project.meta.update");
 				expect(command?.type === "project.meta.update" ? command.color : null).toBe("pink");
+			})
+		));
+
+	it("writes a dense rank per moved project through project.meta.update", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const dispatched: OrchestrationCommand[] = [];
+				setAppRpcClientForTest(
+					makeClient({
+						snapshot: () =>
+							Effect.succeed(
+								withProjects(emptyRpcSessionSnapshot(0), [
+									rowAt("project-a", "/repo/a", 0),
+									rowAt("project-b", "/repo/b", 1),
+									rowAt("project-c", "/repo/c", 2),
+								])
+							),
+						dispatch: (command) => {
+							dispatched.push(command);
+							return Effect.succeed({ sequence: 1 });
+						},
+					})
+				);
+				const updated = yield* projects.updateProjectOrder(["/repo/a", "/repo/c", "/repo/b"]);
+				// Only the two that swapped move, so only those two are written.
+				expect(sortOrderCommands(dispatched)).toEqual([
+					{ projectId: "project-c", sortOrder: 1 },
+					{ projectId: "project-b", sortOrder: 2 },
+				]);
+				expect(updated.map((project) => [project.path, project.sort_order])).toEqual([
+					["/repo/a", 0],
+					["/repo/c", 1],
+					["/repo/b", 2],
+				]);
+			})
+		));
+
+	it("ranks every project on the first move, when none of them has a rank yet", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const dispatched: OrchestrationCommand[] = [];
+				setAppRpcClientForTest(
+					makeClient({
+						snapshot: () =>
+							Effect.succeed(
+								withProjects(emptyRpcSessionSnapshot(0), [
+									rowAt("project-a", "/repo/a", null),
+									rowAt("project-b", "/repo/b", null),
+								])
+							),
+						dispatch: (command) => {
+							dispatched.push(command);
+							return Effect.succeed({ sequence: 1 });
+						},
+					})
+				);
+				yield* projects.updateProjectOrder(["/repo/b", "/repo/a"]);
+				expect(sortOrderCommands(dispatched)).toEqual([
+					{ projectId: "project-b", sortOrder: 0 },
+					{ projectId: "project-a", sortOrder: 1 },
+				]);
 			})
 		));
 
