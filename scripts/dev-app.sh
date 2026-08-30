@@ -55,8 +55,17 @@ APP_LOG="/tmp/acepe-app-$ACEPE_INSTANCE_ID.log"
 DEV_URL="http://localhost:$PORT"
 SOCKET="/tmp/electrobun-qa/$APP_ID.sock"
 
+# Vite binds [::1] here, and whether "localhost" reaches that depends on how the
+# resolver orders IPv6 and IPv4. Probing the name alone made readiness a
+# coin flip: the server was up and the script waited anyway, then gave up and
+# restarted it into the same race. Ask both addresses and accept either.
 serving() {
-  curl -sf -o /dev/null --max-time 2 "$DEV_URL/" 2>/dev/null
+  for host in "localhost" "127.0.0.1" "[::1]"; do
+    if curl -sf -o /dev/null --max-time 2 "http://$host:$PORT/" 2>/dev/null; then
+      return 0
+    fi
+  done
+  return 1
 }
 
 # strictPort makes Vite exit when the port is still held by a dying server, and
