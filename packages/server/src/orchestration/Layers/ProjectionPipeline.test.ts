@@ -17,7 +17,9 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Logger from "effect/Logger"
 import * as Path from "effect/Path"
+import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as TestClock from "effect/testing/TestClock"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -419,6 +421,137 @@ Vitest.layer(isolatedEngine())("kill mid-catch-up", (it) => {
 			Vitest.assert.deepStrictEqual(
 				expected.map((row) => row.sequence),
 				[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+			)
+		})
+	)
+})
+
+// The live defect this pair of blocks guards against. Five projectors sat at
+// checkpoint 0 with empty tables while the event log still held every event,
+// and nothing anywhere said which projector had stopped, or why.
+Vitest.layer(isolatedEngine())("replay from checkpoint 0", (it) => {
+	it.effect("rebuilds a read model whose table was emptied and cursor reset", () =>
+		Effect.gen(function*() {
+			const alpha = yield* decodeName("projection.alpha")
+			const beta = yield* decodeName("projection.beta")
+			const store = yield* OrchestrationEventStore
+			const state = yield* ProjectionState
+			const sql = yield* SqlClient.SqlClient
+			yield* store.append(seedEvents(12))
+			yield* withPipeline(
+				[tableProjector(alpha), tableProjector(beta)],
+				Effect.gen(function*() {
+					yield* waitForSequence(alpha, 12)
+					yield* waitForSequence(beta, 12)
+				})
+			)
+			// Exactly the state the owner's database was found in: the events
+			// are all still there, one projector's table is empty and its
+			// cursor is 0, and the other projector is already at the head.
+			yield* sql`
+				DELETE FROM projection_pipeline_test WHERE projector = ${alpha}
+			`.withoutTransform
+			yield* state.checkpoint(alpha, 0)
+			Vitest.assert.deepStrictEqual(yield* readProjected(alpha), [])
+			yield* withPipeline(
+				[tableProjector(alpha), tableProjector(beta)],
+				Effect.gen(function*() {
+					yield* waitForSequence(alpha, 12)
+					const rebuilt = yield* readProjected(alpha)
+					const untouched = yield* readProjected(beta)
+					Vitest.assert.deepStrictEqual(
+						rebuilt.map((row) => row.sequence),
+						Arr.range(1, 12)
+					)
+					Vitest.assert.deepStrictEqual(
+						untouched.map((row) => row.sequence),
+						Arr.range(1, 12)
+					)
+					Vitest.assert.strictEqual(yield* state.lastApplied(alpha), 12)
+				})
+			)
+		})
+	)
+})
+
+Vitest.layer(isolatedEngine())("projector failure is loud", (it) => {
+	it.effect("surfaces a projector failure with its name, sequence and reason", () =>
+		Effect.gen(function*() {
+			const name = yield* decodeName("projection.alpha")
+			const store = yield* OrchestrationEventStore
+			yield* store.append(seedEvents(3))
+			const captured: Array<string> = []
+			// formatLogFmt renders the message AND the log annotations, so this
+			// reads exactly the text a real log sink would write.
+			const collector = Logger.map(Logger.formatLogFmt, (line) => {
+				captured.push(line)
+			})
+			const failing = tableProjector(name, {
+				beforeApply: () =>
+					new ProjectionApplyError({
+						name,
+						detail: "the decoder cannot read this event"
+					})
+			})
+			yield* Effect.scoped(
+				waitForHealth(name, "degraded").pipe(
+					// One provide, so the projector's forked fibers write to the
+					// same logger this test reads.
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(
+						Layer.fresh(ProjectionPipelineLive([failing])).pipe(
+							Layer.provide(Logger.layer([collector]))
+						)
+					)
+				)
+			)
+			const joined = captured.join("\n")
+			Vitest.assert.isTrue(joined.includes("projection.alpha"))
+			Vitest.assert.isTrue(joined.includes("the decoder cannot read this event"))
+			Vitest.assert.isTrue(joined.includes("sequence=1"))
+		})
+	)
+})
+
+Vitest.layer(isolatedEngine())("projector restart", (it) => {
+	it.effect("restarts a projector whose failure was transient", () =>
+		Effect.gen(function*() {
+			const name = yield* decodeName("projection.alpha")
+			const store = yield* OrchestrationEventStore
+			const state = yield* ProjectionState
+			yield* store.append(seedEvents(5))
+			// Fails the way a busy sqlite file does: the first attempt dies,
+			// the next one finds the database free again.
+			const attempts = yield* Ref.make(0)
+			const flaky = tableProjector(name, {
+				beforeApply: (event) =>
+					Effect.gen(function*() {
+						if (event.sequence !== 3) {
+							return
+						}
+						const seen = yield* Ref.getAndUpdate(attempts, (count) => count + 1)
+						if (seen === 0) {
+							return yield* new ProjectionApplyError({
+								name,
+								detail: "database is locked"
+							})
+						}
+					})
+			})
+			yield* withPipeline(
+				[flaky],
+				Effect.gen(function*() {
+					const pipeline = yield* ProjectionPipeline
+					yield* waitForSequence(name, 5)
+					const rows = yield* readProjected(name)
+					Vitest.assert.strictEqual(yield* Ref.get(attempts), 2)
+					Vitest.assert.strictEqual(yield* state.lastApplied(name), 5)
+					Vitest.assert.strictEqual(yield* pipeline.health(name), "healthy")
+					Vitest.assert.deepStrictEqual(
+						rows.map((row) => row.sequence),
+						Arr.range(1, 5)
+					)
+				})
 			)
 		})
 	)

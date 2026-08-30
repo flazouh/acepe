@@ -1,7 +1,9 @@
 import { type OrchestrationEvent, type Sequence, TrimmedNonEmptyString } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import * as HashMap from "effect/HashMap"
 import * as HashSet from "effect/HashSet"
@@ -24,6 +26,14 @@ import {
 } from "../Services/ProjectionPipeline.ts"
 
 const EVENT_PAGE_SIZE = 1_000
+
+// A projector that dies never comes back on its own, so a two-second sqlite
+// lock used to cost the read model the whole run of the app. These bound the
+// restart backoff: quick enough that a transient lock heals before anyone
+// notices, slow enough that an event no projector can apply does not flood
+// the log.
+const RESTART_DELAY_MIN = Duration.millis(200)
+const RESTART_DELAY_MAX = Duration.seconds(30)
 
 const decodeProjectorName = Schema.decodeUnknownEffect(TrimmedNonEmptyString)
 
@@ -70,6 +80,28 @@ const makeProjectionPipeline = Effect.fn("ProjectionPipeline.make")(function*(
 	const setHealth = (name: TrimmedNonEmptyString, health: ProjectorHealth) =>
 		Ref.update(healths, (current) => HashMap.set(current, name, health))
 
+	// The one place that knows both which projector failed and which event it
+	// choked on. A read model that stops advancing is invisible from the
+	// outside, so every failure says the projector, the sequence, the event
+	// type and the reason before it propagates.
+	const logApplyFailure = <E>(
+		definition: ProjectorDefinition,
+		event: OrchestrationEvent,
+		cause: Cause.Cause<E>
+	) =>
+		Cause.hasInterruptsOnly(cause) ? Effect.void : Effect.logError(
+			`Projector '${definition.name}' failed on event ${event.sequence} (${event.type}): ${
+				Cause.pretty(cause)
+			}`
+		).pipe(
+			Effect.annotateLogs({
+				projector: definition.name,
+				sequence: event.sequence,
+				eventType: event.type,
+				eventId: event.eventId
+			})
+		)
+
 	const applyAndCheckpoint = Effect.fn("ProjectionPipeline.applyAndCheckpoint")(
 		function*(definition: ProjectorDefinition, event: OrchestrationEvent) {
 			yield* Effect.annotateCurrentSpan({
@@ -81,7 +113,7 @@ const makeProjectionPipeline = Effect.fn("ProjectionPipeline.make")(function*(
 					yield* definition.apply(event, sql)
 					yield* projectionState.checkpoint(definition.name, event.sequence)
 				})
-			)
+			).pipe(Effect.tapCause((cause) => logApplyFailure(definition, event, cause)))
 		}
 	)
 
@@ -134,23 +166,28 @@ const makeProjectionPipeline = Effect.fn("ProjectionPipeline.make")(function*(
 		}
 	})
 
-	const handleFailure = Effect.fn("ProjectionPipeline.handleFailure")(function*<E>(
+	// Every way a projector stops being current passes through here, so a read
+	// model can never go quiet again. Both callers name the projector and the
+	// sequence it reached.
+	const degrade = Effect.fn("ProjectionPipeline.degrade")(function*(
 		definition: ProjectorDefinition,
-		cause: Cause.Cause<E>
+		cursor: ProjectorCursor,
+		reason: string
 	) {
-		if (Cause.hasInterruptsOnly(cause)) {
-			return
-		}
-		yield* Effect.logError(cause.pipe(Cause.pretty)).pipe(
+		yield* Effect.logError(
+			`Projector '${definition.name}' stopped at sequence ${cursor.lastApplied}: ${reason}`
+		).pipe(
 			Effect.annotateLogs({
-				projector: definition.name
+				projector: definition.name,
+				sequence: cursor.lastApplied
 			})
 		)
 		yield* setHealth(definition.name, "degraded")
 	})
 
 	const runProjector = Effect.fn("ProjectionPipeline.runProjector")(function*(
-		definition: ProjectorDefinition
+		definition: ProjectorDefinition,
+		cursor: ProjectorCursor
 	) {
 		yield* Effect.scoped(
 			Effect.gen(function*() {
@@ -165,26 +202,50 @@ const makeProjectionPipeline = Effect.fn("ProjectionPipeline.make")(function*(
 					projectorScope,
 					{ startImmediately: true }
 				)
-				const cursor: ProjectorCursor = {
-					lastApplied: yield* projectionState.lastApplied(definition.name)
-				}
+				cursor.lastApplied = yield* projectionState.lastApplied(definition.name)
 				yield* catchUp(definition, cursor)
 				yield* catchUp(definition, cursor)
+				yield* setHealth(definition.name, "healthy")
 				yield* processLive(definition, cursor, liveQueue)
 			})
 		)
+	})
+
+	// A read model must not stay dead because the database was busy for two
+	// seconds. Every non-interrupt failure restarts the projector from its
+	// persisted checkpoint, with a backoff so a permanently failing event
+	// keeps logging without flooding.
+	const superviseProjector = Effect.fn("ProjectionPipeline.superviseProjector")(function*(
+		definition: ProjectorDefinition
+	) {
+		const cursor: ProjectorCursor = { lastApplied: 0 }
+		let restartDelay = RESTART_DELAY_MIN
+		while (true) {
+			const exit = yield* Effect.exit(runProjector(definition, cursor))
+			if (Exit.isSuccess(exit)) {
+				// The live queue ended, so this fiber left successfully while
+				// the read model stopped moving. Nothing downstream notices a
+				// projector that simply returns.
+				return yield* degrade(definition, cursor, "the domain event stream ended.")
+			}
+			if (Cause.hasInterruptsOnly(exit.cause)) {
+				return
+			}
+			yield* degrade(
+				definition,
+				cursor,
+				`restarting in ${Duration.toMillis(restartDelay)}ms after ${Cause.pretty(exit.cause)}`
+			)
+			yield* Effect.sleep(restartDelay)
+			restartDelay = Duration.min(Duration.times(restartDelay, 2), RESTART_DELAY_MAX)
+		}
 	})
 
 	const startProjector = Effect.fn("ProjectionPipeline.startProjector")(function*(
 		definition: ProjectorDefinition
 	) {
 		yield* setHealth(definition.name, "healthy")
-		const fiber = yield* Effect.forkIn(
-			runProjector(definition).pipe(
-				Effect.catchCause((cause) => handleFailure(definition, cause))
-			),
-			layerScope
-		)
+		const fiber = yield* Effect.forkIn(superviseProjector(definition), layerScope)
 		yield* Ref.update(fibers, (current) => HashMap.set(current, definition.name, fiber))
 	})
 
