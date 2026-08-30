@@ -103,14 +103,10 @@ run("structural test guard", "bun", ["scripts/forbid-structural-tests.ts", "pack
 run("dependency audit", "bun", ["run", "audit"]);
 
 if (runDesktop) {
-	run(
-		"desktop biome",
-		"bunx",
-		["@biomejs/biome", "check", "--diagnostic-level=error", "."],
-		"packages/desktop"
-	);
+	// `bun run check` in packages/desktop now runs the type check, svelte-check
+	// and biome itself. Call it rather than repeating the three here, so the
+	// hook and the command a developer runs locally cannot drift apart again.
 	runShell("desktop check", "bun run check", "packages/desktop");
-	runShell("desktop check:svelte", "bun run check:svelte", "packages/desktop");
 	runShell("desktop test", "bun run test", "packages/desktop");
 }
 
