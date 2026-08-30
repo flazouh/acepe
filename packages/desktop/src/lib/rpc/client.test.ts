@@ -151,6 +151,12 @@ const makeBridge = (input: {
 					? Promise.reject(new Error("unused importProviderSession"))
 					: input.importProviderSession(params),
 			setPageZoom: () => Promise.reject(new Error("unused setPageZoom")),
+			getAppVersion: () => Promise.reject(new Error("unused getAppVersion")),
+			checkForUpdate: () => Promise.reject(new Error("unused checkForUpdate")),
+			downloadUpdate: () => Promise.reject(new Error("unused downloadUpdate")),
+			applyUpdate: () => Promise.reject(new Error("unused applyUpdate")),
+			updateDownloadProgress: () => Promise.reject(new Error("unused updateDownloadProgress")),
+			relaunchApp: () => Promise.reject(new Error("unused relaunchApp")),
 		},
 		addMessageListener: (_message, listener) => {
 			listeners.push(listener);

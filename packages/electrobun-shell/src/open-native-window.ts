@@ -1,3 +1,8 @@
+import {
+	type AcepeUpdaterRpcHandlers,
+	makeUpdaterRpcHandlers,
+	type ShellUpdaterPort,
+} from "./app-updater.ts"
 import { type PageZoomResponse, resolvePageZoomLevel } from "./page-zoom.ts"
 import { formatRpcRoundtripLine, formatWindowOpenedLine } from "./ping.ts"
 import { type AcepeShellRpcHandlers } from "./start-acepe-shell.ts"
@@ -46,7 +51,9 @@ export type AcepeWindowRpcHandlers = {
 	readonly setPageZoom: (params: unknown) => PageZoomResponse
 }
 
-export type ElectrobunShellRequests = AcepeShellRpcHandlers & AcepeWindowRpcHandlers
+export type ElectrobunShellRequests = AcepeShellRpcHandlers &
+	AcepeWindowRpcHandlers &
+	AcepeUpdaterRpcHandlers
 
 export const electrobunWindowOptions = <Rpc>(
 	input: OpenedWindow<Rpc>,
@@ -91,6 +98,7 @@ export type ElectrobunBunBindings<Rpc> = {
 	}) => Rpc
 	readonly BrowserWindow: new (options: ElectrobunWindowOptions<Rpc>) => ElectrobunWindowHandle
 	readonly setDockIconVisible: (visible: boolean) => void
+	readonly updater: ShellUpdaterPort
 }
 
 export type LaunchedElectrobunAcepe<Rpc> = LaunchedAcepeShell<Rpc> & {
@@ -113,6 +121,7 @@ export const startElectrobunAcepeApp = <Rpc>(
 	let sendEvents: (payload: unknown) => void = () => undefined
 	let executeJavascript: (js: string) => void = () => undefined
 	let setPageZoom: (level: number) => void = () => undefined
+	const updaterHandlers = makeUpdaterRpcHandlers(bindings.updater)
 	const launched = launchAcepeShellWindow(
 		{
 			defineRpc: (handlers) =>
@@ -154,6 +163,12 @@ export const startElectrobunAcepeApp = <Rpc>(
 								setPageZoom(level)
 								return { level }
 							},
+							getAppVersion: updaterHandlers.getAppVersion,
+							checkForUpdate: updaterHandlers.checkForUpdate,
+							downloadUpdate: updaterHandlers.downloadUpdate,
+							applyUpdate: updaterHandlers.applyUpdate,
+							updateDownloadProgress: updaterHandlers.updateDownloadProgress,
+							relaunchApp: updaterHandlers.relaunchApp,
 						},
 						messages: {},
 					},

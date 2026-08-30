@@ -8,7 +8,19 @@ import {
 	startElectrobunAcepeApp,
 } from "./open-native-window.ts"
 import { SHELL_STARTUP_FAILED_PREFIX } from "./shell-startup-error.ts"
+import type { ShellUpdaterPort } from "./app-updater.ts"
 import { acepeWindowSpec } from "./window-spec.ts"
+
+// The updater talks to the network and to the app bundle on disk. These
+// window tests only need the shell to build, so the port answers nothing.
+const silentUpdaterPort: ShellUpdaterPort = {
+	localInfo: async () => ({ version: "", channel: "" }),
+	checkForUpdate: async () => ({ version: "", updateAvailable: false, error: "" }),
+	downloadUpdate: async () => undefined,
+	applyUpdate: async () => undefined,
+	relaunch: () => undefined,
+	onDownloadProgress: () => undefined,
+}
 
 class ShellExitCalled extends Data.TaggedError("ShellExitCalled")<{
 	readonly code: number
@@ -126,6 +138,7 @@ test("startElectrobunAcepeApp opens an activated window and proves the ping echo
 				}
 			},
 			setDockIconVisible: () => undefined,
+			updater: silentUpdaterPort,
 		},
 		{
 			writeError: (line) => {
@@ -181,6 +194,7 @@ test("startElectrobunAcepeApp opens the native window without a title bar", () =
 				}
 			},
 			setDockIconVisible: () => undefined,
+			updater: silentUpdaterPort,
 		},
 		{
 			writeError: () => undefined,
@@ -221,6 +235,7 @@ test("startElectrobunAcepeApp serves setPageZoom from the native window", () => 
 				}
 			},
 			setDockIconVisible: () => undefined,
+			updater: silentUpdaterPort,
 		},
 		{
 			writeError: () => undefined,
@@ -261,6 +276,7 @@ test("startElectrobunAcepeApp ignores a setPageZoom request without a usable lev
 				}
 			},
 			setDockIconVisible: () => undefined,
+			updater: silentUpdaterPort,
 		},
 		{
 			writeError: () => undefined,
@@ -304,6 +320,7 @@ test("startElectrobunAcepeApp forwards a QA preload into the native window", () 
 				}
 			},
 			setDockIconVisible: () => undefined,
+			updater: silentUpdaterPort,
 		},
 		{
 			writeError: () => undefined,
@@ -345,6 +362,7 @@ const urlRecordingBindings = (created: Array<string>) => ({
 		}
 	},
 	setDockIconVisible: () => undefined,
+	updater: silentUpdaterPort,
 })
 
 const silentIo = {

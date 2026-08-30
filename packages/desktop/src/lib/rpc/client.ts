@@ -65,6 +65,12 @@ export type ElectrobunRpcBridge = {
 		readonly listProviderProjects: ElectrobunRpcRequest;
 		readonly importProviderSession: ElectrobunRpcRequest;
 		readonly setPageZoom: ElectrobunRpcRequest;
+		readonly getAppVersion: ElectrobunRpcRequest;
+		readonly checkForUpdate: ElectrobunRpcRequest;
+		readonly downloadUpdate: ElectrobunRpcRequest;
+		readonly applyUpdate: ElectrobunRpcRequest;
+		readonly updateDownloadProgress: ElectrobunRpcRequest;
+		readonly relaunchApp: ElectrobunRpcRequest;
 	};
 	readonly addMessageListener: (message: "events", listener: (payload: unknown) => void) => void;
 	readonly removeMessageListener: (message: "events", listener: (payload: unknown) => void) => void;

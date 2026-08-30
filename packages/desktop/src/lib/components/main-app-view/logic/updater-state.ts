@@ -14,8 +14,6 @@ export type UpdaterBannerState =
 	| { kind: "installing"; version: string }
 	| { kind: "error"; message: string };
 
-export type UpdaterPrimaryAction = "install" | "simulate";
-
 export interface UpdateButtonModel {
 	readonly label: string;
 	readonly ariaLabel: string;
@@ -152,15 +150,4 @@ export function getUpdateButtonModel(state: UpdaterBannerState): UpdateButtonMod
 	}
 
 	return null;
-}
-
-export function getUpdaterPrimaryAction(
-	isDev: boolean,
-	hasAvailableUpdatePayload: boolean
-): UpdaterPrimaryAction {
-	if (isDev && !hasAvailableUpdatePayload) {
-		return "simulate";
-	}
-
-	return "install";
 }

@@ -3,15 +3,20 @@ import { dirname } from "node:path";
 import {
 	acepeShellPingScript,
 	applyNativeWrapperCwdOrExit,
+	appBundlePathFromExecutable,
 	describeJsonSafety,
+	downloadProgressFromStatus,
 	joinPathSegments,
 	qaSurfaceEnabled,
 	RPC_ROUNDTRIP_MESSAGE,
 	RPC_ROUNDTRIP_PREFIX,
 	readDevWindowUrl,
+	relaunchCommand,
 	resolveElectrobunConfig,
 	SHELL_PROOF_LOG_PATH,
 	SHELL_STARTUP_FAILED_PREFIX,
+	type ShellUpdateDownloadProgress,
+	type ShellUpdaterPort,
 	startElectrobunAcepeApp,
 } from "@acepe/electrobun-shell";
 import { makeAcepeLive } from "@acepe/server/bootstrap";
@@ -131,6 +136,49 @@ const runtime = ManagedRuntime.make(
 
 let sawRpcRoundtrip = false;
 
+// Electrobun's Updater is a process-wide singleton: it reads version.json out
+// of the app bundle, fetches the channel manifest, and swaps the bundle in
+// place. The shell hands the webview a port onto it, so the webview never
+// carries a second updater of its own.
+const acepeUpdaterPort: ShellUpdaterPort = {
+	localInfo: async () => {
+		const info = await electrobun.Updater.getLocalInfo();
+		return { version: info.version, channel: info.channel };
+	},
+	checkForUpdate: async () => {
+		const check = await electrobun.Updater.checkForUpdate();
+		return {
+			version: check.version,
+			updateAvailable: check.updateAvailable,
+			error: check.error,
+		};
+	},
+	downloadUpdate: async () => {
+		await electrobun.Updater.downloadUpdate();
+	},
+	applyUpdate: async () => {
+		await electrobun.Updater.applyUpdate();
+	},
+	relaunch: () => {
+		const appBundlePath = appBundlePathFromExecutable(process.execPath);
+		if (appBundlePath === null) {
+			throw new Error(`no app bundle around ${process.execPath}`);
+		}
+		Bun.spawn(relaunchCommand({ pid: process.pid, appBundlePath }).slice(), {
+			stdio: ["ignore", "ignore", "ignore"],
+		});
+		electrobun.Utils.quit();
+	},
+	onDownloadProgress: (listener: (progress: ShellUpdateDownloadProgress) => void) => {
+		electrobun.Updater.onStatusChange((entry) => {
+			const progress = downloadProgressFromStatus(entry);
+			if (progress !== null) {
+				listener(progress);
+			}
+		});
+	},
+};
+
 const launched = startElectrobunAcepeApp(
 	{
 		defineRPC: (input) =>
@@ -143,6 +191,7 @@ const launched = startElectrobunAcepeApp(
 			}),
 		BrowserWindow: electrobun.BrowserWindow,
 		setDockIconVisible: electrobun.Utils.setDockIconVisible,
+		updater: acepeUpdaterPort,
 	},
 	{
 		writeError: (line) => {

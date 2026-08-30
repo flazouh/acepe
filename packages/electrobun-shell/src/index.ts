@@ -59,6 +59,27 @@ export type {
 export { PageZoomRequest, resolvePageZoomLevel } from "./page-zoom.ts"
 export type { PageZoomResponse } from "./page-zoom.ts"
 export {
+	appBundlePathFromExecutable,
+	appVersionResponse,
+	checkForUpdateResponse,
+	downloadProgressFromStatus,
+	failureReason,
+	makeUpdaterRpcHandlers,
+	relaunchCommand,
+} from "./app-updater.ts"
+export type {
+	AcepeUpdaterRpcHandlers,
+	AppVersionResponse,
+	CheckForUpdateResponse,
+	ElectrobunUpdateStatusEntry,
+	ShellUpdateDownloadProgress,
+	ShellUpdaterCheck,
+	ShellUpdaterLocalInfo,
+	ShellUpdaterPort,
+	UpdateDownloadProgressResponse,
+	UpdateWorkResponse,
+} from "./app-updater.ts"
+export {
 	expandStableMacAppIfNeeded,
 	findZstFile,
 	findZigZstdPath,

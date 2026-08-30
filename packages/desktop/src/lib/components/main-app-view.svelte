@@ -122,12 +122,13 @@ import {
 	createIdleUpdaterState,
 	createDownloadingUpdaterState,
 	createInstallingUpdaterState,
-	getUpdaterPrimaryAction,
 	type UpdaterBannerState,
 } from "./main-app-view/logic/updater-state.js";
 import {
 	installDownloadedUpdate,
 	predownloadUpdate,
+	runUpdateCheck,
+	updaterStateForCheckOutcome,
 } from "./main-app-view/logic/updater-workflow.js";
 import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
 import { SettingsPage } from "./settings-page/index.js";
@@ -1707,33 +1708,20 @@ async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
 	// Never block the app on update checks: check in the background, download
 	// in the background, and surface an "Update" button top-left when ready.
 	updaterState = createCheckingUpdaterState();
-	const result = await Effect.runPromise(
-		fromPromise(
-			() => checkForUpdate(),
-			(e) => (e instanceof Error ? e : new Error(String(e)))
-		).pipe(
-			Effect.match({
-				onSuccess: (update) => update,
-				onFailure: (error) => {
-					logger.error("Update check failed", { error: error.message });
-					updaterState = createErrorUpdaterState(error.message);
-					return null;
-				},
-			})
-		)
-	);
+	const outcome = await runUpdateCheck(() => checkForUpdate());
 
-	if (!result) {
+	if (outcome.kind !== "available") {
 		availableUpdate = null;
-		if (updaterState.kind !== "error") {
-			updaterState = createIdleUpdaterState();
+		if (outcome.kind === "failed") {
+			logger.error("Update check failed", { error: outcome.message });
 		}
+		updaterState = updaterStateForCheckOutcome(outcome);
 		attemptStartupMaximize();
 		return;
 	}
 
-	availableUpdate = result;
-	logger.info("Update available", { version: result.version });
+	availableUpdate = outcome.update;
+	logger.info("Update available", { version: outcome.update.version });
 	attemptStartupMaximize();
 	void predownloadAvailableUpdate();
 }
@@ -1809,23 +1797,27 @@ onMount(async () => {
 
 	if (import.meta.env.DEV) {
 		installStreamingReproQaHook();
-		updaterState = createAvailableUpdaterState(DEV_UPDATE_VERSION);
-	} else {
-		void checkForAppUpdate("startup");
-		updatePollTimer = setInterval(
-			() => {
-				if (
-					updaterState.kind === "downloading" ||
-					updaterState.kind === "installing" ||
-					availableUpdate !== null
-				) {
-					return;
-				}
-				void checkForAppUpdate("polling");
-			},
-			10 * 60 * 1000
-		);
 	}
+
+	// The real check runs in dev too. It used to be replaced there by a fake
+	// "update available" banner, which is why nobody saw that the shims under
+	// it answered nothing at all. The fake banner is now a button in the dev
+	// menu, so it can only ever sit on top of the real answer, never instead
+	// of it.
+	void checkForAppUpdate("startup");
+	updatePollTimer = setInterval(
+		() => {
+			if (
+				updaterState.kind === "downloading" ||
+				updaterState.kind === "installing" ||
+				availableUpdate !== null
+			) {
+				return;
+			}
+			void checkForAppUpdate("polling");
+		},
+		10 * 60 * 1000
+	);
 	attemptStartupMaximize();
 
 	// Initialize notification popup focus tracking. Persisted preferences below
@@ -2053,12 +2045,6 @@ onDestroy(() => {
 							state={viewState}
 							updaterState={updaterState}
 							onUpdateClick={() => {
-								if (
-									getUpdaterPrimaryAction(import.meta.env.DEV, availableUpdate !== null) === "simulate"
-								) {
-									startDevUpdateSimulation();
-									return;
-								}
 								void installAvailableUpdate();
 							}}
 							onRetryUpdateClick={() => {
