@@ -97,13 +97,6 @@ export class SessionConnectionFacade {
 		return true;
 	}
 
-	failPendingCreationSession(
-		sessionId: string,
-		update: import("../types/turn-error.js").TurnErrorUpdate
-	): void {
-		this.#deps.creationCoordinator.failPendingCreationSession(sessionId, update);
-	}
-
 	createSession(options: {
 		projectPath: string;
 		agentId: string;

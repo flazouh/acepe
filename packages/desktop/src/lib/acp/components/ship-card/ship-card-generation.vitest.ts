@@ -2,9 +2,9 @@ import { EventId, MessageId, type OrchestrationEvent, SessionId } from "@acepe/c
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { SessionStateEnvelope } from "$lib/services/acp-types.js";
 import type { AcpEventEnvelope } from "$lib/acp/logic/acp-event-bridge.js";
 import { OrchestrationCanonicalBridge } from "$lib/acp/logic/orchestration-canonical-bridge.js";
+import type { SessionStateEnvelope } from "$lib/services/acp-types.js";
 
 const mockCloseSession = vi.fn();
 const mockNewSession = vi.fn();

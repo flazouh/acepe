@@ -141,10 +141,6 @@ export class SessionStore implements SessionEventHandler {
 		return this.connection.materializePendingCreationSession(sessionId);
 	}
 
-	failPendingCreationSession(sessionId: string, update: TurnErrorUpdate): void {
-		this.connection.failPendingCreationSession(sessionId, update);
-	}
-
 	ensureSessionFromStateGraph(graph: SessionStateGraph): boolean {
 		return this.#parts.openSnapshotApplier.ensureSessionFromStateGraph(graph);
 	}

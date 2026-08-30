@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 
 import type { SessionStateEnvelope } from "../../services/acp-types.js";
-import type { JsonValue, SessionUpdate } from "../../services/converted-session-types.js";
+import type { JsonValue } from "../../services/converted-session-types.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 import { type AcpError, ProtocolError } from "../errors/index.js";
 import { createLogger } from "../utils/logger.js";
@@ -13,16 +13,15 @@ import { openAcpEventSource } from "./acp-event-bridge.js";
 /**
  * Subscribes to backend events for session updates.
  *
- * This subscriber reads `acp-session-update` and `acp-session-state` envelopes
- * off the ACP event bridge stream (see `openAcpEventSource`) and parses each
- * payload before handing it on.
+ * This subscriber reads `acp-session-state` envelopes off the ACP event bridge
+ * stream (see `openAcpEventSource`) and parses each payload before handing it
+ * on.
  *
  * Supports multiple listeners over a single event-source subscription (fan-out
  * pattern). This prevents memory leaks from opening one stream per listener.
  */
 export class EventSubscriber {
 	private unlistenFn: (() => void) | null = null;
-	private listeners = new Map<string, (update: SessionUpdate, envelopeSeq: number) => void>();
 	private sessionStateListeners = new Map<string, (envelope: SessionStateEnvelope) => void>();
 	private listenerIdCounter = 0;
 	private isInitializing = false;
@@ -33,27 +32,12 @@ export class EventSubscriber {
 	});
 
 	/**
-	 * Subscribe to session update events.
-	 * Multiple listeners are supported - they all receive updates from a single event-source subscription.
+	 * Subscribe to canonical session-state envelopes.
+	 * Multiple listeners are supported - they all receive envelopes from a single event-source subscription.
 	 *
-	 * @param listener - Callback function to receive session updates
+	 * @param listener - Callback function to receive session-state envelopes
 	 * @returns Effect containing a unique listener ID that can be used to unsubscribe
 	 */
-	subscribe(
-		listener: (update: SessionUpdate, envelopeSeq: number) => void
-	): Effect.Effect<string, AcpError> {
-		const listenerId = `listener-${++this.listenerIdCounter}`;
-		this.listeners.set(listenerId, listener);
-		return this.ensureSubscribed(
-			listenerId,
-			() => this.listeners.has(listenerId),
-			() => {
-				this.listeners.delete(listenerId);
-			},
-			"session updates"
-		);
-	}
-
 	subscribeSessionState(
 		listener: (envelope: SessionStateEnvelope) => void
 	): Effect.Effect<string, AcpError> {
@@ -76,11 +60,10 @@ export class EventSubscriber {
 	 * @param listenerId - The ID returned from subscribe()
 	 */
 	unsubscribeById(listenerId: string): void {
-		this.listeners.delete(listenerId);
 		this.sessionStateListeners.delete(listenerId);
 
 		// If no more listeners, close the event-source subscription
-		if (this.listeners.size === 0 && this.sessionStateListeners.size === 0 && this.unlistenFn) {
+		if (this.sessionStateListeners.size === 0 && this.unlistenFn) {
 			this.unlistenFn();
 			this.unlistenFn = null;
 		}
@@ -90,7 +73,7 @@ export class EventSubscriber {
 	 * Get the number of active listeners.
 	 */
 	get listenerCount(): number {
-		return this.listeners.size + this.sessionStateListeners.size;
+		return this.sessionStateListeners.size;
 	}
 
 	private ensureSubscribed(
@@ -122,26 +105,6 @@ export class EventSubscriber {
 
 		this.isInitializing = true;
 		const program = openAcpEventSource((envelope) => {
-			if (envelope.eventName === "acp-session-update") {
-				const update = parseSessionUpdatePayload(envelope.payload);
-				if (!update) {
-					this.logger.warn("Discarding invalid acp-session-update payload", {
-						seq: envelope.seq,
-						eventName: envelope.eventName,
-					});
-					return;
-				}
-				for (const [id, cb] of this.listeners.entries()) {
-					runListenerSafely(
-						() => cb(update, envelope.seq),
-						(error) => {
-							this.logger.error("Listener threw error", { listenerId: id, error });
-						}
-					);
-				}
-				return;
-			}
-
 			if (envelope.eventName !== "acp-session-state") {
 				return;
 			}
@@ -164,7 +127,7 @@ export class EventSubscriber {
 		}).pipe(
 			Effect.map((unlisten) => {
 				this.isInitializing = false;
-				if (this.listeners.size === 0 && this.sessionStateListeners.size === 0) {
+				if (this.sessionStateListeners.size === 0) {
 					unlisten();
 					this.unlistenFn = null;
 				} else {
@@ -208,17 +171,6 @@ function runListenerSafely(run: () => void, onError: (error: unknown) => void): 
 
 function isJsonObject(value: JsonValue): value is { [key: string]: JsonValue } {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function parseSessionUpdatePayload(payload: JsonValue): SessionUpdate | null {
-	if (!isJsonObject(payload)) {
-		return null;
-	}
-	const updateType = payload.type;
-	if (typeof updateType !== "string") {
-		return null;
-	}
-	return payload as SessionUpdate;
 }
 
 function parseSessionStateEnvelopePayload(payload: JsonValue): SessionStateEnvelope | null {

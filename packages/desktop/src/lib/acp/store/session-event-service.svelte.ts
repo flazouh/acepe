@@ -19,24 +19,18 @@ import type {
 import type {
 	AvailableCommand,
 	ConfigOptionData,
-	JsonValue,
 	PlanData,
-	SessionUpdate,
-	UsageTelemetryData,
 } from "../../services/converted-session-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
 import { EventSubscriber } from "../logic/event-subscriber";
 import { checkSessionStateEnvelopeByteBudget } from "../session-state/session-state-envelope-budget.js";
 import { createLogger } from "../utils/logger.js";
-import { rawStreamingStore } from "./raw-streaming-store.svelte.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 
 const logger = createLogger({ id: "session-event-service", name: "SessionEventService" });
 
-type PendingSessionEvent =
-	| { kind: "sessionUpdate"; update: SessionUpdate; envelopeSeq: number | null }
-	| { kind: "sessionState"; envelope: SessionStateEnvelope };
+type PendingSessionEvent = { kind: "sessionState"; envelope: SessionStateEnvelope };
 
 interface SessionStateEnvelopeFrontier {
 	graphRevision: number;
@@ -66,43 +60,6 @@ function maxEnvelopeFrontier(
 		return incoming;
 	}
 	return current;
-}
-
-function isJsonObject(value: JsonValue | undefined): value is Record<string, JsonValue> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function getUsageTelemetryData(update: SessionUpdate): UsageTelemetryData | null {
-	if (update.type !== "usageTelemetryUpdate") {
-		return null;
-	}
-
-	const rawData = (update as { data?: JsonValue }).data;
-	if (!isJsonObject(rawData)) {
-		return null;
-	}
-	const rawSessionId = rawData.sessionId;
-	if (typeof rawSessionId !== "string" || rawSessionId.length === 0) {
-		return null;
-	}
-
-	return update.data;
-}
-
-/**
- * Extract session_id from SessionUpdate.
- *
- * With internally tagged format, session_id is a top-level field,
- * except usageTelemetryUpdate where it is in data.sessionId.
- */
-function getSessionId(update: SessionUpdate): string | null | undefined {
-	if (update.type === "usageTelemetryUpdate") {
-		return getUsageTelemetryData(update)?.sessionId;
-	}
-	if (update.type === "userMessageChunk") {
-		return update.sessionId;
-	}
-	return (update as { session_id?: string | null }).session_id;
 }
 
 /** Data payload delivered with a connectionComplete lifecycle event. */
@@ -156,7 +113,6 @@ interface ConnectionMaterializationWaiter {
 export class SessionEventService {
 	// Event subscriber for session updates
 	private eventSubscriber: EventSubscriber | null = null;
-	private sessionUpdateSubscriptionId: string | null = null;
 	private sessionStateSubscriptionId: string | null = null;
 	// Pending events buffer for sessions being created (race condition handling)
 	private pendingEvents = new SvelteMap<string, PendingSessionEvent[]>();
@@ -181,8 +137,6 @@ export class SessionEventService {
 		"events" | "chunk" | "backlog" | "disconnected",
 		number
 	>();
-	private processedSessionUpdateSeqs = new SvelteMap<number, number>();
-	private static readonly PROCESSED_SESSION_UPDATE_TTL_MS = 15 * 60 * 1000;
 
 	// Callbacks for permission/question handling
 	private callbacks: SessionEventServiceCallbacks = {};
@@ -279,54 +233,36 @@ export class SessionEventService {
 	 * Initialize session update subscription.
 	 */
 	initializeSessionUpdates(handler: SessionEventHandler): Effect.Effect<void, AppError> {
-		if (
-			this.eventSubscriber &&
-			this.sessionUpdateSubscriptionId &&
-			this.sessionStateSubscriptionId
-		) {
+		if (this.eventSubscriber && this.sessionStateSubscriptionId) {
 			return Effect.succeed(undefined);
 		}
 		// Recover from a partial/failed initialization attempt.
-		if (
-			this.eventSubscriber &&
-			(!this.sessionUpdateSubscriptionId || !this.sessionStateSubscriptionId)
-		) {
+		if (this.eventSubscriber && !this.sessionStateSubscriptionId) {
 			this.eventSubscriber = null;
 		}
 
 		const subscriber = new EventSubscriber();
 		return subscriber
-			.subscribe((update: SessionUpdate, envelopeSeq: number) => {
-				this.handleSessionUpdate(update, handler, envelopeSeq);
+			.subscribeSessionState((envelope: SessionStateEnvelope) => {
+				this.handleSessionStateEnvelope(envelope, handler);
 			})
 			.pipe(
-				Effect.flatMap((sessionUpdateId) => {
-					this.sessionUpdateSubscriptionId = sessionUpdateId;
-					return subscriber.subscribeSessionState((envelope: SessionStateEnvelope) => {
-						this.handleSessionStateEnvelope(envelope, handler);
-					});
-				}),
 				Effect.map((sessionStateSubscriptionId) => {
 					this.eventSubscriber = subscriber;
 					this.sessionStateSubscriptionId = sessionStateSubscriptionId;
 					this.startTelemetryReporter();
-					logger.debug("Session update subscription initialized", {
-						sessionSubscriptionId: this.sessionUpdateSubscriptionId,
+					logger.debug("Session state subscription initialized", {
 						sessionStateSubscriptionId: this.sessionStateSubscriptionId,
 					});
 					return undefined;
 				}),
 				Effect.mapError((error) => {
-					if (this.sessionUpdateSubscriptionId !== null) {
-						subscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
-					}
 					if (this.sessionStateSubscriptionId !== null) {
 						subscriber.unsubscribeById(this.sessionStateSubscriptionId);
 					}
 					this.eventSubscriber = null;
-					this.sessionUpdateSubscriptionId = null;
 					this.sessionStateSubscriptionId = null;
-					logger.error("Failed to initialize session update subscription", { error });
+					logger.error("Failed to initialize session state subscription", { error });
 					return new AgentError(
 						"initializeSessionUpdates",
 						error instanceof Error ? error : new Error(String(error))
@@ -348,248 +284,13 @@ export class SessionEventService {
 		}
 		this.connectionMaterializationWaiters.clear();
 		this.latestSessionStateEnvelopeFrontier.clear();
-		this.processedSessionUpdateSeqs.clear();
 		this.stopTelemetryReporter();
 
-		if (this.eventSubscriber && this.sessionUpdateSubscriptionId !== null) {
-			this.eventSubscriber.unsubscribeById(this.sessionUpdateSubscriptionId);
-		}
 		if (this.eventSubscriber && this.sessionStateSubscriptionId !== null) {
 			this.eventSubscriber.unsubscribeById(this.sessionStateSubscriptionId);
 		}
 		this.eventSubscriber = null;
-		this.sessionUpdateSubscriptionId = null;
 		this.sessionStateSubscriptionId = null;
-	}
-
-	/**
-	 * Handle session update from EventSubscriber.
-	 *
-	 * Streaming deltas and message chunks are emitted directly from Rust.
-	 * We process them here without additional buffering.
-	 */
-	private _hangDebugUpdateCount = 0;
-	private _hangDebugStartTime = performance.now();
-
-	handleSessionUpdate(
-		update: SessionUpdate,
-		handler: SessionEventHandler,
-		envelopeSeq?: number
-	): void {
-		this._hangDebugUpdateCount++;
-		const now = performance.now();
-		if (now - this._hangDebugStartTime > 5000) {
-			this._hangDebugUpdateCount = 0;
-			this._hangDebugStartTime = now;
-		}
-		const sessionId = getSessionId(update);
-		if (!sessionId) {
-			logger.warn("Session update missing sessionId", { update });
-			return;
-		}
-
-		if (logger.isLevelEnabled("debug")) {
-			logger.debug("Received session update", {
-				type: update.type,
-				sessionId,
-			});
-		}
-
-		// Record raw event for debugging (dev mode only)
-		if (update.type === "connectionComplete") {
-			if (this.shouldDropProcessedSessionUpdate(envelopeSeq, sessionId, update.type)) {
-				return;
-			}
-			this.recordInboundEvent();
-			rawStreamingStore.record(sessionId, update);
-			logger.info("Connection complete event received", {
-				sessionId,
-				attemptId: update.attempt_id,
-				autonomousEnabled: update.autonomous_enabled,
-			});
-			return;
-		}
-
-		if (update.type === "connectionFailed") {
-			if (this.shouldDropProcessedSessionUpdate(envelopeSeq, sessionId, update.type)) {
-				return;
-			}
-			this.recordInboundEvent();
-			rawStreamingStore.record(sessionId, update);
-			logger.error("Connection failed event received", {
-				sessionId,
-				attemptId: update.attempt_id,
-				error: update.error,
-			});
-			return;
-		}
-
-		// Check if session exists in store.
-		// Do NOT gate on preloaded/entries, because freshly resumed sessions can have zero entries.
-		const hasSession = this.ensureKnownOrPendingCreationSession(handler, sessionId);
-
-		if (!hasSession) {
-			if (update.type === "turnError" && handler.hasPendingCreationSession?.(sessionId) === true) {
-				if (this.shouldDropProcessedSessionUpdate(envelopeSeq, sessionId, update.type)) {
-					return;
-				}
-				this.recordInboundEvent();
-				rawStreamingStore.record(sessionId, update);
-				// Pending-creation failure: routed to handler.failPendingCreationSession
-				// which synthesizes a canonical "failed" projection so downstream
-				// readers see the failure through the canonical channel.
-				handler.failPendingCreationSession?.(sessionId, update);
-				this.pendingEvents.delete(sessionId);
-				this.pendingEventTimestamps.delete(sessionId);
-				return;
-			}
-			logger.debug("Dropping non-authoritative raw update for unknown session", {
-				sessionId,
-				type: update.type,
-			});
-			return;
-		}
-
-		if (this.shouldDropProcessedSessionUpdate(envelopeSeq, sessionId, update.type)) {
-			return;
-		}
-		this.recordInboundEvent();
-
-		// Record raw event for debugging (dev mode only)
-		rawStreamingStore.record(sessionId, update);
-
-		if (update.type === "agentMessageChunk" || update.type === "agentThoughtChunk") {
-			return;
-		}
-
-		switch (update.type) {
-			case "toolCall":
-				logger.debug("toolCall received on raw lane", {
-					sessionId,
-					toolCallId: update.tool_call.id,
-					toolName: update.tool_call.name,
-					toolKind: update.tool_call.kind,
-				});
-				break;
-
-			case "toolCallUpdate":
-				logger.debug("toolCallUpdate received on raw lane", {
-					sessionId,
-					toolCallId: update.update.toolCallId,
-					status: update.update.status,
-				});
-				break;
-
-			case "permissionRequest":
-				logger.debug("permissionRequest received on raw lane", {
-					sessionId,
-					interactionId: update.permission.id,
-				});
-				break;
-
-			case "questionRequest":
-				logger.debug("questionRequest received on raw lane", {
-					sessionId,
-					interactionId: update.question.id,
-				});
-				break;
-
-			case "availableCommandsUpdate":
-				logger.debug("availableCommandsUpdate received on raw lane", {
-					sessionId,
-					commandCount: update.update.availableCommands.length,
-				});
-				break;
-
-			case "turnComplete":
-				logger.info("Turn complete received on raw lane", {
-					sessionId,
-					updateSessionId: update.session_id,
-					turnId: update.turn_id,
-				});
-				break;
-
-			case "turnError":
-				logger.error("Turn error received on raw lane", {
-					sessionId,
-					error: update.error,
-					turnId: update.turn_id,
-				});
-				break;
-
-			case "turnCancelled":
-				logger.info("Turn cancelled received on raw lane", {
-					sessionId,
-					updateSessionId: update.session_id,
-					turnId: update.turn_id,
-				});
-				break;
-
-			case "plan":
-				// GOD authority: plan content is now delivered through the canonical
-				// SessionStateEnvelope (kind: "plan") routed via applyPlan command.
-				// The raw lane only sees this for diagnostic purposes — do not act.
-				logger.debug("plan received on diagnostic raw lane", {
-					sessionId,
-					stepCount: update.plan.steps.length,
-				});
-				break;
-
-			case "userMessageChunk":
-				logger.debug("userMessageChunk received on diagnostic raw lane", { sessionId });
-				break;
-
-			case "currentModeUpdate":
-				logger.debug("currentModeUpdate received on raw lane", {
-					sessionId,
-					currentModeId: update.update.currentModeId,
-				});
-				break;
-
-			case "configOptionUpdate": {
-				logger.debug("configOptionUpdate received on raw lane", {
-					sessionId,
-					optionCount: update.update.configOptions.length,
-					options: update.update.configOptions.map((o) => ({
-						id: o.id,
-						category: o.category,
-						optionsCount: o.options?.length ?? 0,
-						currentValue: o.currentValue,
-					})),
-				});
-				break;
-			}
-
-			case "usageTelemetryUpdate": {
-				logger.debug("usageTelemetryUpdate received on raw lane", {
-					sessionId,
-					updateSessionId: getUsageTelemetryData(update)?.sessionId ?? null,
-				});
-				break;
-			}
-
-			case "compactionEvent": {
-				logger.debug("compactionEvent received on raw lane", {
-					sessionId,
-					updateSessionId: update.event.sessionId,
-					status: update.event.status,
-					trigger: update.event.trigger,
-				});
-				break;
-			}
-
-			case "sessionDetached": {
-				logger.info("sessionDetached received on raw lane", {
-					sessionId,
-					detachedReason: update.detached_reason,
-				});
-				break;
-			}
-
-			default: {
-				update satisfies never;
-			}
-		}
 	}
 
 	handleSessionStateEnvelope(envelope: SessionStateEnvelope, handler: SessionEventHandler): void {
@@ -621,6 +322,7 @@ export class SessionEventService {
 			return;
 		}
 
+		this.recordInboundEvent();
 		this.latestSessionStateEnvelopeFrontier.set(
 			envelope.sessionId,
 			maxEnvelopeFrontier(latestFrontier, incomingFrontier)
@@ -645,36 +347,6 @@ export class SessionEventService {
 			return;
 		}
 		handler.applySessionStateEnvelope(envelope.sessionId, envelope);
-	}
-
-	private shouldDropProcessedSessionUpdate(
-		envelopeSeq: number | undefined,
-		sessionId: string,
-		updateType: SessionUpdate["type"]
-	): boolean {
-		if (envelopeSeq === undefined) {
-			return false;
-		}
-
-		const now = this.nowMs();
-		const cutoff = now - SessionEventService.PROCESSED_SESSION_UPDATE_TTL_MS;
-		for (const [seq, processedAtMs] of this.processedSessionUpdateSeqs.entries()) {
-			if (processedAtMs < cutoff) {
-				this.processedSessionUpdateSeqs.delete(seq);
-			}
-		}
-
-		if (this.processedSessionUpdateSeqs.has(envelopeSeq)) {
-			logger.warn("Dropping duplicate session update envelope", {
-				sessionId,
-				updateType,
-				envelopeSeq,
-			});
-			return true;
-		}
-
-		this.processedSessionUpdateSeqs.set(envelopeSeq, now);
-		return false;
 	}
 
 	/**
@@ -714,16 +386,7 @@ export class SessionEventService {
 		const chunkSize = end - offset;
 
 		for (let i = offset; i < end; i++) {
-			const pendingEvent = pending[i];
-			if (pendingEvent.kind === "sessionUpdate") {
-				this.handleSessionUpdate(
-					pendingEvent.update,
-					handler,
-					pendingEvent.envelopeSeq ?? undefined
-				);
-				continue;
-			}
-			this.handleSessionStateEnvelope(pendingEvent.envelope, handler);
+			this.handleSessionStateEnvelope(pending[i].envelope, handler);
 		}
 		const chunkDuration = this.nowMs() - chunkStart;
 		this.telemetryMaxReplayChunkDurationMs = Math.max(
@@ -892,7 +555,6 @@ export class SessionEventService {
 
 		logger.debug("Buffered event for pending session", {
 			sessionId,
-			type: pendingEvent.kind === "sessionUpdate" ? pendingEvent.update.type : "sessionState",
 			bufferSize: pending.length,
 		});
 	}

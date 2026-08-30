@@ -9,10 +9,10 @@
 
 import type {
 	SessionStateEnvelope,
+	SessionTurnState,
 	TranscriptDeltaOperation,
 	TranscriptEntry,
 	TranscriptSnapshot,
-	SessionTurnState,
 } from "$lib/services/acp-types.js";
 
 export type ShipTurnOutcome =

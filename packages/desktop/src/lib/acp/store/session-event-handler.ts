@@ -29,7 +29,6 @@ export interface SessionEventHandler {
 	getSessionCanSend(sessionId: string): boolean | null;
 	hasPendingCreationSession?(sessionId: string): boolean;
 	materializePendingCreationSession?(sessionId: string): boolean;
-	failPendingCreationSession?(sessionId: string, update: TurnErrorUpdate): void;
 	ensureSessionFromStateGraph?(graph: SessionStateGraph): boolean;
 
 	/**

@@ -53,8 +53,12 @@ describe("EventSubscriber", () => {
 			const listener1 = vi.fn();
 			const listener2 = vi.fn();
 
-			const result1 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener1)));
-			const result2 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener2)));
+			const result1 = await Effect.runPromise(
+				Effect.result(subscriber.subscribeSessionState(listener1))
+			);
+			const result2 = await Effect.runPromise(
+				Effect.result(subscriber.subscribeSessionState(listener2))
+			);
 
 			expect(Result.isSuccess(result1)).toBe(true);
 			expect(Result.isSuccess(result2)).toBe(true);
@@ -66,7 +70,9 @@ describe("EventSubscriber", () => {
 			const subscriber = new EventSubscriber();
 			const listener = vi.fn();
 
-			const result = await Effect.runPromise(Effect.result(subscriber.subscribe(listener)));
+			const result = await Effect.runPromise(
+				Effect.result(subscriber.subscribeSessionState(listener))
+			);
 			expect(Result.isSuccess(result)).toBe(true);
 			expect(subscriber.listenerCount).toBe(1);
 
@@ -78,10 +84,14 @@ describe("EventSubscriber", () => {
 			const subscriber = new EventSubscriber();
 			const listener = vi.fn();
 
-			const result1 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener)));
+			const result1 = await Effect.runPromise(
+				Effect.result(subscriber.subscribeSessionState(listener))
+			);
 			subscriber.unsubscribeById(Result.getOrThrow(result1));
 
-			const result2 = await Effect.runPromise(Effect.result(subscriber.subscribe(listener)));
+			const result2 = await Effect.runPromise(
+				Effect.result(subscriber.subscribeSessionState(listener))
+			);
 
 			expect(Result.getOrThrow(result1)).not.toBe(Result.getOrThrow(result2));
 		});
@@ -97,7 +107,7 @@ describe("EventSubscriber", () => {
 			);
 
 			const subscriber = new EventSubscriber();
-			const firstSubscribe = subscriber.subscribe(vi.fn());
+			const firstSubscribe = subscriber.subscribeSessionState(vi.fn());
 
 			// Listener IDs are deterministic: listener-1, listener-2, ...
 			subscriber.unsubscribeById("listener-1");
@@ -109,7 +119,7 @@ describe("EventSubscriber", () => {
 			expect(unlisten).toHaveBeenCalledTimes(1);
 			expect(subscriber.listenerCount).toBe(0);
 
-			await Effect.runPromise(subscriber.subscribe(vi.fn()));
+			await Effect.runPromise(subscriber.subscribeSessionState(vi.fn()));
 			expect(mockOpenAcpEventSource).toHaveBeenCalledTimes(2);
 		});
 
@@ -123,8 +133,8 @@ describe("EventSubscriber", () => {
 			);
 
 			const subscriber = new EventSubscriber();
-			const firstSubscribe = subscriber.subscribe(vi.fn());
-			const secondSubscribe = subscriber.subscribe(vi.fn());
+			const firstSubscribe = subscriber.subscribeSessionState(vi.fn());
+			const secondSubscribe = subscriber.subscribeSessionState(vi.fn());
 
 			deferred.reject(new Error("listen failed"));
 
@@ -136,7 +146,7 @@ describe("EventSubscriber", () => {
 			expect(subscriber.listenerCount).toBe(0);
 		});
 
-		it("routes acp-session-state envelopes to session-state listeners only", async () => {
+		it("ignores envelopes with other event names and only routes acp-session-state", async () => {
 			let onEnvelope: ((envelope: AcpEventEnvelope) => void) | null = null;
 			mockOpenAcpEventSource.mockImplementationOnce(
 				(handler: (envelope: AcpEventEnvelope) => void) => {
@@ -146,17 +156,15 @@ describe("EventSubscriber", () => {
 			);
 
 			const subscriber = new EventSubscriber();
-			const sessionUpdateListener = vi.fn();
 			const sessionStateListener = vi.fn();
 
-			await Effect.runPromise(subscriber.subscribe(sessionUpdateListener));
 			await Effect.runPromise(subscriber.subscribeSessionState(sessionStateListener));
 
 			if (!onEnvelope) {
 				throw new Error("Expected ACP event bridge handler");
 			}
 
-			emit(onEnvelope, "acp-session-state", {
+			const sessionStatePayload = {
 				sessionId: "session-1",
 				graphRevision: 4,
 				lastEventSeq: 9,
@@ -181,9 +189,15 @@ describe("EventSubscriber", () => {
 						changedFields: ["transcriptSnapshot"],
 					},
 				},
-			});
+			};
 
-			expect(sessionUpdateListener).not.toHaveBeenCalled();
+			// An envelope with an unrelated (no longer produced) event name must be
+			// ignored — only "acp-session-state" reaches the listener.
+			emit(onEnvelope, "acp-session-update", sessionStatePayload);
+			expect(sessionStateListener).not.toHaveBeenCalled();
+
+			emit(onEnvelope, "acp-session-state", sessionStatePayload);
+
 			expect(sessionStateListener).toHaveBeenCalledTimes(1);
 			expect(sessionStateListener).toHaveBeenCalledWith(
 				expect.objectContaining({

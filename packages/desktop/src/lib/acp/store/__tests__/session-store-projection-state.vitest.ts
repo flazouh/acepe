@@ -34,7 +34,6 @@ import { InteractionStore } from "../interaction-store.svelte.js";
 import type { SessionEntryStore } from "../session-entry-store.svelte.js";
 import { SessionStore } from "../session-store.svelte.js";
 import { readStoredEntries } from "./entry-store-test-access.js";
-import { deliverDiagnosticSessionUpdate } from "./session-store-test-access.js";
 
 type ProjectionFailureOverride = Partial<TurnFailureSnapshot> | null;
 
@@ -460,60 +459,6 @@ describe("SessionStore.applySessionStateGraph", () => {
 		expect(graph?.lastTerminalTurnId).not.toBe("turn-8");
 	});
 
-	it("treats raw assistant chunks as diagnostic and leaves transcript entries unchanged", () => {
-		const store = new SessionStore();
-		addColdSession(store);
-		store.applySessionStateEnvelope(
-			"session-1",
-			createSnapshotEnvelope(
-				createSessionStateGraph({
-					transcriptSnapshot: {
-						revision: 1,
-						entries: [],
-					},
-					revision: {
-						graphRevision: 1,
-						transcriptRevision: 1,
-						lastEventSeq: 1,
-					},
-					turnState: "Running",
-					activeTurnFailure: null,
-					lastTerminalTurnId: null,
-					activeStreamingTail: null,
-					lifecycle: createGraphLifecycle("ready"),
-					activity: {
-						kind: "awaiting_model",
-						activeOperationCount: 0,
-						activeSubagentCount: 0,
-						dominantOperationId: null,
-						blockingInteractionId: null,
-					},
-				})
-			)
-		);
-
-		const rawAssistantChunk: SessionUpdate = {
-			type: "agentMessageChunk",
-			session_id: "session-1",
-			message_id: "provider-msg-1",
-			part_id: "provider-part-1",
-			chunk: {
-				content: {
-					type: "text",
-					text: "raw lane text",
-				},
-			},
-		};
-
-		deliverDiagnosticSessionUpdate(store, rawAssistantChunk);
-
-		expect(getSessionEntries(store, "session-1")).toEqual([]);
-		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot).toEqual({
-			revision: 1,
-			entries: [],
-		});
-	});
-
 	it("applies transcript deltas against the current graph frontier, not the entry projection cache", () => {
 		const store = new SessionStore();
 		addColdSession(store);
@@ -716,6 +661,13 @@ describe("SessionStore.applySessionStateGraph", () => {
 			activity: createIdleActivity(),
 		});
 
+		// This snapshot advances turnState to "Completed" for the first time,
+		// which triggers the canonical terminal-turn side effect's own async
+		// refreshSessionStateSnapshot() re-fetch (see
+		// SessionEnvelopeApplier#applyCanonicalTerminalTurnSideEffects). Point
+		// that refetch at the same recovered truth so it can't race the
+		// assertion below with the unrelated default fixture from beforeEach.
+		getSessionStateMock.mockReturnValue(Effect.succeed(createSnapshotEnvelope(recoveredGraph)));
 		store.applySessionStateEnvelope("session-1", createSnapshotEnvelope(recoveredGraph));
 
 		expect(store.getSessionStateGraphForTest("session-1")?.transcriptSnapshot).toEqual(
@@ -5234,7 +5186,20 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(store.read.getSessionPendingSendIntent("session-1")).toBeNull();
 	});
 
-	it("fails closed for a just-created session before canonical lifecycle hydration arrives", async () => {
+	// `lifecycleStatus === null` (no SessionStateGraph established yet) is the
+	// ordinary state of a fresh deferred-creation session, not a permanent
+	// failure: its first live envelope commonly has no prior graph-revision
+	// baseline to apply against, so the router degrades it to a
+	// refreshSnapshot no-op instead of setting a real lifecycle. Treating that
+	// gap as fail-closed silently drops the first prompt instead of
+	// dispatching it. See first-send-activation.ts's
+	// canActivateCreatedSessionWithFirstPrompt and its git history
+	// (66baff43d, f84ae9078, df1c7752f) for the live repro and the deliberate
+	// widening. Fail-closed still applies once a REAL, established lifecycle
+	// says the session cannot be first-sent to -- see the adjacent
+	// "established non-reserved status" and "detached restored sessions"
+	// tests below.
+	it("activates first-send for a just-created session before canonical lifecycle hydration arrives", async () => {
 		const store = new SessionStore();
 		const connectSession = vi.spyOn(store.connection, "connectSession");
 		store.write.addSession({
@@ -5254,8 +5219,12 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			)
 		);
 
-		expect(Result.isFailure(result)).toBe(true);
-		expect(sendPromptMock).not.toHaveBeenCalled();
+		expect(Result.isSuccess(result)).toBe(true);
+		expect(sendPromptMock).toHaveBeenCalledWith(
+			"session-1",
+			[{ type: "text", text: "cursor UI diagnostic ping - reply ok" }],
+			expect.any(String)
+		);
 		expect(connectSession).not.toHaveBeenCalled();
 	});
 
@@ -5289,6 +5258,15 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 					activeTurnFailure: null,
 					lastTerminalTurnId: null,
 					activeStreamingTail: null,
+					// Canonical content-loaded state reads graph.messageCount only
+					// (session-presentation-model.ts's hasEntries), never a locally
+					// recomputed entries.length -- GOD architecture forbids a UI-side
+					// repair pass over canonical fields. Zero it out here so the
+					// fixture's messageCount agrees with its empty transcriptSnapshot;
+					// leaving the factory's default messageCount: 1 would assert an
+					// internally-contradictory canonical graph (a message the actual
+					// transcript never carries).
+					messageCount: 0,
 					transcriptSnapshot: {
 						revision: 7,
 						entries: [],
@@ -5443,7 +5421,14 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 		expect(sendPromptMock).not.toHaveBeenCalled();
 	});
 
-	it("fails closed for restored local created sessions without canonical lifecycle", async () => {
+	// The gap this used to (wrongly) cover -- lifecycleStatus === null for a
+	// created, source-less session -- is now legitimately first-send
+	// activatable; see the "activates first-send for a just-created session"
+	// test above and first-send-activation.ts's git history. What must still
+	// fail closed is an ESTABLISHED, non-reserved lifecycle: once a real
+	// canonical graph says the session cannot be sent to (e.g. "failed"),
+	// first-send does not override that.
+	it("fails closed for created sessions once canonical lifecycle is an established non-reserved status", async () => {
 		const store = new SessionStore();
 		const connectSession = vi.spyOn(store.connection, "connectSession");
 		store.write.addSession({
@@ -5456,6 +5441,30 @@ describe("SessionStore.applySessionStateEnvelope", () => {
 			sessionLifecycleState: "created",
 			parentId: null,
 		});
+		store.applySessionStateEnvelope(
+			"session-1",
+			createSnapshotEnvelope(
+				createSessionStateGraph({
+					agentId: "cursor",
+					lifecycle: createGraphLifecycle("failed", "Provider disconnected"),
+					turnState: "Idle",
+					messageCount: 0,
+					activeTurnFailure: null,
+					lastTerminalTurnId: null,
+					activeStreamingTail: null,
+					transcriptSnapshot: {
+						revision: 0,
+						entries: [],
+					},
+					revision: {
+						graphRevision: 1,
+						transcriptRevision: 0,
+						lastEventSeq: 1,
+					},
+				})
+			)
+		);
+
 		const result = await Effect.runPromise(
 			Effect.result(
 				store.connection.sendMessage("session-1", "cursor restored follow-up - reply ok")

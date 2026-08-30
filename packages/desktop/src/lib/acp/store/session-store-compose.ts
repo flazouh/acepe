@@ -198,18 +198,12 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 	);
 
 	const creationCoordinator = new SessionCreationCoordinator({
-		messagingSvc,
-		onTurnError: (sessionId) => callbacks.onTurnError?.(sessionId),
 		registerOptimisticSession: (result) => {
 			if (listState.hasSession(result.sessionId)) {
 				return;
 			}
 			listState.addSession(optimisticSessionColdFromPendingCreation(result, new Date()));
 		},
-		// Light list-level removal: the optimistic record was never materialized,
-		// so a full lifecycle teardown (DB + model-pref persistence) is both
-		// unnecessary and wrong. `repository.removeSession` just filters the list.
-		removeOptimisticSession: (sessionId) => repository.removeSession(sessionId),
 	});
 
 	const lifecycleCleanup = new SessionLifecycleCleanup({
@@ -451,9 +445,6 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 			});
 			creationCoordinator.completePendingCreation(sessionId);
 			return true;
-		},
-		failPendingCreationSession: (sessionId, update) => {
-			creationCoordinator.failPendingCreationSession(sessionId, update);
 		},
 		ensureSessionFromStateGraph: (graph) => openSnapshotApplier.ensureSessionFromStateGraph(graph),
 		updateUsageTelemetry: input.updateUsageTelemetry,
