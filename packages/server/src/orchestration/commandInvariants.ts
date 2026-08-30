@@ -24,6 +24,9 @@ export type OrchestrationProject = {
 	// module's tests -- built before workspace_root uniqueness mattered --
 	// keep compiling unchanged. Every real project row always carries one.
 	readonly workspaceRoot?: string
+	// Set once the project was removed. Optional for the same fixture reason as
+	// workspaceRoot above; every real project row carries it, null while live.
+	readonly deletedAt?: IsoDateTime | null
 }
 
 export type OrchestrationCheckpoint = {
@@ -107,7 +110,12 @@ const findProjectByWorkspaceRoot = (
 	readModel: OrchestrationReadModel,
 	workspaceRoot: string
 ): Option.Option<OrchestrationProject> =>
-	Array.findFirst(readModel.projects, (project) => project.workspaceRoot === workspaceRoot)
+	Array.findFirst(
+		readModel.projects,
+		(project) =>
+			project.workspaceRoot === workspaceRoot &&
+			(project.deletedAt === undefined || project.deletedAt === null)
+	)
 
 // AC #266: two projects dispatched for the same workspace_root crashed the
 // agent panel client-side (a Svelte each_key_duplicate downstream, in a list

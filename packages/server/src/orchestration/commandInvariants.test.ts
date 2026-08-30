@@ -3,6 +3,7 @@ import {
 	CheckpointId,
 	CheckpointRevertCommand,
 	CommandId,
+	type IsoDateTime,
 	type OrchestrationCommand,
 	emptySkillsCatalog,
 	emptyVoiceLanguages,
@@ -105,6 +106,18 @@ const secondProjectId = ProjectId.make("project-2")
 const workspaceRootReadModel: OrchestrationReadModel = {
 	snapshotSequence: 1,
 	projects: [{ id: projectId, workspaceRoot: "/tmp/acepe" }],
+	sessions: []
+}
+
+const deletedWorkspaceRootReadModel: OrchestrationReadModel = {
+	snapshotSequence: 2,
+	projects: [
+		{
+			id: projectId,
+			workspaceRoot: "/tmp/acepe",
+			deletedAt: "2026-08-29T12:00:00.000Z" as IsoDateTime
+		}
+	],
 	sessions: []
 }
 
@@ -225,6 +238,17 @@ Vitest.describe("requireWorkspaceRootAbsent", () => {
 			readModel: workspaceRootReadModel,
 			command: projectCreateCommand,
 			workspaceRoot: "/tmp/other"
+		})
+	)
+
+	// Remove Project soft-deletes the project row, so the removed project keeps
+	// its workspace_root in the read model. A deleted project must not keep the
+	// claim, or adding the same folder back after removing it fails forever.
+	Vitest.it.effect("succeeds when the only claim comes from a deleted project", () =>
+		requireWorkspaceRootAbsent({
+			readModel: deletedWorkspaceRootReadModel,
+			command: projectCreateCommand,
+			workspaceRoot: "/tmp/acepe"
 		})
 	)
 })
