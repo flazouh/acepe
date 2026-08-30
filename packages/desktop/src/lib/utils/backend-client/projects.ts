@@ -179,22 +179,22 @@ export const projects = {
 		};
 	}),
 
-	updateProjectShowExternalCliSessions: Effect.fn(
-		"projects.updateProjectShowExternalCliSessions"
-	)(function* (path: string, show: boolean) {
-		const existing = yield* requireProjectedByPath("project.meta.update", path);
-		const commandId = yield* nextCommandId("project-meta-update-external-sessions");
-		yield* withRpcClient("project.meta.update", (client) =>
-			client.dispatch(
-				ProjectMetaUpdateCommand.make({
-					type: "project.meta.update",
-					commandId,
-					projectId: existing.projectId,
-					showExternalCliSessions: show,
-				})
-			)
-		);
-	}),
+	updateProjectShowExternalCliSessions: Effect.fn("projects.updateProjectShowExternalCliSessions")(
+		function* (path: string, show: boolean) {
+			const existing = yield* requireProjectedByPath("project.meta.update", path);
+			const commandId = yield* nextCommandId("project-meta-update-external-sessions");
+			yield* withRpcClient("project.meta.update", (client) =>
+				client.dispatch(
+					ProjectMetaUpdateCommand.make({
+						type: "project.meta.update",
+						commandId,
+						projectId: existing.projectId,
+						showExternalCliSessions: show,
+					})
+				)
+			);
+		}
+	),
 
 	updateProjectIcon: (
 		_path: string,

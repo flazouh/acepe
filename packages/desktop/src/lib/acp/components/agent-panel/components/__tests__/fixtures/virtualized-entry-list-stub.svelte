@@ -3,8 +3,19 @@ import type {
 	AgentPanelPerformanceRecorder,
 	AgentPanelSceneEntryModel,
 } from "@acepe/ui/agent-panel";
+import type { TranscriptViewportRow } from "../../../../../../services/acp-types.js";
 import type { TranscriptRowsState } from "../../../../../store/transcript-rows-store.js";
 import type { TurnState } from "../../../../../store/types.js";
+
+// Typed here rather than inline in the template: `$props<...>()` widens the row
+// union enough that the segment callbacks lose their parameter types.
+function assistantRowText(row: TranscriptViewportRow): string {
+	if (row.kind !== "assistantText" || row.content.kind !== "transcript") return "";
+	return row.content.segments
+		.filter((segment) => segment.kind === "text")
+		.map((segment) => segment.text)
+		.join("");
+}
 
 let {
 	sessionId = null,
@@ -38,12 +49,7 @@ let {
 	{/each}
 	{#each rowsProjection?.rows ?? [] as row (row.rowId)}
 		{#if row.kind === "assistantText" && row.content.kind === "transcript"}
-			<div data-testid="virtualized-entry-list-stub-assistant">
-				{row.content.segments
-					.filter((segment) => segment.kind === "text")
-					.map((segment) => segment.text)
-					.join("")}
-			</div>
+			<div data-testid="virtualized-entry-list-stub-assistant">{assistantRowText(row)}</div>
 		{/if}
 	{/each}
 </div>

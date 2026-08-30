@@ -44,12 +44,12 @@ import type {
 import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
 import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import type { AcpEventEnvelope } from "./acp-event-bridge.js";
-import { noToolArguments, toolArgumentsFromCanonical } from "./tool-arguments-projection.js";
 import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
+import { noToolArguments, toolArgumentsFromCanonical } from "./tool-arguments-projection.js";
 
 type PendingApprovalRecord = {
 	readonly toolCallId: string;
@@ -175,7 +175,6 @@ function awaitingModelActivityAt(turnStartedAtMs: number | null): SessionGraphAc
 		kindStartedAtMs: turnStartedAtMs,
 	};
 }
-
 
 const PERMISSION_ID_PREFIX = "perm-";
 
