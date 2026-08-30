@@ -46,8 +46,17 @@ const { prepareWorktreePathForPendingSend } = await import(
 	"../agent-input-worktree-send-workflow.js"
 );
 
+/**
+ * Drive one first-send worktree preparation and fold the events it reports the
+ * way the panel does, resolving when the run reports its terminal event.
+ */
 async function runSendAndFoldCard(): Promise<WorktreeSetupState | null> {
 	let card: WorktreeSetupState | null = null;
+	let settle: (() => void) | null = null;
+	const settled = new Promise<void>((resolve) => {
+		settle = resolve;
+	});
+
 	const prep = await prepareWorktreePathForPendingSend({
 		projectPath: PROJECT_PATH,
 		selectedAgentId: "claude",
@@ -57,13 +66,14 @@ async function runSendAndFoldCard(): Promise<WorktreeSetupState | null> {
 		},
 		onSetupEvent: (event: WorktreeSetupEvent) => {
 			card = reduceWorktreeSetupEvent(card, event);
+			if (event.kind === "finished") {
+				settle?.();
+			}
 		},
 	});
 
 	expect(prep.ok).toBe(true);
-	if (prep.ok) {
-		await prep.setupSettled;
-	}
+	await settled;
 	return card;
 }
 

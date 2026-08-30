@@ -50,6 +50,9 @@
 			tabindex="0"
 			onclick={toggleExpanded}
 			onkeydown={(event: KeyboardEvent) => {
+				// The dismiss button lives inside this row, so let its own key
+				// handling run instead of collapsing the card.
+				if (event.target !== event.currentTarget) return;
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault();
 					toggleExpanded();

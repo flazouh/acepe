@@ -35,6 +35,7 @@ export {
 export { shouldBootstrapTranscriptRows } from "./transcript-rows-bootstrap-gate.js";
 export {
 	createWorktreeCreationState,
+	createWorktreeSetupAbortedEvent,
 	createWorktreeSetupMatchContext,
 	createWorktreeSetupStartedEvent,
 	matchesWorktreeSetupContext,

@@ -10,6 +10,7 @@ import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
 import type { WorktreeSetupEvent } from "../../../types/worktree-setup.js";
 import { createLogger } from "../../../utils/logger.js";
 import {
+	createWorktreeSetupAbortedEvent,
 	createWorktreeSetupStartedEvent,
 	projectWorktreeSetupRunEvents,
 } from "../../agent-panel/logic/worktree-setup-events.js";
@@ -25,11 +26,6 @@ export type WorktreePrepForSendResult =
 			ok: true;
 			worktreePath: string;
 			preparedLaunch: PreparedWorktreeLaunch;
-			/**
-			 * Resolves once the background setup run has finished and its last
-			 * event has been reported. Callers may ignore it; tests await it.
-			 */
-			setupSettled: Promise<void>;
 	  }
 	| { ok: false; error: Error };
 
@@ -57,7 +53,6 @@ export async function prepareWorktreePathForPendingSend(args: {
 			ok: true,
 			worktreePath: existingPrepared.worktree.directory,
 			preparedLaunch: existingPrepared,
-			setupSettled: Promise.resolve(),
 		};
 	}
 
@@ -72,7 +67,7 @@ export async function prepareWorktreePathForPendingSend(args: {
 
 		onSetupEvent?.(createWorktreeSetupStartedEvent({ projectPath, worktreePath }));
 
-		const setupSettled = Effect.runPromise(
+		void Effect.runPromise(
 			runWorktreeSetup({
 				projectPath,
 				worktreeCwd: worktreePath,
@@ -92,12 +87,13 @@ export async function prepareWorktreePathForPendingSend(args: {
 					},
 					onFailure: (error) => {
 						logger.warn("Worktree setup failed", { error });
-						onSetupEvent?.({
-							...createWorktreeSetupStartedEvent({ projectPath, worktreePath }),
-							kind: "finished",
-							success: false,
-							error: error instanceof Error ? error.message : "Setup script failed",
-						});
+						onSetupEvent?.(
+							createWorktreeSetupAbortedEvent({
+								projectPath,
+								worktreePath,
+								error: error.message,
+							})
+						);
 						toast.warning("Setup script failed");
 					},
 				})
@@ -108,7 +104,6 @@ export async function prepareWorktreePathForPendingSend(args: {
 			ok: true,
 			worktreePath,
 			preparedLaunch,
-			setupSettled,
 		};
 	}
 

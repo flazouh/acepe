@@ -255,8 +255,6 @@ describe("matchesWorktreeSetupContext", () => {
 		const context = createWorktreeSetupMatchContext({
 			pendingSetupProjectPath: null,
 			pendingSetupWorktreePath: null,
-			currentSetupProjectPath: null,
-			currentSetupWorktreePath: null,
 		});
 
 		expect(context.projectPaths).toEqual([]);
@@ -268,8 +266,6 @@ describe("matchesWorktreeSetupContext", () => {
 		const context = createWorktreeSetupMatchContext({
 			pendingSetupProjectPath: "/repo",
 			pendingSetupWorktreePath: null,
-			currentSetupProjectPath: null,
-			currentSetupWorktreePath: null,
 		});
 
 		expect(matchesWorktreeSetupContext(createEvent(), context)).toBe(true);
@@ -277,14 +273,23 @@ describe("matchesWorktreeSetupContext", () => {
 
 	it("continues tracking the same panel by worktree path after setup starts", () => {
 		const context = createWorktreeSetupMatchContext({
-			pendingSetupProjectPath: null,
-			pendingSetupWorktreePath: null,
-			currentSetupProjectPath: "/repo",
-			currentSetupWorktreePath: "/wt/repo-a",
+			pendingSetupProjectPath: "/repo",
+			pendingSetupWorktreePath: "/wt/repo-a",
 		});
 
 		expect(matchesWorktreeSetupContext(createEvent(), context)).toBe(true);
 		expect(matchesWorktreeSetupContext(createEvent({ worktreePath: "/wt/repo-b" }), context)).toBe(
+			false
+		);
+	});
+
+	it("drops a card that never learned the worktree path the panel now waits on", () => {
+		const context = createWorktreeSetupMatchContext({
+			pendingSetupProjectPath: "/repo",
+			pendingSetupWorktreePath: "/wt/repo-a",
+		});
+
+		expect(matchesWorktreeSetupContext({ projectPath: "/repo", worktreePath: null }, context)).toBe(
 			false
 		);
 	});

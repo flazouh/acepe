@@ -9,8 +9,6 @@ export interface WorktreeSetupMatchContext {
 export interface WorktreeSetupMatchContextOptions {
 	readonly pendingSetupProjectPath: string | null;
 	readonly pendingSetupWorktreePath: string | null;
-	readonly currentSetupProjectPath: string | null;
-	readonly currentSetupWorktreePath: string | null;
 }
 
 export interface WorktreeSetupState {
@@ -60,13 +58,15 @@ function collectUniquePaths(values: readonly (string | null)[]): string[] {
 	return unique;
 }
 
+/**
+ * The setup the panel is currently waiting on, as paths. It is built from the
+ * panel's pending setup only: a context that also read the card's own paths
+ * would match that card by construction and could never prune it.
+ */
 export function createWorktreeSetupMatchContext(
 	options: WorktreeSetupMatchContextOptions
 ): WorktreeSetupMatchContext {
-	const worktreePaths = collectUniquePaths([
-		options.pendingSetupWorktreePath,
-		options.currentSetupWorktreePath,
-	]);
+	const worktreePaths = collectUniquePaths([options.pendingSetupWorktreePath]);
 	if (worktreePaths.length > 0) {
 		return {
 			projectPaths: [],
@@ -74,13 +74,8 @@ export function createWorktreeSetupMatchContext(
 		};
 	}
 
-	const projectPaths = collectUniquePaths([
-		options.pendingSetupProjectPath,
-		options.currentSetupProjectPath,
-	]);
-
 	return {
-		projectPaths,
+		projectPaths: collectUniquePaths([options.pendingSetupProjectPath]),
 		worktreePaths: [],
 	};
 }
@@ -99,9 +94,21 @@ function createInitialState(event: WorktreeSetupEvent): WorktreeSetupState {
 	};
 }
 
+/**
+ * How much setup output the card keeps. A setup script is often an install, and
+ * its log can run to megabytes; the card shows the tail, which is where a
+ * failure is.
+ */
+const MAX_OUTPUT_CHARS = 64 * 1024;
+const TRUNCATION_NOTE = "[earlier output trimmed]\n";
+
 function appendText(existing: string, next: string): string {
 	if (next.length === 0) return existing;
-	return `${existing}${next}`;
+	const combined = `${existing}${next}`;
+	if (combined.length <= MAX_OUTPUT_CHARS) return combined;
+	const tail = combined.slice(combined.length - MAX_OUTPUT_CHARS);
+	const firstLineBreak = tail.indexOf("\n");
+	return `${TRUNCATION_NOTE}${firstLineBreak === -1 ? tail : tail.slice(firstLineBreak + 1)}`;
 }
 
 function appendCommandHeader(
@@ -114,7 +121,7 @@ function appendCommandHeader(
 	const prefix =
 		commandIndex !== null && commandCount > 0 ? `[${commandIndex}/${commandCount}] ` : "";
 	const separator = outputText.length > 0 && !outputText.endsWith("\n") ? "\n" : "";
-	return `${outputText}${separator}${prefix}$ ${command}\n`;
+	return appendText(outputText, `${separator}${prefix}$ ${command}\n`);
 }
 
 export function reduceWorktreeSetupEvent(
@@ -175,10 +182,9 @@ export function reduceWorktreeSetupEvent(
 		...current,
 		status: event.success ? "succeeded" : "failed",
 		// A finished run stays on screen while it still has something to show:
-		// always on failure, and on success only when the commands actually
-		// printed. A project without setup commands prints nothing and gets no
-		// card.
-		isVisible: event.success !== true || outputWithError.length > 0,
+		// always on failure, and on success only when commands actually ran. A
+		// project that configures no setup commands gets no card.
+		isVisible: event.success !== true || nextCommandCount > 0,
 		commandCount: nextCommandCount,
 		activeCommandIndex: nextCommandIndex,
 		activeCommand: nextCommand,
@@ -229,14 +235,28 @@ function createBaseEvent(
 
 /**
  * The event that opens a setup run, emitted the moment the run is kicked off.
- * It carries the worktree path the run belongs to, which is what keeps the
- * card attached to its panel while the commands are still executing.
+ * It carries the worktree path the run belongs to. The panel prunes a card
+ * whose worktree path is not the one it is waiting on, so a card that never
+ * learned its path is dropped the moment the worktree exists.
  */
 export function createWorktreeSetupStartedEvent(options: {
 	projectPath: string;
 	worktreePath: string;
 }): WorktreeSetupEvent {
 	return createBaseEvent("started", options.projectPath, options.worktreePath);
+}
+
+/** The event that closes a setup run the client could not complete. */
+export function createWorktreeSetupAbortedEvent(options: {
+	projectPath: string;
+	worktreePath: string;
+	error: string;
+}): WorktreeSetupEvent {
+	return {
+		...createBaseEvent("finished", options.projectPath, options.worktreePath),
+		success: false,
+		error: options.error,
+	};
 }
 
 export interface WorktreeSetupRun {

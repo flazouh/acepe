@@ -910,8 +910,7 @@ export const makeGitService = Effect.fn("GitService.make")(function*(
 				// Setup commands are the user's own shell. Any exit code is a
 				// result to report, not a reason to throw away what the command
 				// printed -- the setup card shows that output.
-				allowExitCodes: Arr.empty<number>(),
-				allowAnyExitCode: true,
+				allowExitCodes: "any",
 				env: noneEnv
 			}).pipe(
 				Effect.timeout(Duration.seconds(300)),

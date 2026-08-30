@@ -612,6 +612,14 @@ $effect(() => {
 	});
 });
 
+/** Drop the setup card and the pending record that would rebuild it. */
+function clearWorktreeSetupCard(): void {
+	worktreeSetup.clear();
+	if (panelId) {
+		panelStore.clearPendingWorktreeSetup(panelId);
+	}
+}
+
 $effect(() => {
 	const pendingSetup = pendingWorktreeSetup;
 	if (!pendingSetup) {
@@ -634,10 +642,7 @@ $effect(() => {
 
 	if (matchesWorktreeSetupContext(state, worktreeSetupMatchContext)) return;
 
-	worktreeSetup.clear();
-	if (panelId) {
-		panelStore.clearPendingWorktreeSetup(panelId);
-	}
+	clearWorktreeSetupCard();
 });
 
 const projectColor = $derived.by(() => {
@@ -782,16 +787,12 @@ onDestroy(() => {
 	rootState.dispose();
 });
 
-const worktreeSetupMatchContext = $derived.by(() => {
-	const activeSetupState = worktreeSetup.state?.isVisible ? worktreeSetup.state : null;
-
-	return createWorktreeSetupMatchContext({
+const worktreeSetupMatchContext = $derived.by(() =>
+	createWorktreeSetupMatchContext({
 		pendingSetupProjectPath: pendingWorktreeSetup ? pendingWorktreeSetup.projectPath : null,
 		pendingSetupWorktreePath: pendingWorktreeSetup ? pendingWorktreeSetup.worktreePath : null,
-		currentSetupProjectPath: activeSetupState ? activeSetupState.projectPath : null,
-		currentSetupWorktreePath: activeSetupState ? activeSetupState.worktreePath : null,
-	});
-});
+	})
+);
 /** Derived: is the selected agent currently being installed? */
 const agentInstallState = $derived.by(() => {
 	if (!effectivePanelAgentId) return null;
@@ -1856,12 +1857,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onRetryWorktree={handleRetryWorktree}
 					worktreePending={worktreePending}
 					worktreeSetupState={worktreeSetup.state}
-					onWorktreeSetupDismiss={() => {
-						worktreeSetup.clear();
-						if (panelId) {
-							panelStore.clearPendingWorktreeSetup(panelId);
-						}
-					}}
+					onWorktreeSetupDismiss={clearWorktreeSetupCard}
 					{agentInstallState}
 					{sessionId}
 					effectiveProjectPath={effectiveProjectPath ?? null}
