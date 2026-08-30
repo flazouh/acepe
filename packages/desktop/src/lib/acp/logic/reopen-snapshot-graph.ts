@@ -48,13 +48,13 @@ import type {
 import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
 import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import { isBuiltInCanonicalAgentId } from "../types/agent-id.js";
-import { noToolArguments, toolArgumentsFromCanonical } from "./tool-arguments-projection.js";
 import type { ObservedToolCallStatus } from "./observed-tool-call-status.js";
 import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
+import { noToolArguments, toolArgumentsFromCanonical } from "./tool-arguments-projection.js";
 
 const idleActivity: SessionGraphActivity = {
 	kind: "idle",
