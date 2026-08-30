@@ -1,3 +1,7 @@
+import {
+	AGENT_ENV_OVERRIDES_SETTING_KEY,
+	type AgentEnvOverridesByAgent,
+} from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
@@ -12,10 +16,11 @@ const AGENT_PREFERENCES_STORE_KEY = Symbol("agent-preferences-store");
 const HAS_COMPLETED_ONBOARDING_KEY: UserSettingKey = "has_completed_onboarding";
 const SELECTED_AGENT_IDS_KEY: UserSettingKey = "selected_agent_ids";
 const CUSTOM_AGENT_CONFIGS_KEY: UserSettingKey = "custom_agent_configs";
-const AGENT_ENV_OVERRIDES_KEY = "agent_env_overrides";
+const AGENT_ENV_OVERRIDES_KEY: UserSettingKey = AGENT_ENV_OVERRIDES_SETTING_KEY;
 const DEFAULT_AGENT_ID_KEY: UserSettingKey = "default_agent_id";
 
-export type AgentEnvOverrides = Record<string, Record<string, string>>;
+/** The whole `agent_env_overrides` setting: one variable map per agent id. */
+export type AgentEnvOverrides = AgentEnvOverridesByAgent;
 
 export interface AgentPreferencesInitializationInput {
 	readonly persistedOnboardingCompleted: boolean | null;
@@ -138,7 +143,8 @@ export function upsertAgentEnvOverrides(
 	agentId: string,
 	env: Readonly<Record<string, string>>
 ): AgentEnvOverrides {
-	const next: AgentEnvOverrides = {};
+	// Built mutably here and handed back as the contract's readonly shape.
+	const next: Record<string, Record<string, string>> = {};
 
 	for (const [existingAgentId, existingEnv] of Object.entries(overrides)) {
 		if (existingAgentId === agentId) {

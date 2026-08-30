@@ -30,7 +30,7 @@ import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
 import type { Json } from "../Json.ts"
 import { cancelledPermission, permissionResponse } from "./Permissions.ts"
 import { adapterError, type CursorPermissionDecision } from "./Provider.ts"
-import type { AgentEnvOverrides } from "../../AgentEnv.ts"
+import { type AgentEnvOverrides, agentChildProcess } from "../../AgentEnv.ts"
 
 const decodeJson = Schema.decodeUnknownExit(Schema.Json)
 
@@ -248,10 +248,8 @@ export const liveConnect = Effect.fn("CursorAdapter.liveConnect")(function*(inpu
 	const toAgent = yield* Queue.unbounded<Uint8Array, Done>()
 	const child = yield* input.spawner
 		.spawn(
-			ChildProcess.make(input.session.launch.command, Arr.fromIterable(input.session.launch.args), {
-				env: input.session.envOverrides,
-				extendEnv: true,
-				detached: false
+			agentChildProcess(input.session.launch.command, input.session.launch.args, {
+				envOverrides: input.session.envOverrides
 			})
 		)
 		.pipe(

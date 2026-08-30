@@ -42,11 +42,7 @@ import {
 	type SetModeRequest
 } from "../Services/ProviderAdapter.ts"
 import { ProviderAdapterRegistry } from "../Services/ProviderAdapterRegistry.ts"
-import {
-	agentEnvOverridesFor,
-	describeAgentEnvOverrides,
-	EMPTY_AGENT_ENV
-} from "../AgentEnv.ts"
+import { agentEnvOverridesFor, describeAgentEnvOverrides } from "../AgentEnv.ts"
 
 // Structural, not nominal: any adapter can opt into interactive permission
 // prompts by exposing respondToPermission (today only ClaudeAdapter does).
@@ -193,7 +189,16 @@ type BridgeState = {
 	// never writes it to an event, a log line, or a failure detail; see
 	// AgentEnv.ts's describeAgentEnvOverrides for the one diagnostic shape
 	// allowed.
-	readonly agentEnvSetting: Ref.Ref<string>
+	//
+	// Stamped with the sequence it came from, because the bridge's live
+	// listener is forked BEFORE the historical replay runs (see
+	// makeProviderBridge): without the stamp a replayed older value could
+	// land after the live one and permanently undo a setting the person just
+	// saved.
+	readonly agentEnvSetting: Ref.Ref<{
+		readonly value: string
+		readonly sequence: Sequence
+	}>
 	readonly claimedSessions: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedMessages: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedCancellations: Ref.Ref<HashSet.HashSet<string>>
@@ -333,11 +338,8 @@ const resolveEnvOverrides = Effect.fn("ProviderBridge.resolveEnvOverrides")(func
 	state: BridgeState,
 	providerId: ProviderId
 ) {
-	const raw = yield* Ref.get(state.agentEnvSetting)
-	if (raw === "") {
-		return EMPTY_AGENT_ENV
-	}
-	return agentEnvOverridesFor(raw, providerId)
+	const setting = yield* Ref.get(state.agentEnvSetting)
+	return agentEnvOverridesFor(setting.value, providerId)
 })
 
 // KNOWN RACE (documented, not fixed in this lane): openSession forks the
@@ -863,7 +865,10 @@ const consider = Effect.fn("ProviderBridge.consider")(function*(
 			if (event.payload.key !== AGENT_ENV_OVERRIDES_SETTING_KEY) {
 				return
 			}
-			return yield* Ref.set(state.agentEnvSetting, event.payload.value)
+			return yield* Ref.update(state.agentEnvSetting, (current) =>
+				event.sequence >= current.sequence
+					? { value: event.payload.value, sequence: event.sequence }
+					: current)
 		}
 		case "SessionArchived":
 		case "SessionDeleted":
@@ -888,7 +893,7 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		sessionModes: yield* Ref.make(HashMap.empty<SessionId, SetModeRequest["modeId"]>()),
 		sessionModels: yield* Ref.make(HashMap.empty<SessionId, SetModelRequest["modelId"]>()),
 		projectRoots: yield* Ref.make(HashMap.empty<ProjectId, WorkspaceRoot>()),
-		agentEnvSetting: yield* Ref.make(""),
+		agentEnvSetting: yield* Ref.make({ value: "", sequence: 0 as Sequence }),
 		claimedSessions: yield* Ref.make(HashSet.empty<string>()),
 		claimedMessages: yield* Ref.make(HashSet.empty<string>()),
 		claimedCancellations: yield* Ref.make(HashSet.empty<string>()),

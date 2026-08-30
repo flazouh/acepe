@@ -16,7 +16,7 @@ import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawne
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
 import { EMPTY_JSON_OBJECT, field, type Json } from "../Json.ts"
 import { adapterError, type CopilotLaunchConfig } from "./Provider.ts"
-import type { AgentEnvOverrides } from "../../AgentEnv.ts"
+import { type AgentEnvOverrides, agentChildProcess } from "../../AgentEnv.ts"
 
 const encodeJsonLine = Schema.encodeUnknownEffect(Schema.fromJsonString(Schema.Json))
 const decodeJsonLine = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Json))
@@ -148,11 +148,9 @@ export const liveCreateTransport = Effect.fn("CopilotAdapter.liveCreateTransport
 	const stderrText = yield* Ref.make("")
 	const child = yield* input.spawner
 		.spawn(
-			ChildProcess.make(input.launch.command, Arr.fromIterable(input.launch.args), {
+			agentChildProcess(input.launch.command, input.launch.args, {
 				cwd: input.cwd,
-				env: input.envOverrides,
-				extendEnv: true,
-				detached: false
+				envOverrides: input.envOverrides
 			})
 		)
 		.pipe(

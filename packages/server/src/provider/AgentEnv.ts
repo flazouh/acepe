@@ -1,4 +1,5 @@
 import {
+	type AgentEnvOverrides,
 	AgentEnvOverridesByAgent,
 	isBlockedAgentEnvName
 } from "@acepe/contracts"
@@ -7,13 +8,19 @@ import * as Exit from "effect/Exit"
 import * as Record from "effect/Record"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
 
 // The environment a person set for one agent in the settings dialog, on its
-// way to that agent's spawn. These are credentials (API keys, proxy URLs with
-// basic-auth in them), so nothing in this module ever puts a VALUE into a log
-// line, an error message, or an event payload — see describeAgentEnvOverrides
-// for the only diagnostic shape allowed.
-export type AgentEnvOverrides = Readonly<Record<string, string>>
+// way to that agent's spawn. AgentEnvOverrides itself is the contract type.
+//
+// These are credentials (API keys, proxy URLs with basic-auth in them), so
+// nothing in this module ever puts a VALUE into a log line, an error message,
+// or an event payload — describeAgentEnvOverrides is the only diagnostic
+// shape allowed. Every route from a stored setting to a real child process
+// goes through one of the two primitives at the bottom of this file
+// (agentChildProcess, mergeAgentEnv), and both sanitize, so the enforcement
+// point does not depend on any caller remembering to do it.
+export type { AgentEnvOverrides }
 
 export const EMPTY_AGENT_ENV: AgentEnvOverrides = Object.freeze({})
 
@@ -28,10 +35,19 @@ const decodeByAgent = Schema.decodeUnknownExit(AgentEnvOverridesByAgent)
 const isUsableName = (name: string): boolean =>
 	Str.isNonEmpty(Str.trim(name)) &&
 	name.includes("=") === false &&
+	name.includes("\u0000") === false &&
 	isBlockedAgentEnvName(name) === false
 
+// A NUL byte is the one thing a spawn rejects OUTRIGHT, and both Node and Bun
+// quote the offending value back in the error they throw. That error becomes
+// a ProviderSessionFailed detail, which is a durable event on disk and a
+// string the UI shows, so a credential with a stray NUL in it would leak by
+// way of a crash message. Dropping the entry keeps the value out of every
+// path that could print it.
+const isUsableValue = (value: string): boolean => value.includes("\u0000") === false
+
 export const sanitizeAgentEnvOverrides = (input: AgentEnvOverrides): AgentEnvOverrides =>
-	Record.filter(input, (_value, name) => isUsableName(name))
+	Record.filter(input, (value, name) => isUsableName(name) && isUsableValue(value))
 
 // Reads one agent's overrides out of the raw `agent_env_overrides` setting
 // value, which the desktop stores as a JSON object keyed by agent id. A
@@ -78,9 +94,6 @@ export const mergeAgentEnv = <A extends string | undefined>(
 	overrides: AgentEnvOverrides
 ): Record<string, A | string> => ({ ...base, ...sanitizeAgentEnvOverrides(overrides) })
 
-export const hasAgentEnvOverrides = (overrides: AgentEnvOverrides): boolean =>
-	Record.size(overrides) > 0
-
 // The ONLY shape these overrides may take in a log, a span annotation, or a
 // failure detail: the variable names, never their values. A name is a label a
 // person chose; a value is the credential itself.
@@ -91,3 +104,24 @@ export const describeAgentEnvOverrides = (overrides: AgentEnvOverrides): string 
 	}
 	return Arr.join(names, ", ")
 }
+
+// The one spawn shape every CLI-backed provider uses. Codex, Copilot and
+// Cursor had three copies of it, which meant three places that had to
+// remember extendEnv (without it the child loses PATH and never starts) and
+// three places a future edit could skip the sanitize. extendEnv:true is what
+// makes this a MERGE: the child keeps everything Acepe itself inherited, and
+// an override only wins on a name collision.
+export const agentChildProcess = (
+	command: string,
+	args: ReadonlyArray<string>,
+	options: {
+		readonly cwd?: string
+		readonly envOverrides: AgentEnvOverrides
+	}
+): ChildProcess.Command =>
+	ChildProcess.make(command, Arr.fromIterable(args), {
+		...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+		env: sanitizeAgentEnvOverrides(options.envOverrides),
+		extendEnv: true,
+		detached: false
+	})

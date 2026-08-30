@@ -1,11 +1,8 @@
 import { type McpServerConfig, type Options as ClaudeSdkOptions } from "@anthropic-ai/claude-agent-sdk"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
-import {
-	type AgentEnvOverrides,
-	hasAgentEnvOverrides,
-	mergeAgentEnv
-} from "../../AgentEnv.ts"
+import * as Record from "effect/Record"
+import { type AgentEnvOverrides, mergeAgentEnv } from "../../AgentEnv.ts"
 import { decodeJsonObject, EMPTY_JSON_OBJECT, type JsonObject } from "../Json.ts"
 import {
 	CLAUDE_ISOLATED_SETTING_SOURCES,
@@ -131,7 +128,7 @@ export const buildClaudeQueryOptions = (
 	// extending it, so the child would lose PATH, HOME and its own
 	// credentials store if the overrides were passed on their own. Merged
 	// over process.env, with the override winning on a name collision.
-	...(input.envOverrides !== undefined && hasAgentEnvOverrides(input.envOverrides)
+	...(input.envOverrides !== undefined && Record.size(input.envOverrides) > 0
 		? { env: mergeAgentEnv(process.env, input.envOverrides) }
 		: {}),
 	canUseTool: (toolName, toolInput, options) =>

@@ -70,7 +70,7 @@ import {
 	parseThreadId,
 	parseTurnId
 } from "./Wire.ts"
-import type { AgentEnvOverrides } from "../../AgentEnv.ts"
+import { type AgentEnvOverrides, agentChildProcess } from "../../AgentEnv.ts"
 
 export type CodexAppServerInput = {
 	readonly cwd: string
@@ -297,11 +297,9 @@ export const liveCreateAppServer = (
 		const stderrText = yield* Ref.make("")
 		const child = yield* spawner
 			.spawn(
-				ChildProcess.make(input.command, Arr.fromIterable(input.args), {
+				agentChildProcess(input.command, input.args, {
 					cwd: input.cwd,
-					env: input.envOverrides,
-					extendEnv: true,
-					detached: false
+					envOverrides: input.envOverrides
 				})
 			)
 			.pipe(
