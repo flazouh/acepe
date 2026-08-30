@@ -7,6 +7,8 @@ import {
 	createPrependedReferenceArray,
 	createPrependedSessionColdArray,
 	type SessionLiveSyncReference,
+	sessionColdFromExistingSession,
+	sessionColdWithMutableUpdates,
 } from "../session-cold-index.js";
 import type { SessionCold } from "../types.js";
 
@@ -81,5 +83,34 @@ describe("session cold index array helpers", () => {
 		expect(patched[24]?.id).toBe("session-25");
 		expect(patched[24]?.updatedAtMs).toBe(100);
 		expect(patched[49]?.id).toBe("session-0");
+	});
+});
+
+// SessionListState.getAllSessions rebuilds every row through
+// sessionColdFromExistingSession, so a field this rebuild forgets is silently
+// dropped between the write and the next read. That is how a canonically
+// archived session kept its sidebar row: the projection merge stamped
+// archivedAt, and the very next getAllSessions handed the disk scan a row
+// without it.
+describe("SessionCold rebuilds preserve canonical archivedAt", () => {
+	const archivedAt = new Date("2026-08-20T12:00:00.000Z");
+
+	it("sessionColdFromExistingSession keeps archivedAt", () => {
+		const archived: SessionCold = { ...createSession("session-1", "First"), archivedAt };
+
+		expect(sessionColdFromExistingSession(archived).archivedAt).toEqual(archivedAt);
+	});
+
+	it("sessionColdWithMutableUpdates keeps archivedAt", () => {
+		const archived: SessionCold = { ...createSession("session-1", "First"), archivedAt };
+
+		const updated = sessionColdWithMutableUpdates(
+			archived,
+			{ title: "Renamed" },
+			new Date("2026-08-21T12:00:00.000Z")
+		);
+
+		expect(updated.title).toBe("Renamed");
+		expect(updated.archivedAt).toEqual(archivedAt);
 	});
 });

@@ -318,6 +318,7 @@ export function sessionColdFromExistingSession(session: SessionCold): SessionCol
 			sourcePath: session.sourcePath,
 			sessionLifecycleState: session.sessionLifecycleState,
 			parentId: session.parentId,
+			archivedAt: session.archivedAt,
 			prNumber: session.prNumber,
 			prState: session.prState,
 			prLinkMode: session.prLinkMode,
@@ -352,6 +353,9 @@ export function sessionColdWithMutableUpdates(
 					? updates.sessionLifecycleState
 					: session.sessionLifecycleState,
 			parentId: updates.parentId !== undefined ? updates.parentId : session.parentId,
+			// Canonical, never a mutable local update: only the library
+			// projection sets it (see mergeProjectionSessions).
+			archivedAt: session.archivedAt,
 			prNumber: "prNumber" in updates ? updates.prNumber : session.prNumber,
 			prState: "prState" in updates ? updates.prState : session.prState,
 			prLinkMode: "prLinkMode" in updates ? updates.prLinkMode : session.prLinkMode,
