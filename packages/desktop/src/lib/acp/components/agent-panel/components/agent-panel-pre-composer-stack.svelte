@@ -17,7 +17,6 @@ import PreSessionWorktreeCard from "./pre-session-worktree-card.svelte";
 import WorktreeSetupCard from "./worktree-setup-card.svelte";
 import AgentInstallCard from "./agent-install-card.svelte";
 import AgentErrorCard from "./agent-error-card.svelte";
-import type { SignInCardInfo } from "../logic/sign-in-card.js";
 import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 import type { ShipCardData } from "../../ship-card/ship-card-parser.js";
 
@@ -88,7 +87,7 @@ let {
 	onQueueClear,
 	onQueueResume,
 	onQueueSendNow,
-	signInCard,
+	signInMessage,
 	isSigningIn,
 	signInError,
 	onSignIn,
@@ -145,12 +144,13 @@ let {
 	onQueueResume: (() => void) | undefined;
 	onQueueSendNow: (messageId: string) => void;
 	/**
-	 * What the sign-in card should say, or `null` when none is showing.
-	 * `canSignIn` is the backend's answer to whether this agent has a login
-	 * the app can run -- see logic/sign-in-card.ts. The card offers a control
-	 * only when `onSignIn` is passed, which the panel gates on that.
+	 * What the sign-in card should say, or `null` when none is showing. The
+	 * panel builds it with deriveSignInCard (logic/sign-in-card.ts), which
+	 * also decides whether `onSignIn` is passed at all -- that one prop is
+	 * the whole answer to whether a control appears, so nothing here can
+	 * disagree with it.
 	 */
-	signInCard: SignInCardInfo | null;
+	signInMessage: string | null;
 	isSigningIn: boolean;
 	signInError: string | null;
 	/**
@@ -184,10 +184,10 @@ let {
 					data-pre-composer-stack
 				>
 					<div class="pointer-events-none flex flex-col gap-0.5 px-5 [&>*]:pointer-events-auto">
-						{#if signInCard}
+						{#if signInMessage !== null}
 							<SharedSignInCard
 								title="Sign in to continue"
-								message={signInCard.message}
+								message={signInMessage}
 								{isSigningIn}
 								{signInError}
 								onSignIn={onSignIn}

@@ -46,7 +46,10 @@ const fakeLoginOnPath = Effect.fn("fakeLoginOnPath")(function*(
 const CODEX = ProviderId.make("codex")
 const OPENCODE = ProviderId.make("opencode")
 
-Vitest.layer(TestLive)("AgentAuthenticator", (it) => {
+// excludeTestServices: every test here drives a real child process and waits
+// for it. The default TestClock never advances on its own, so a retry with a
+// delay between attempts would hang instead of polling.
+Vitest.layer(TestLive, { excludeTestServices: true })("AgentAuthenticator", (it) => {
 	it.effect("signs in by running the agent's own login command", () =>
 		Effect.gen(function*() {
 			// The script writes a marker file, which is how the test sees that
@@ -108,12 +111,43 @@ Vitest.layer(TestLive)("AgentAuthenticator", (it) => {
 			// find it; poll rather than sleep a guessed amount.
 			const cancelled = yield* Effect.retry(
 				Effect.flatMap(authenticator.cancel(CODEX), (stopped) =>
-					stopped ? Effect.succeed(true) : Effect.fail("not yet" as const)),
-				{ times: 200 }
+					stopped ? Effect.succeed(true) : Effect.fail("not yet" as const)).pipe(
+						Effect.delay("10 millis")
+					),
+				{ times: 300 }
 			)
 			Vitest.assert.strictEqual(cancelled, true)
 			const error = yield* Fiber.join(signIn)
 			Vitest.assert.strictEqual(error._tag, "AgentSignInCancelledError")
+		}))
+
+	it.effect("refuses a second sign-in for the same agent while one is running", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			// The first login says when it has started, so the second call
+			// arrives after the claim rather than after a guessed delay.
+			const started = path.join(yield* fs.makeTempDirectoryScoped(), "started")
+			const { dir } = yield* fakeLoginOnPath("codex", `printf up > ${started}\nsleep 30`)
+			const authenticator = yield* AgentAuthenticator
+			const first = yield* Effect.forkChild(
+				withEnv(authenticator.signIn(CODEX), { PATH: dir }).pipe(Effect.flip)
+			)
+			// The delay matters: without it the retries spin through in under a
+			// millisecond and the child never gets scheduled.
+			yield* Effect.retry(
+				fs.exists(started).pipe(
+					Effect.filterOrFail((exists) => exists, () => "not yet" as const),
+					Effect.delay("10 millis")
+				),
+				{ times: 300 }
+			)
+			const second = yield* withEnv(authenticator.signIn(CODEX), { PATH: dir }).pipe(Effect.flip)
+			Vitest.assert.strictEqual(second._tag, "AgentSignInAlreadyRunningError")
+			// The first still owns the latch, so cancel reaches it and the
+			// second never took it away.
+			Vitest.assert.strictEqual(yield* authenticator.cancel(CODEX), true)
+			Vitest.assert.strictEqual((yield* Fiber.join(first))._tag, "AgentSignInCancelledError")
 		}))
 
 	it.effect("cancel says so when no sign-in is running", () =>

@@ -36,14 +36,28 @@ export class AgentSignInBinaryMissingError
 	}
 }
 
+// `detail` is the spawner's own reason, and it is safe to carry: the login
+// command never ran, so nothing it could print exists yet. Which of ENOENT
+// and EACCES it was is exactly what a person needs here.
 export class AgentSignInSpawnFailedError
 	extends Schema.TaggedError<AgentSignInSpawnFailedError>()("AgentSignInSpawnFailedError", {
 		agentId: ProviderId,
-		binaryPath: Schema.String
+		binaryPath: Schema.String,
+		detail: Schema.String
 	})
 {
 	override get message(): string {
-		return `Could not start the sign-in for '${this.agentId}': '${this.binaryPath}' would not run.`
+		return `Could not start the sign-in for '${this.agentId}': '${this.binaryPath}' would not run (${this.detail}).`
+	}
+}
+
+export class AgentSignInAlreadyRunningError
+	extends Schema.TaggedError<AgentSignInAlreadyRunningError>()("AgentSignInAlreadyRunningError", {
+		agentId: ProviderId
+	})
+{
+	override get message(): string {
+		return `A ${this.agentId} sign-in is already running. Finish it in your browser, or cancel it first.`
 	}
 }
 
@@ -70,6 +84,7 @@ export class AgentSignInCancelledError
 
 export type AgentSignInError =
 	| AgentSignInUnavailableError
+	| AgentSignInAlreadyRunningError
 	| AgentSignInBinaryMissingError
 	| AgentSignInSpawnFailedError
 	| AgentSignInRejectedError

@@ -558,10 +558,12 @@ export const acp = {
 
 	// agent.authenticate runs the agent's own login command on the server and
 	// waits for it. The call is long-running by nature: it is waiting on the
-	// person finishing the login in their browser. It answers with whether
-	// the backend now considers the agent authenticated, re-read from
-	// ProviderRegistry rather than assumed from the login exiting cleanly, so
-	// no caller keeps an idea of its own about who is signed in.
+	// person finishing the login in their browser.
+	//
+	// Succeeding means the login command exited cleanly. It is not a claim
+	// that the agent is now authenticated -- see the result type in
+	// packages/contracts/src/agentCall.ts for why nothing can claim that
+	// here. Reconnect the session afterwards and let the connection answer.
 	//
 	// An agent whose login the server cannot drive fails here with the
 	// command to run instead. Read that from listAgents' `sign_in` before
@@ -570,11 +572,7 @@ export const acp = {
 		const response = yield* withRpcClient("acp.authenticateAgent", (client) =>
 			client.agentCall({ op: "agent.authenticate", agentId })
 		);
-		const result = yield* unwrapAgentCallResult("agent.authenticate", response);
-		return {
-			authenticated: result.authenticated,
-			agents: result.agents.map(toAgentInfo),
-		};
+		yield* unwrapAgentCallResult("agent.authenticate", response);
 	}),
 
 	// Stops the login command agent.authenticate is waiting on, which makes

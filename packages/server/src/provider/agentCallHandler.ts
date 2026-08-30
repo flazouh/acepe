@@ -7,7 +7,7 @@ import {
 import * as Effect from "effect/Effect"
 import { AgentAuthenticator } from "./Services/AgentAuthenticator.ts"
 import { AgentInstaller } from "./Services/AgentInstaller.ts"
-import { decodeProviderId, type ProviderId } from "./Services/ProviderAdapter.ts"
+import { decodeProviderId } from "./Services/ProviderAdapter.ts"
 import { ProviderRegistry } from "./Services/ProviderRegistry.ts"
 import { signInMethodForAgent } from "./signIn.ts"
 
@@ -74,17 +74,6 @@ const listAgents = Effect.fn("agentCall.listAgents")(function*() {
 	return agents
 })
 
-// Whether ProviderRegistry now considers this agent authenticated. Read from
-// presence after the login command exited, never asserted from its exit
-// code: presence is the fact a session start reads, and a login can exit 0
-// having written a credential store the adapter does not look in.
-const isAuthenticated = Effect.fn("agentCall.isAuthenticated")(function*(agentId: ProviderId) {
-	const registry = yield* ProviderRegistry
-	const presences = yield* registry.list
-	const found = presences.find((presence) => presence.providerId === agentId)
-	return found?.authenticated ?? false
-})
-
 export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: AgentCallRequest) {
 	switch (request.op) {
 		case "agent.list": {
@@ -124,14 +113,15 @@ export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: Age
 			// in their browser. Cancelling is agent.cancel-authentication,
 			// which stops the child this call is waiting on and makes this
 			// call fail with the cancelled message.
+			//
+			// Succeeding means the login command exited cleanly. It does not
+			// claim the agent is now authenticated -- see the result type in
+			// packages/contracts/src/agentCall.ts for why this lane cannot
+			// answer that and who can.
 			yield* authenticator.signIn(agentId).pipe(Effect.mapError(toRpcAgentCallError(request.op)))
-			const authenticated = yield* isAuthenticated(agentId)
-			const agents = yield* listAgents()
 			return {
 				op: "agent.authenticate",
-				agentId: request.agentId,
-				authenticated,
-				agents
+				agentId: request.agentId
 			} as const satisfies AgentCallResult
 		}
 		case "agent.cancel-authentication": {

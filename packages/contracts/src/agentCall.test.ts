@@ -140,21 +140,16 @@ describe("AgentCallResult", () => {
 		expect(decoded).toEqual({ op: "agent.list", agents: [] })
 	})
 
-	it("decodes an agent.authenticate result carrying the re-read authenticated fact", () => {
+	// The result deliberately carries no authenticated flag -- see the type's
+	// own comment for why nothing on this lane can answer that.
+	it("decodes an agent.authenticate result carrying only the agent it signed in", () => {
 		const decoded = Effect.runSync(
 			Schema.decodeUnknownEffect(AgentCallResult)({
 				op: "agent.authenticate",
-				agentId: "codex",
-				authenticated: true,
-				agents: []
+				agentId: "codex"
 			})
 		)
-		expect(decoded).toEqual({
-			op: "agent.authenticate",
-			agentId: "codex",
-			authenticated: true,
-			agents: []
-		})
+		expect(decoded).toEqual({ op: "agent.authenticate", agentId: "codex" })
 	})
 
 	it("decodes an agent.cancel-authentication result carrying whether it stopped one", () => {

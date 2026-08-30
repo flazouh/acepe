@@ -1322,13 +1322,13 @@ function handleSignIn() {
 
 	// Runs the agent's own login command on the backend and waits for the
 	// person to finish it in their browser, so this call is long-lived by
-	// design. `authenticated` is the backend's re-read fact -- a login that
-	// exits cleanly without signing anybody in answers false, and saying so
-	// beats reconnecting into the same auth failure.
+	// design. Succeeding means that command exited cleanly; whether the agent
+	// is now authenticated is settled by the reconnect below, which fails
+	// with the same auth requirement again if the login did not take.
 	void Effect.runPromise(
 		agentStore.authenticateAgent(agentId).pipe(
 			Effect.match({
-				onSuccess: (authenticated) => {
+				onSuccess: () => {
 					if (
 						signInAttempt !== attempt ||
 						effectivePanelAgentId !== agentId ||
@@ -1341,10 +1341,6 @@ function handleSignIn() {
 						return;
 					}
 					isSigningIn = false;
-					if (!authenticated) {
-						signInError = "The sign-in finished without signing you in. Try again.";
-						return;
-					}
 					signInError = null;
 					if (sessionIdAtStart !== null) {
 						void Effect.runPromise(
@@ -1880,7 +1876,7 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onQueueClear={handleQueueStripClear}
 					onQueueResume={queueIsPaused && sessionId ? () => messageQueueStore.resume(sessionId) : undefined}
 					onQueueSendNow={handleQueueStripSendNow}
-					{signInCard}
+					signInMessage={signInCard?.message ?? null}
 					{isSigningIn}
 					{signInError}
 					onSignIn={signInCard?.canSignIn === true ? handleSignIn : undefined}

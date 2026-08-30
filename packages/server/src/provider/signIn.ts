@@ -1,4 +1,6 @@
 import type { AgentCallSignInMethod } from "@acepe/contracts"
+import { COPILOT_BINARY_ENV_KEY, COPILOT_BINARY_NAME } from "./Layers/Copilot/Provider.ts"
+import { CURSOR_BINARY_ENV_KEY, CURSOR_BINARY_NAME } from "./Layers/Cursor/Provider.ts"
 
 // What actually signs each agent in, and which of those Acepe can run.
 //
@@ -29,9 +31,12 @@ export type AgentSignInPlan =
 		// the ACP-server-only entry point Acepe launches sessions with.
 		readonly binaryName: string
 		readonly args: ReadonlyArray<string>
-		// Environment variable that overrides the binary's location, where
-		// the adapter already defines one. Read before PATH, same order the
-		// adapter's own probe uses.
+		// Environment variable that overrides the binary's location, taken
+		// from the provider module that owns it rather than repeated here.
+		// Read before PATH, the same order the adapter's own probe uses, so
+		// an operator who points Acepe at a CLI through that variable can
+		// sign in with the same CLI they start sessions with. Claude and
+		// Codex define no such variable.
 		readonly binaryEnvKey: string | null
 	}
 	| {
@@ -61,20 +66,20 @@ const CODEX_PLAN: AgentSignInPlan = {
 
 const COPILOT_PLAN: AgentSignInPlan = {
 	kind: "browser",
-	binaryName: "copilot",
+	binaryName: COPILOT_BINARY_NAME,
 	// --web-flow is forced rather than left to the CLI's own detection: it
 	// falls back to the device-code flow when it thinks it is headless, and
 	// spawned from a server process without a terminal it thinks exactly
 	// that. The device code would then be printed where nobody reads it.
 	args: ["login", "--web-flow"],
-	binaryEnvKey: null
+	binaryEnvKey: COPILOT_BINARY_ENV_KEY
 }
 
 const CURSOR_PLAN: AgentSignInPlan = {
 	kind: "browser",
-	binaryName: "cursor-agent",
+	binaryName: CURSOR_BINARY_NAME,
 	args: ["login"],
-	binaryEnvKey: "ACEPE_CURSOR_BIN"
+	binaryEnvKey: CURSOR_BINARY_ENV_KEY
 }
 
 const OPENCODE_PLAN: AgentSignInPlan = {

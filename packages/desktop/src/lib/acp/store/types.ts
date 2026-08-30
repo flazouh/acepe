@@ -450,7 +450,12 @@ export interface Agent {
 	readonly providerMetadata?: ProviderMetadataProjection;
 	/** Whether the agent can discover persisted projects from existing session history. */
 	readonly supportsProjectDiscovery?: boolean;
-	/** Backend-owned: how this agent can be signed in, if at all. */
+	/**
+	 * Backend-owned: how this agent can be signed in, if at all. Optional for
+	 * the same reason every other field here is -- an Agent can be built for a
+	 * test or a fixture without one. Absent means no sign-in control, which is
+	 * the safe reading: see deriveSignInCard.
+	 */
 	readonly signIn?: AgentSignInMethod;
 }
 

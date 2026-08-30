@@ -468,7 +468,7 @@ describe("acp backend client", () => {
 	// The bug this replaces: authenticateAgent answered unsupportedOnContract,
 	// so the panel's sign-in button could only ever fail. It has to reach the
 	// backend's sign-in op instead.
-	it("authenticateAgent sends agentCall's agent.authenticate op and returns the backend's answer", () =>
+	it("authenticateAgent sends agentCall's agent.authenticate op", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {
 				const requests: Array<Record<string, unknown>> = [];
@@ -476,35 +476,12 @@ describe("acp backend client", () => {
 					makeClient({
 						agentCall: (request) => {
 							requests.push(request as unknown as Record<string, unknown>);
-							return Effect.succeed({
-								op: "agent.authenticate",
-								agentId: "codex",
-								authenticated: true,
-								agents: [
-									{
-										id: "codex",
-										name: "Codex",
-										availabilityKind: { kind: "installable", installed: true },
-										signIn: { kind: "browser" },
-									},
-								],
-							});
+							return Effect.succeed({ op: "agent.authenticate", agentId: "codex" });
 						},
 					})
 				);
-				const result = yield* acp.authenticateAgent("codex");
+				yield* acp.authenticateAgent("codex");
 				expect(requests).toEqual([{ op: "agent.authenticate", agentId: "codex" }]);
-				expect(result).toEqual({
-					authenticated: true,
-					agents: [
-						{
-							id: "codex",
-							name: "Codex",
-							availability_kind: { kind: "installable", installed: true },
-							sign_in: { kind: "browser" },
-						},
-					],
-				});
 			})
 		));
 

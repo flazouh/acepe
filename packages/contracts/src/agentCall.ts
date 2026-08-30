@@ -34,9 +34,9 @@ import * as Schema from "effect/Schema"
 // command is an echo too -- acpDecide.ts emits an AgentAuthenticated event
 // straight from the command payload, so dispatching it records "this agent
 // is signed in" without a single credential having been exchanged, and
-// nothing reads authenticatedness from the event store. Authenticatedness is
-// answered by ProviderRegistry presence, so the operation that changes it
-// belongs on the lane that reads it.
+// nothing reads authenticatedness from the event store. Nothing reads it from
+// anywhere: what settles it is starting a session, which is why the result
+// below reports no authenticated flag of its own.
 //
 // What actually signs an agent in is that agent's own CLI: `claude auth
 // login`, `codex login`, `copilot login`, `cursor-agent login`. Each opens
@@ -139,16 +139,18 @@ export const AgentCallAuthenticateRequest = Schema.Struct({
 })
 export type AgentCallAuthenticateRequest = typeof AgentCallAuthenticateRequest.Type
 
-// `authenticated` is re-probed off ProviderRegistry after the login command
-// exited, not asserted from the exit code: a login can exit 0 having written
-// nothing the adapter will find, and presence is the fact a session start
-// reads. `agents` carries the whole re-read list for the same reason
-// install's does.
+// Deliberately carries no "authenticated" answer of its own. Whether an agent
+// is authenticated is settled by starting a session with it: a login command
+// can exit 0 having written a credential store the adapter does not look in,
+// and the session start is where that shows. Reporting it here would need a
+// presence re-probe, and ProviderRegistry cannot give one -- every live
+// adapter computes its presence once, at layer construction, and hands back
+// that snapshot forever (see makeLiveClaudeAdapter and its four siblings).
+// A caller that has just signed in should reconnect the session and let the
+// connection answer, rather than trust a second-hand flag.
 export const AgentCallAuthenticateResult = Schema.Struct({
 	op: Schema.Literal("agent.authenticate"),
-	agentId: Schema.String,
-	authenticated: Schema.Boolean,
-	agents: Schema.Array(AgentCallAgentInfo)
+	agentId: Schema.String
 })
 export type AgentCallAuthenticateResult = typeof AgentCallAuthenticateResult.Type
 

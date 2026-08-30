@@ -13,6 +13,7 @@ import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import {
 	AgentAuthenticator,
+	AgentSignInAlreadyRunningError,
 	AgentSignInBinaryMissingError,
 	AgentSignInCancelledError,
 	AgentSignInRejectedError,
@@ -36,14 +37,17 @@ const pathEntries = (pathVar: string): ReadonlyArray<string> =>
 // them in an error or forward them anywhere. Nothing is lost that Acepe is
 // allowed to use.
 //
-// `detached` is left at the platform default (true on macOS and Linux), which
-// is what lets the spawner kill the whole process group when a sign-in is
-// cancelled -- a login CLI that has spawned a browser helper leaves one.
+// `detached: false` matches agentChildProcess (provider/AgentEnv.ts), which
+// every other agent child is spawned with: a login left running when Acepe
+// quits would otherwise outlive it with nothing able to answer it. Cancelling
+// still works -- the spawner tries a process-group kill first and falls back
+// to killing the process itself, which is the path a non-detached child takes.
 const signInCommand = (binaryPath: string, args: ReadonlyArray<string>): ChildProcess.Command =>
 	ChildProcess.make(binaryPath, Arr.fromIterable(args), {
 		stdin: "ignore",
 		stdout: "ignore",
-		stderr: "ignore"
+		stderr: "ignore",
+		detached: false
 	})
 
 export const makeAgentAuthenticator = Effect.fn("AgentAuthenticator.make")(function*() {
@@ -110,26 +114,32 @@ export const makeAgentAuthenticator = Effect.fn("AgentAuthenticator.make")(funct
 		}
 		const binaryPath = binary.value
 		const cancelled = yield* Deferred.make<void>()
-		// A second sign-in for the same agent stops the first rather than
-		// leaving two login children racing to write the same credential
-		// store.
-		const previous = yield* Ref.get(inFlight).pipe(Effect.map(HashMap.get(agentId)))
-		if (Option.isSome(previous)) {
-			yield* Deferred.succeed(previous.value, undefined)
+		// One sign-in per agent at a time, claimed atomically. Two login
+		// children racing to write the same credential store is not a thing
+		// to arbitrate between, and cancel can only name an agent, so a
+		// second latch under the same key would leave one of them
+		// unstoppable.
+		const claimed = yield* Ref.modify(inFlight, (running) =>
+			HashMap.has(running, agentId)
+				? [false, running]
+				: [true, HashMap.set(running, agentId, cancelled)])
+		if (claimed === false) {
+			return yield* new AgentSignInAlreadyRunningError({ agentId })
 		}
-		yield* Ref.update(inFlight, HashMap.set(agentId, cancelled))
-		const exitCode = yield* Effect.raceFirst(
+		const exit = yield* Effect.raceFirst(
 			spawner.exitCode(signInCommand(binaryPath, plan.args)).pipe(
-				Effect.mapError(() => new AgentSignInSpawnFailedError({ agentId, binaryPath }))
+				Effect.mapError((cause) =>
+					new AgentSignInSpawnFailedError({ agentId, binaryPath, detail: cause.message }))
 			),
 			Deferred.await(cancelled).pipe(
 				Effect.andThen(Effect.fail(new AgentSignInCancelledError({ agentId })))
 			)
 		).pipe(
-			Effect.ensuring(Ref.update(inFlight, HashMap.remove(agentId)))
+			Effect.ensuring(Ref.update(inFlight, HashMap.remove(agentId))),
+			Effect.map(Number)
 		)
-		if (Number(exitCode) !== 0) {
-			return yield* new AgentSignInRejectedError({ agentId, exitCode: Number(exitCode) })
+		if (exit !== 0) {
+			return yield* new AgentSignInRejectedError({ agentId, exitCode: exit })
 		}
 	})
 
