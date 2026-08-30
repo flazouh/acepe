@@ -869,6 +869,10 @@ describe("reduceCommand", () => {
 		]);
 	});
 
+	// The delta below carries no acknowledgement of this send: the only user
+	// entry belongs to an earlier attempt, and the delta itself appends an
+	// assistant row. A transcript delta arriving is not by itself proof that the
+	// canonical transcript took the prompt, so the optimistic row stays.
 	it("keeps pending send intent until the viewport can replace its optimistic row", () => {
 		const pendingSendIntent = {
 			attemptId: "attempt-1",
@@ -893,8 +897,8 @@ describe("reduceCommand", () => {
 					{
 						entryId: "user-1",
 						role: "user",
-						attemptId: "attempt-1",
-						segments: [{ kind: "text", segmentId: "s-1", text: "hello" }],
+						attemptId: "attempt-0",
+						segments: [{ kind: "text", segmentId: "s-1", text: "earlier prompt" }],
 					},
 				],
 			},
@@ -942,6 +946,9 @@ describe("reduceCommand", () => {
 					patch.kind === "updateTransientProjection" && patch.updates.pendingSendIntent === null
 			)
 		).toBe(false);
+		expect(patches.some((patch) => patch.kind === "clearAcknowledgedPendingSendIntent")).toBe(
+			false
+		);
 	});
 
 	it("refreshes snapshot when graph patches arrive without canonical graph", () => {

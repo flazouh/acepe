@@ -45,6 +45,16 @@ export type EnvelopePatch =
 			};
 	  }
 	| {
+			/**
+			 * The canonical transcript acknowledged this send attempt, so the
+			 * optimistic user row and its timeout can go. Carries the attempt id so
+			 * a late acknowledgement cannot retire a newer send.
+			 */
+			kind: "clearAcknowledgedPendingSendIntent";
+			sessionId: string;
+			attemptId: string;
+	  }
+	| {
 			kind: "setUsageTelemetry";
 			sessionId: string;
 			telemetry: SessionUsageTelemetry;

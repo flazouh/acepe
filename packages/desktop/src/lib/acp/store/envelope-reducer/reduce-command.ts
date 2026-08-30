@@ -6,6 +6,7 @@ import type {
 	SessionStateGraph,
 	SessionTurnState,
 	TranscriptDelta,
+	TranscriptEntry,
 	TranscriptSnapshot,
 } from "../../../services/acp-types.js";
 import type { SessionStateCommand } from "../../session-state/session-state-command-router.js";
@@ -33,6 +34,7 @@ import {
 	mergeSessionGraphActivityTiming,
 	seedSessionGraphActivityTimingIfNeeded,
 } from "./merge-session-graph-activity-timing.js";
+import { acknowledgedPendingSendAttemptId } from "./pending-send-acknowledgement.js";
 import { mapProjectionTurnFailure } from "./projection-turn-failure.js";
 import { defaultIdleActivity, reconcileStoredGraphActivity } from "./reconcile-graph-activity.js";
 
@@ -66,6 +68,36 @@ function activeStreamingTailForGraphPatch(input: {
 	}
 
 	return terminalTurnState(input.nextTurnState) ? null : input.previousActiveStreamingTail;
+}
+
+/**
+ * The patch that retires a local optimistic send the canonical transcript has
+ * just acknowledged. Empty when nothing in this transcript matches the pending
+ * intent, so a session with no pending send costs one null check.
+ */
+function pendingSendAcknowledgementPatches(input: {
+	readonly snapshot: EnvelopeReducerSnapshot;
+	readonly entries: readonly TranscriptEntry[];
+	readonly previousEntries: readonly TranscriptEntry[] | undefined;
+	readonly transcriptRevision: number;
+}): readonly EnvelopePatch[] {
+	const attemptId = acknowledgedPendingSendAttemptId({
+		pendingSendIntent: input.snapshot.transientProjection.pendingSendIntent,
+		entries: input.entries,
+		previousEntries: input.previousEntries,
+		transcriptRevision: input.transcriptRevision,
+	});
+	if (attemptId === null) {
+		return [];
+	}
+
+	return [
+		{
+			kind: "clearAcknowledgedPendingSendIntent",
+			sessionId: input.snapshot.sessionId,
+			attemptId,
+		},
+	];
 }
 
 export function reduceCommand(
@@ -341,6 +373,15 @@ function reduceReplaceGraph(
 			activity: projectionGraph.activity,
 			turnState: projectionGraph.turnState,
 		}
+	);
+
+	patches.push(
+		...pendingSendAcknowledgementPatches({
+			snapshot,
+			entries: projectionGraph.transcriptSnapshot.entries,
+			previousEntries: previousGraph?.transcriptSnapshot.entries,
+			transcriptRevision: projectionGraph.transcriptSnapshot.revision,
+		})
 	);
 
 	return patches;
@@ -696,7 +737,35 @@ export function reduceTranscriptDelta(
 		}
 	}
 
+	patches.push(
+		...pendingSendAcknowledgementPatches({
+			snapshot,
+			entries: nextSnapshot?.entries ?? transcriptDeltaEntries(delta),
+			previousEntries: snapshot.previousGraph?.transcriptSnapshot.entries,
+			transcriptRevision: delta.snapshotRevision,
+		})
+	);
+
 	return patches;
+}
+
+/**
+ * The entries a delta carries on its own, for the case where no graph exists
+ * yet to fold it into. Only appended entries and whole-snapshot replacements
+ * name an entry; a segment append extends an entry that already exists.
+ */
+function transcriptDeltaEntries(delta: TranscriptDelta): readonly TranscriptEntry[] {
+	const entries: TranscriptEntry[] = [];
+	for (const operation of delta.operations) {
+		if (operation.kind === "appendEntry") {
+			entries.push(operation.entry);
+			continue;
+		}
+		if (operation.kind === "replaceSnapshot") {
+			entries.push(...operation.snapshot.entries);
+		}
+	}
+	return entries;
 }
 
 function reduceRefreshSnapshot(

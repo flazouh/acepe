@@ -33,6 +33,15 @@ import type {
 } from "./interfaces/index.js";
 
 const logger = createLogger({ id: "session-messaging-service", name: "SessionMessagingService" });
+/**
+ * Backstop only. The canonical transcript retires a pending send as soon as it
+ * acknowledges the attempt (envelope-reducer/pending-send-acknowledgement.ts),
+ * and a terminal turn retires it too. This timeout covers the one case neither
+ * does: no acknowledgement ever arrives, because the send never reached the
+ * provider or the provider went away without answering. It stays long on
+ * purpose -- a shorter number would drop the optimistic row from under a slow
+ * provider that is still working.
+ */
 const PENDING_SEND_INTENT_TIMEOUT_MS = 90_000;
 
 type UnrefableTimeout = ReturnType<typeof setTimeout> & {
@@ -175,6 +184,18 @@ export class SessionMessagingService {
 		}, PENDING_SEND_INTENT_TIMEOUT_MS);
 		(timeoutId as UnrefableTimeout).unref?.();
 		this.pendingSendIntentTimeouts.set(sessionId, timeoutId);
+	}
+
+	/**
+	 * Retire the optimistic send the canonical transcript just acknowledged.
+	 *
+	 * The reducer decides that a canonical user entry belongs to this attempt
+	 * (see envelope-reducer/pending-send-acknowledgement.ts); this only clears
+	 * the intent, its attempt id and its backstop timeout. The attempt id keeps
+	 * a late acknowledgement from retiring a newer send.
+	 */
+	clearAcknowledgedPendingSendIntent(sessionId: string, attemptId: string): void {
+		this.clearPendingSendIntent(sessionId, attemptId);
 	}
 
 	private clearPendingSendIntent(sessionId: string, attemptId: string): void {

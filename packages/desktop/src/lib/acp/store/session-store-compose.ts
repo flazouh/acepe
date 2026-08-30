@@ -372,6 +372,9 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		},
 		syncSessionSequenceFromGraph: (graph) =>
 			openSnapshotApplier.syncSessionSequenceFromGraph(graph),
+		clearAcknowledgedPendingSendIntent: (sessionId, attemptId) => {
+			messagingSvc.clearAcknowledgedPendingSendIntent(sessionId, attemptId);
+		},
 		composerEndDispatch: (sessionId) => composerMachineService.endDispatch(sessionId),
 		handleCanonicalTurnComplete: (sessionId, lastTerminalTurnId) => {
 			messagingSvc.handleCanonicalTurnComplete(sessionId, lastTerminalTurnId);

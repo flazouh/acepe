@@ -84,6 +84,7 @@ export type SessionEnvelopeApplierDeps = {
 		sessionId: string,
 		updates: SessionTransientProjectionUpdates
 	) => void;
+	readonly clearAcknowledgedPendingSendIntent: (sessionId: string, attemptId: string) => void;
 	readonly updateUsageTelemetry: (sessionId: string, telemetry: SessionUsageTelemetry) => void;
 	readonly applyViewportBufferPush: (push: ViewportBufferPush) => void;
 	readonly applyViewportBufferDelta: (delta: ViewportBufferDelta) => void;
@@ -253,6 +254,9 @@ export class SessionEnvelopeApplier {
 					break;
 				case "updateTransientProjection":
 					this.#deps.updateTransientProjection(sessionId, patch.updates);
+					break;
+				case "clearAcknowledgedPendingSendIntent":
+					this.#deps.clearAcknowledgedPendingSendIntent(patch.sessionId, patch.attemptId);
 					break;
 				case "setUsageTelemetry":
 					this.#deps.updateUsageTelemetry(sessionId, patch.telemetry);

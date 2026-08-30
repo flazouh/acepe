@@ -96,6 +96,7 @@ describe("SessionEnvelopeApplier", () => {
 			setCanonicalProjection,
 			setSessionStateGraph,
 			updateTransientProjection,
+			clearAcknowledgedPendingSendIntent: vi.fn(),
 			updateUsageTelemetry: vi.fn(),
 			applyViewportBufferPush: vi.fn(),
 			applyViewportBufferDelta: vi.fn(),
