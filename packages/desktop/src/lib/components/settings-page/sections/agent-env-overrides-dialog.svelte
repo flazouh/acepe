@@ -142,6 +142,8 @@ function handleSave(): void {
 	type="button"
 	class="flex h-7 items-center gap-1.5 px-2 text-[12px] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
 	data-header-control
+	data-testid="agent-env-overrides-trigger"
+	data-agent-id={agentId}
 	onclick={() => handleOpenChange(true)}
 >
 	<HugeiconsIcon name="sliders" class="size-3.5 shrink-0" />
