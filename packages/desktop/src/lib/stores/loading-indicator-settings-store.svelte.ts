@@ -2,6 +2,7 @@ import {
 	DEFAULT_LOADING_ICON_COLOR_ID,
 	isLoadingIconColorId,
 	LOADING_ICON_COLOR_OPTIONS,
+	loadingIconPreference,
 	type LoadingIconColorId,
 	normalizeLoadingIconColorId,
 } from "@acepe/ui/icons";
@@ -51,6 +52,10 @@ class LoadingIndicatorSettingsStore {
 
 	private applyColor(value: LoadingIconColorId): void {
 		this.selectedColor = value;
+		// Every spinner reads loadingIconPreference, not this store. Setting only
+		// the local field meant the picked colour persisted across restarts and
+		// never reached a single loading icon.
+		loadingIconPreference.setColor(value);
 	}
 }
 
