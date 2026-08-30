@@ -119,7 +119,14 @@ describe("ProjectHeaderOverflowMenu", () => {
 			code: "ArrowRight",
 		});
 		await fireEvent.click(await screen.findByRole("menuitem", { name: "Remove Project" }));
-		await fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+
+		// The destructive action is confirmed first, and the confirmation says
+		// plainly that no file is deleted.
+		expect(onRemoveProject).not.toHaveBeenCalled();
+		expect(screen.getByText(/The folder and its files stay on disk/)).not.toBeNull();
+		expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+
+		await fireEvent.click(screen.getByRole("button", { name: "Remove" }));
 
 		expect(onRemoveProject).toHaveBeenCalledTimes(1);
 		expect(onColorChange).not.toHaveBeenCalled();

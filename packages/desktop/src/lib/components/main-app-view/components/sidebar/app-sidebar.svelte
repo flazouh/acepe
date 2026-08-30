@@ -33,6 +33,7 @@ import type { MainAppViewState } from "../../logic/main-app-view-state.svelte.js
 import { applyCompletionAttentionAction } from "../../logic/completion-acknowledgement.js";
 import type { UpdaterBannerState } from "../../logic/updater-state.js";
 import { ensureProjectHeaderAgentSelected, getProjectHeaderAgents } from "./app-sidebar-agents.js";
+import { removeProjectFromSidebar } from "./app-sidebar-remove-project.js";
 
 import SidebarFooter from "./sidebar-footer.svelte";
 import { buildSessionTranscriptFileDialogTarget } from "./session-transcript-file-dialog.js";
@@ -209,30 +210,17 @@ function handleResetProjectIcon(projectPath: string) {
 }
 
 function handleRemoveProject(projectPath: string) {
-	// Close all panels associated with this project before removing it
-	for (const sessionId of sessionStore.read.getSessionIdsForProject(projectPath)) {
-		panelStore.closePanelBySessionId(sessionId);
-		sessionStore.write.removeSession(sessionId);
-	}
-	for (const tp of panelStore.getTerminalPanelsForProject(projectPath)) {
-		panelStore.closeTerminalPanel(tp.id);
-	}
-	for (const fp of panelStore.getFilePanelsForProject(projectPath)) {
-		panelStore.closeFilePanel(fp.id);
-	}
-	for (const bp of panelStore.getBrowserPanelsForProject(projectPath)) {
-		panelStore.closeBrowserPanel(bp.id);
-	}
-	panelStore.removeWorkspacePanelsForProject(projectPath);
-
 	void Effect.runPromise(
-		projectManager.removeProject(projectPath).pipe(
-			Effect.catch((error) => {
+		removeProjectFromSidebar({
+			projectPath,
+			openSessionIds: sessionStore.read.getSessionIdsForProject(projectPath),
+			panels: panelStore,
+			removeProject: (path) => projectManager.removeProject(path),
+			onFailure: (error) => {
 				toast.error(`Failed to remove project: ${error.message}`);
 				logger.error("[RemoveProject] Failed to remove", { projectPath, error });
-				return Effect.void;
-			})
-		)
+			},
+		})
 	);
 }
 

@@ -464,12 +464,14 @@ function handleToggleRowClick(
 	>
 		<p class="text-xs font-normal">Remove Project</p>
 		<p class="text-xs font-normal text-muted-foreground">
-			{`Remove "${projectName}" from your workspace? This will not delete any files.`}
+			{`Remove "${projectName}" from Acepe? The folder and its files stay on disk, and you can add it again later.`}
 		</p>
 		<div class="flex gap-2">
 			<Button variant="outline" size="xs" onclick={() => (showRemoveConfirm = false)}>
 				Cancel
 			</Button>
+			<!-- "Remove", never "Delete": the command only forgets the project, it
+			     never touches the folder on disk. -->
 			<Button
 				variant="destructive"
 				size="xs"
@@ -478,7 +480,7 @@ function handleToggleRowClick(
 					showRemoveConfirm = false;
 				}}
 			>
-				Delete
+				Remove
 			</Button>
 		</div>
 	</Popover.Content>
