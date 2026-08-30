@@ -48,7 +48,14 @@
 	);
 </script>
 
-<AgentPanelPrStatusCard {visible} {fetchError} {initiallyExpanded} {hasExpandedContent} hasBelowHeader={hasChecks}>
+<AgentPanelPrStatusCard
+	{visible}
+	mode={model.mode}
+	{fetchError}
+	{initiallyExpanded}
+	{hasExpandedContent}
+	hasBelowHeader={hasChecks}
+>
 	{#snippet headerMain()}
 		{#if model.mode === "pr" && model.number !== null && model.number !== undefined}
 			<button

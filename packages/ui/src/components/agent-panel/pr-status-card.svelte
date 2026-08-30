@@ -3,6 +3,8 @@
 
 	interface Props {
 		visible: boolean;
+		/** Which card state is rendered, published for QA/DOM reads. */
+		mode?: string;
 		hasExpandedContent: boolean;
 		hasBelowHeader?: boolean;
 		fetchError?: string | null;
@@ -15,6 +17,7 @@
 
 	let {
 		visible,
+		mode = "pending",
 		hasExpandedContent,
 		hasBelowHeader = false,
 		fetchError = null,
@@ -37,7 +40,7 @@
 </script>
 
 {#if visible}
-	<div class="w-full">
+	<div class="w-full" data-testid="pr-status-card" data-pr-card-mode={mode}>
 		<div
 			role="button"
 			tabindex="0"
