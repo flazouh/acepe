@@ -1,14 +1,11 @@
 import { describe, expect, it } from "bun:test";
 import * as Effect from "effect/Effect";
-import type { DownloadEvent } from "$lib/utils/updater-types.js";
-
-import type { Update } from "$lib/utils/updater-types.js";
+import type { DownloadEvent, Update, UpdateCheckOutcome } from "$lib/utils/updater-types.js";
 import {
 	downloadAndInstallUpdate,
 	installDownloadedUpdate,
 	type PreparedUpdateHandle,
 	predownloadUpdate,
-	runUpdateCheck,
 	updaterStateForCheckOutcome,
 } from "../logic/updater-workflow.js";
 
@@ -100,35 +97,30 @@ describe("the update check outcome", () => {
 		install: async () => undefined,
 	};
 
-	it("reports the update the shell found", async () => {
-		const outcome = await runUpdateCheck(() => Promise.resolve(anUpdate));
-		expect(outcome).toEqual({ kind: "available", update: anUpdate });
-		expect(updaterStateForCheckOutcome(outcome).kind).toBe("idle");
+	const outcomes: ReadonlyArray<UpdateCheckOutcome> = [
+		{ kind: "available", update: anUpdate },
+		{ kind: "none" },
+		{ kind: "failed", message: "Failed to fetch update info" },
+	];
+
+	it("goes back to idle when an update is available", () => {
+		expect(updaterStateForCheckOutcome({ kind: "available", update: anUpdate }).kind).toBe("idle");
 	});
 
-	it("reports no update and goes back to idle", async () => {
-		const outcome = await runUpdateCheck(() => Promise.resolve(null));
-		expect(outcome).toEqual({ kind: "none" });
-		expect(updaterStateForCheckOutcome(outcome).kind).toBe("idle");
+	it("goes back to idle when there is no update", () => {
+		expect(updaterStateForCheckOutcome({ kind: "none" }).kind).toBe("idle");
 	});
 
-	it("reports a failed check as an error, never as no update", async () => {
-		const outcome = await runUpdateCheck(() =>
-			Promise.reject(new Error("Failed to fetch update info"))
-		);
-		expect(outcome).toEqual({ kind: "failed", message: "Failed to fetch update info" });
-		expect(updaterStateForCheckOutcome(outcome)).toEqual({
-			kind: "error",
-			message: "Failed to fetch update info",
-		});
+	it("shows a failed check as an error, never as no update", () => {
+		expect(
+			updaterStateForCheckOutcome({
+				kind: "failed",
+				message: "Failed to fetch update info",
+			})
+		).toEqual({ kind: "error", message: "Failed to fetch update info" });
 	});
 
-	it("leaves the checking state whatever the check answered", async () => {
-		const outcomes = await Promise.all([
-			runUpdateCheck(() => Promise.resolve(anUpdate)),
-			runUpdateCheck(() => Promise.resolve(null)),
-			runUpdateCheck(() => Promise.reject(new Error("network is down"))),
-		]);
+	it("leaves the checking state whatever the check answered", () => {
 		for (const outcome of outcomes) {
 			expect(updaterStateForCheckOutcome(outcome).kind).not.toBe("checking");
 		}

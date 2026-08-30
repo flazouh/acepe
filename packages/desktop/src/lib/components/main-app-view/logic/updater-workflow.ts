@@ -1,6 +1,6 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
-import type { DownloadEvent, Update } from "$lib/utils/updater-types.js";
+import type { DownloadEvent, Update, UpdateCheckOutcome } from "$lib/utils/updater-types.js";
 import {
 	createErrorUpdaterState,
 	createIdleUpdaterState,
@@ -11,28 +11,6 @@ export type PreparedUpdateHandle = Pick<Update, "version" | "download" | "instal
 
 function toError(error: unknown): Error {
 	return error instanceof Error ? error : new Error(String(error));
-}
-
-/**
- * What one update check settled on.
- *
- * A check that failed is its own outcome. Reading it as "no update" would hide
- * a broken updater behind a quiet app, and leaving it unhandled would strand
- * the banner on "Checking update..." for the rest of the session.
- */
-export type UpdateCheckOutcome =
-	| { readonly kind: "available"; readonly update: Update }
-	| { readonly kind: "none" }
-	| { readonly kind: "failed"; readonly message: string };
-
-export function runUpdateCheck(
-	check: () => Promise<Update | null>
-): Promise<UpdateCheckOutcome> {
-	return check().then(
-		(update): UpdateCheckOutcome =>
-			update === null ? { kind: "none" } : { kind: "available", update },
-		(cause): UpdateCheckOutcome => ({ kind: "failed", message: toError(cause).message })
-	);
 }
 
 /** Every outcome leaves "checking", so the banner can never get stuck there. */

@@ -1,5 +1,8 @@
-import type { DownloadEvent, Update } from "$lib/utils/updater-types.js";
 import * as Predicate from "effect/Predicate";
+import type { DownloadEvent, Update, UpdateCheckOutcome } from "$lib/utils/updater-types.js";
+import { LOGGER_IDS } from "../acp/constants/logger-ids.js";
+import { createLogger } from "../acp/utils/logger.js";
+import type { ElectrobunRpcBridge } from "./client.js";
 
 /**
  * The webview's view of the shell's updater.
@@ -12,14 +15,15 @@ import * as Predicate from "effect/Predicate";
  * The requests are taken as a parameter so a test can drive them without an
  * Electrobun window.
  */
-export type ShellUpdaterRequests = {
-	readonly getAppVersion: (params: unknown) => Promise<unknown>;
-	readonly checkForUpdate: (params: unknown) => Promise<unknown>;
-	readonly downloadUpdate: (params: unknown) => Promise<unknown>;
-	readonly applyUpdate: (params: unknown) => Promise<unknown>;
-	readonly updateDownloadProgress: (params: unknown) => Promise<unknown>;
-	readonly relaunchApp: (params: unknown) => Promise<unknown>;
-};
+export type ShellUpdaterRequests = Pick<
+	ElectrobunRpcBridge["request"],
+	| "getAppVersion"
+	| "checkForUpdate"
+	| "downloadUpdate"
+	| "applyUpdate"
+	| "updateDownloadProgress"
+	| "relaunchApp"
+>;
 
 export type ShellUpdateProgress = {
 	readonly downloadedBytes: number;
@@ -27,6 +31,11 @@ export type ShellUpdateProgress = {
 };
 
 const DOWNLOAD_POLL_INTERVAL_MS = 400;
+
+const logger = createLogger({
+	id: LOGGER_IDS.ELECTROBUN_SHIMS,
+	name: "Shell Updater",
+});
 
 const asRecord = (value: unknown): Record<string, unknown> | null =>
 	Predicate.isObject(value) ? (value as Record<string, unknown>) : null;
@@ -197,7 +206,12 @@ export function runShellDownload(
 					onEvent(event);
 				}
 			})
-			.catch(() => undefined);
+			.catch((cause: unknown) => {
+				// The download itself is still running: a lost progress read only
+				// costs this tick's percentage. Say so once per tick rather than
+				// letting the bar stall with no account of why.
+				logger.warn("update download progress read failed", { cause });
+			});
 	};
 	const handle = timers.setInterval(poll, DOWNLOAD_POLL_INTERVAL_MS);
 	return requests
@@ -217,34 +231,39 @@ export function runShellDownload(
 /**
  * Asks the shell whether an update exists.
  *
- * Answers null when the app is already current, and rejects when the check
- * itself failed. The caller must tell those apart: a failed check has to
- * surface as an error, never as "no update" and never as a banner left
- * checking forever.
+ * Answers an outcome rather than throwing, because "the check failed" is one
+ * of the three things that can happen and the caller has to render it.
  */
-export function requestUpdate(
+export function requestUpdateCheck(
 	requests: ShellUpdaterRequests,
 	timers: DownloadTimers = realTimers
-): Promise<Update | null> {
-	return requests.checkForUpdate({}).then((response) => {
-		const check = readCheckForUpdateResponse(response);
-		if (check.kind === "failed") {
-			throw new Error(check.message);
-		}
-		if (check.kind === "none") {
-			return null;
-		}
-		return {
-			version: check.version,
-			download: (onEvent: (event: DownloadEvent) => void) =>
-				runShellDownload(requests, onEvent, timers),
-			install: () =>
-				requests.applyUpdate({}).then((response) => {
-					const error = readUpdateWorkResponse(response);
-					if (error !== null) {
-						throw new Error(error);
-					}
-				}),
-		} satisfies Update;
-	});
+): Promise<UpdateCheckOutcome> {
+	return requests.checkForUpdate({}).then(
+		(response): UpdateCheckOutcome => {
+			const check = readCheckForUpdateResponse(response);
+			if (check.kind === "failed") {
+				return { kind: "failed", message: check.message };
+			}
+			if (check.kind === "none") {
+				return { kind: "none" };
+			}
+			const update: Update = {
+				version: check.version,
+				download: (onEvent: (event: DownloadEvent) => void) =>
+					runShellDownload(requests, onEvent, timers),
+				install: () =>
+					requests.applyUpdate({}).then((applied) => {
+						const error = readUpdateWorkResponse(applied);
+						if (error !== null) {
+							throw new Error(error);
+						}
+					}),
+			};
+			return { kind: "available", update };
+		},
+		(cause: unknown): UpdateCheckOutcome => ({
+			kind: "failed",
+			message: cause instanceof Error ? cause.message : String(cause),
+		})
+	);
 }

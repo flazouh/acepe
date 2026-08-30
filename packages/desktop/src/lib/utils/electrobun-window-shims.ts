@@ -3,15 +3,15 @@
 // and swaps the bundle, and everything below asks it over the shell RPC.
 import { LOGGER_IDS } from "../acp/constants/logger-ids.js";
 import { createLogger } from "../acp/utils/logger.js";
-import { isElectrobunShellWindow } from "../rpc/electrobun-shell-window.js";
 import { readElectrobunBridge } from "../rpc/electrobun-bridge.js";
+import { isElectrobunShellWindow } from "../rpc/electrobun-shell-window.js";
 import {
 	requestAppVersion,
 	requestRelaunch,
-	requestUpdate,
+	requestUpdateCheck,
 	type ShellUpdaterRequests,
 } from "../rpc/shell-updater.js";
-import type { DownloadEvent, Update } from "./updater-types.js";
+import type { DownloadEvent, UpdateCheckOutcome } from "./updater-types.js";
 
 const logger = createLogger({
 	id: LOGGER_IDS.ELECTROBUN_SHIMS,
@@ -55,18 +55,19 @@ export function relaunchApp(): Promise<void> {
 	return requestRelaunch(requests);
 }
 
-export function checkForUpdate(): Promise<Update | null> {
+export function checkForUpdate(): Promise<UpdateCheckOutcome> {
 	const requests = readUpdaterRequests();
 	if (requests === null) {
 		logger.info("checkForUpdate had no shell to ask, reporting no update");
-		return Promise.resolve(null);
+		return Promise.resolve({ kind: "none" });
 	}
-	return requestUpdate(requests);
+	return requestUpdateCheck(requests);
 }
 
 export function getAppVersion(): Promise<string | null> {
 	const requests = readUpdaterRequests();
 	if (requests === null) {
+		logger.info("getAppVersion had no shell to ask");
 		return Promise.resolve(null);
 	}
 	return requestAppVersion(requests);

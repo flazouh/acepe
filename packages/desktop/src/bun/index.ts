@@ -2,8 +2,8 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, writeFileSync } fr
 import { dirname } from "node:path";
 import {
 	acepeShellPingScript,
-	applyNativeWrapperCwdOrExit,
 	appBundlePathFromExecutable,
+	applyNativeWrapperCwdOrExit,
 	describeJsonSafety,
 	downloadProgressFromStatus,
 	joinPathSegments,

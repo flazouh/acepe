@@ -127,7 +127,6 @@ import {
 import {
 	installDownloadedUpdate,
 	predownloadUpdate,
-	runUpdateCheck,
 	updaterStateForCheckOutcome,
 } from "./main-app-view/logic/updater-workflow.js";
 import { ReviewFullscreenPage } from "./review-fullscreen/index.js";
@@ -1708,7 +1707,7 @@ async function checkForAppUpdate(_trigger: UpdateCheckTrigger): Promise<void> {
 	// Never block the app on update checks: check in the background, download
 	// in the background, and surface an "Update" button top-left when ready.
 	updaterState = createCheckingUpdaterState();
-	const outcome = await runUpdateCheck(() => checkForUpdate());
+	const outcome = await checkForUpdate();
 
 	if (outcome.kind !== "available") {
 		availableUpdate = null;

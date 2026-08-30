@@ -8,10 +8,10 @@ import {
 	readUpdateWorkResponse,
 	requestAppVersion,
 	requestRelaunch,
-	requestUpdate,
-	runShellDownload,
-	startDownloadReportCursor,
+	requestUpdateCheck,
+	type runShellDownload,
 	type ShellUpdaterRequests,
+	startDownloadReportCursor,
 } from "./shell-updater.ts";
 
 type ShellAnswers = Partial<Record<keyof ShellUpdaterRequests, () => Promise<unknown>>>;
@@ -69,9 +69,7 @@ const manualTimers = (): {
 
 describe("reading shell updater answers", () => {
 	it("reads the version out of the shell answer", () => {
-		expect(readAppVersionResponse({ version: "2026.3.33", channel: "stable" })).toBe(
-			"2026.3.33"
-		);
+		expect(readAppVersionResponse({ version: "2026.3.33", channel: "stable" })).toBe("2026.3.33");
 	});
 
 	it("reads no version when the shell could not find one", () => {
@@ -179,33 +177,40 @@ describe("requestAppVersion", () => {
 	});
 });
 
-describe("requestUpdate", () => {
+describe("requestUpdateCheck", () => {
 	it("hands back an update when the shell found one", async () => {
 		const { requests } = shellThat({
 			checkForUpdate: () => Promise.resolve({ version: "2026.4.4", error: null }),
 		});
-		const update = await requestUpdate(requests);
-		expect(update?.version).toBe("2026.4.4");
+		const outcome = await requestUpdateCheck(requests);
+		expect(outcome.kind).toBe("available");
+		expect(outcome.kind === "available" ? outcome.update.version : null).toBe("2026.4.4");
 	});
 
-	it("hands back nothing when the app is already current", async () => {
+	it("hands back no update when the app is already current", async () => {
 		const { requests } = shellThat({});
-		expect(await requestUpdate(requests)).toBeNull();
+		expect(await requestUpdateCheck(requests)).toEqual({ kind: "none" });
 	});
 
-	it("rejects when the check failed, so the banner cannot stay on checking", async () => {
+	it("reports a failed check, so the banner cannot stay on checking", async () => {
 		const { requests } = shellThat({
 			checkForUpdate: () =>
 				Promise.resolve({ version: null, error: "Failed to fetch update info" }),
 		});
-		expect(requestUpdate(requests)).rejects.toThrow("Failed to fetch update info");
+		expect(await requestUpdateCheck(requests)).toEqual({
+			kind: "failed",
+			message: "Failed to fetch update info",
+		});
 	});
 
-	it("rejects when the shell request itself fails", async () => {
+	it("reports a failed check when the shell request itself fails", async () => {
 		const { requests } = shellThat({
 			checkForUpdate: () => Promise.reject(new Error("rpc timed out")),
 		});
-		expect(requestUpdate(requests)).rejects.toThrow("rpc timed out");
+		expect(await requestUpdateCheck(requests)).toEqual({
+			kind: "failed",
+			message: "rpc timed out",
+		});
 	});
 
 	it("downloads through the shell and reports the bytes it counted", async () => {
@@ -216,7 +221,8 @@ describe("requestUpdate", () => {
 				Promise.resolve({ downloadedBytes: downloaded, totalBytes: 400 }),
 		});
 		const timers = manualTimers();
-		const update = await requestUpdate(requests, timers.timers);
+		const outcome = await requestUpdateCheck(requests, timers.timers);
+		const update = outcome.kind === "available" ? outcome.update : null;
 		const events: Array<DownloadEvent> = [];
 		const finished = update?.download((event) => {
 			events.push(event);
@@ -240,7 +246,8 @@ describe("requestUpdate", () => {
 			downloadUpdate: () => Promise.resolve({ ok: false, error: "patch chain broke" }),
 		});
 		const timers = manualTimers();
-		const update = await requestUpdate(requests, timers.timers);
+		const outcome = await requestUpdateCheck(requests, timers.timers);
+		const update = outcome.kind === "available" ? outcome.update : null;
 		expect(update?.download(() => undefined)).rejects.toThrow("patch chain broke");
 	});
 
@@ -248,7 +255,8 @@ describe("requestUpdate", () => {
 		const { requests, calls } = shellThat({
 			checkForUpdate: () => Promise.resolve({ version: "2026.4.4", error: null }),
 		});
-		const update = await requestUpdate(requests, manualTimers().timers);
+		const outcome = await requestUpdateCheck(requests, manualTimers().timers);
+		const update = outcome.kind === "available" ? outcome.update : null;
 		await update?.install();
 		expect(calls).toContain("applyUpdate");
 	});

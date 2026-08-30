@@ -63,7 +63,6 @@ export {
 	appVersionResponse,
 	checkForUpdateResponse,
 	downloadProgressFromStatus,
-	failureReason,
 	makeUpdaterRpcHandlers,
 	relaunchCommand,
 } from "./app-updater.ts"

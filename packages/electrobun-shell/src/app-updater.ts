@@ -82,7 +82,7 @@ const NO_PROGRESS: ShellUpdateDownloadProgress = {
 	totalBytes: null,
 }
 
-export const failureReason = (cause: unknown): string => {
+const failureReason = (cause: unknown): string => {
 	if (cause instanceof Error) {
 		return cause.message
 	}
