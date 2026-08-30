@@ -84,9 +84,12 @@ const ProjectionProjectRow = Schema.Struct({
 	// 0021 colour migration test reads exactly that shape. Absent and null both
 	// mean the project never chose, which is the same as hiding.
 	show_external_cli_sessions: SqliteFlag.pipe(Schema.NullOr, Schema.optionalKey),
-	// A row written before migration 0033 has no such column at all. Absent and
-	// null both mean the project was never ranked.
-	sort_order: ProjectSortOrder.pipe(Schema.NullOr, Schema.optionalKey),
+	// Required, unlike the colour and visibility columns above: migration 0033
+	// gives every row the column, so an absent one means a SELECT forgot to ask
+	// for it. That is exactly how the sidebar rank first shipped half working,
+	// and a required key turns the next such omission into a decode failure
+	// instead of a project that reads as never ranked.
+	sort_order: Schema.NullOr(ProjectSortOrder),
 	scan_warmed_at: IsoDateTime
 })
 
@@ -132,7 +135,7 @@ const projectedProjectFromRow = (row: typeof ProjectionProjectRow.Type): Project
 			row.show_external_cli_sessions === undefined
 		? DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS
 		: row.show_external_cli_sessions === 1,
-	sortOrder: row.sort_order === undefined ? null : row.sort_order,
+	sortOrder: row.sort_order,
 	scanWarmedAt: row.scan_warmed_at
 })
 

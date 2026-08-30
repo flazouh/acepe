@@ -11,6 +11,7 @@ import { makeSqliteLayer } from "../Layers/Sqlite.ts"
 import { decodeStoredProjectedProject } from "../Services/ProjectionProjects.ts"
 import projectionProjects from "./0011_projection_projects.ts"
 import projectionProjectsColor from "./0021_projection_projects_color.ts"
+import projectionProjectsSortOrder from "./0033_projection_projects_sort_order.ts"
 
 const TempSqlite = Layer.unwrap(
 	Effect.gen(function*() {
@@ -57,6 +58,11 @@ Vitest.layer(isolatedSqlite())("0021_projection_projects_color", (it) => {
 				)
 			`.withoutTransform
 			yield* projectionProjectsColor
+			// The shared row decoder requires sort_order, so that a SELECT which
+			// forgets the column fails loudly instead of reading as "never
+			// ranked". This test still proves the pre-0021 colour default; it just
+			// has to reach the schema this decoder speaks.
+			yield* projectionProjectsSortOrder
 			const rows = yield* sql`
 				SELECT
 					project_id,
@@ -67,6 +73,7 @@ Vitest.layer(isolatedSqlite())("0021_projection_projects_color", (it) => {
 					deleted_at,
 					session_count,
 					color,
+					sort_order,
 					scan_warmed_at
 				FROM projection_projects
 			`.withoutTransform

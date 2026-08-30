@@ -99,6 +99,29 @@ describe("ProjectManager", () => {
 		expect(manager.getProject("/repo/missing")).toBeUndefined();
 	});
 
+	// The projection owns the rank. An optimistic add that renumbers the list
+	// locally is a second author for that field: the new project shows at the
+	// top, then drops to where the projection actually put it on the next load.
+	it("adds a project optimistically without renumbering the ranked list", () => {
+		const manager = new ProjectManager();
+		const first = createProject("/repo/one", "One");
+		first.sortOrder = 0;
+		const second = createProject("/repo/two", "Two");
+		second.sortOrder = 1;
+		manager.projects = [first, second];
+
+		manager.addProjectOptimistic("/repo/three", "Three");
+
+		const ranks = manager.projects.map((project) => [project.path, project.sortOrder]);
+		expect(ranks).toEqual(
+			expect.arrayContaining([
+				["/repo/one", 0],
+				["/repo/two", 1],
+				["/repo/three", undefined],
+			])
+		);
+	});
+
 	it("revalidates cached projects with the bounded preferred page", async () => {
 		const cachedProject = createProject("/repo/cached", "Cached");
 		const storageProject = createProject("/repo/storage", "Storage");
@@ -157,7 +180,9 @@ describe("computeMissingLibraryProjects", () => {
 				name: "Acepe",
 				color: Colors.cyan,
 				createdAt: new Date("2026-08-20T12:00:00.000Z"),
-				sortOrder: 0,
+				// Unranked. The projection owns the rank and hands out none until
+				// someone moves a project, so the merge must not invent one.
+				sortOrder: undefined,
 				iconPath: null,
 			},
 		]);
@@ -189,17 +214,21 @@ describe("computeMissingLibraryProjects", () => {
 		expect(additions).toEqual([]);
 	});
 
-	it("appends after existing projects instead of reordering them", () => {
+	// The projection owns the rank, so the merge reads the library row's own and
+	// never invents one. An invented rank is a second author for a canonical
+	// field, and it reaches the hot cache and outlives a reload.
+	it("carries the library row's own rank and leaves existing ranks alone", () => {
 		const existing = createProject("/repo/one", "One");
 		existing.sortOrder = 5;
 
 		const additions = computeMissingLibraryProjects(
 			[existing],
-			[libraryProject({ workspaceRoot: "/tmp/acepe" })]
+			[libraryProject({ workspaceRoot: "/tmp/acepe", sortOrder: 2 })]
 		);
 
 		expect(additions).toHaveLength(1);
-		expect(additions[0]?.sortOrder).toBe(6);
+		expect(additions[0]?.sortOrder).toBe(2);
+		expect(existing.sortOrder).toBe(5);
 	});
 
 	it("dedupes multiple library projects at the same path", () => {

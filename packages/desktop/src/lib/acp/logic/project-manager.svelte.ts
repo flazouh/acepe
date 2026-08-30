@@ -112,13 +112,6 @@ export function computeMissingLibraryProjects(
 	const knownLegacyPaths = new Set(
 		existingProjects.filter((project) => project.id === undefined).map((project) => project.path)
 	);
-	let nextSortOrder =
-		existingProjects.reduce(
-			(max, project) =>
-				project.sortOrder !== undefined && project.sortOrder > max ? project.sortOrder : max,
-			-1
-		) + 1;
-
 	const additions: Project[] = [];
 	for (const libraryProject of libraryProjects) {
 		if (libraryProject.deletedAt !== null) {
@@ -143,10 +136,12 @@ export function computeMissingLibraryProjects(
 			name: libraryProject.title,
 			color: resolveProjectColor(libraryProject.color),
 			createdAt,
-			sortOrder: nextSortOrder,
+			// The projection owns the rank, so carry its value. A rank invented
+			// here would be a second author for a canonical field, and it reaches
+			// the hot cache and outlives a reload.
+			sortOrder: libraryProject.sortOrder ?? undefined,
 			iconPath: null,
 		});
-		nextSortOrder += 1;
 	}
 	return additions;
 }
@@ -478,18 +473,11 @@ export class ProjectManager {
 
 						// Update projects list with the backend result (carries detected icon_path)
 						if (isNew) {
-							const shiftedProjects = this.projects.map((existingProject) => ({
-								path: existingProject.path,
-								name: existingProject.name,
-								lastOpened: existingProject.lastOpened,
-								createdAt: existingProject.createdAt,
-								color: existingProject.color,
-								sortOrder:
-									existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
-								iconPath: existingProject.iconPath ?? null,
-								showExternalCliSessions: existingProject.showExternalCliSessions,
-							}));
-							this.projects = [importedProject, ...shiftedProjects];
+							// The imported project arrives with whatever rank the
+							// projection gave it, normally none. Renumbering the rest of
+							// the list here would write a canonical field nobody
+							// dispatched, and the list would jump on the next load.
+							this.projects = [importedProject, ...this.projects];
 							// Update count only for new projects
 							if (this.projectCount !== null) {
 								this.projectCount = this.projectCount + 1;
@@ -589,27 +577,20 @@ export class ProjectManager {
 		}
 
 		// Create optimistic project and add to beginning of list
+		// Unranked, like every project the projection has not been asked to
+		// order. Ranking it 0 and shifting everyone else would write a canonical
+		// field nobody dispatched: the new project would show first, then drop to
+		// its real place on the next load.
 		const optimisticProject: Project = {
 			path,
 			name,
 			color: resolveProjectColor(color),
 			lastOpened: new SvelteDate(),
 			createdAt: new SvelteDate(),
-			sortOrder: 0,
 			iconPath: null,
 		};
 
-		const shiftedProjects = this.projects.map((existingProject) => ({
-			path: existingProject.path,
-			name: existingProject.name,
-			lastOpened: existingProject.lastOpened,
-			createdAt: existingProject.createdAt,
-			color: existingProject.color,
-			sortOrder: existingProject.sortOrder !== undefined ? existingProject.sortOrder + 1 : 1,
-			iconPath: existingProject.iconPath ?? null,
-			showExternalCliSessions: existingProject.showExternalCliSessions,
-		}));
-		this.projects = [optimisticProject, ...shiftedProjects];
+		this.projects = [optimisticProject, ...this.projects];
 
 		// Update count
 		this.projectCount = (this.projectCount ?? 0) + 1;
@@ -692,7 +673,19 @@ export class ProjectManager {
 				this.projectCount = updatedProjects.length;
 				this.projectStorageFresh = true;
 				this.writeCurrentProjectsToCache();
-			})
+			}),
+			// A move writes one command per project it moved, so a failure part
+			// way through leaves the server holding some of the new ranks and
+			// none of the rest. Re-read rather than keep showing the order the
+			// user had before, which the server no longer agrees with.
+			Effect.tapError(() =>
+				this.loadProjectsFromStorage({
+					showLoading: false,
+					recordTrace: false,
+					firstPageOnly: false,
+					preferredPaths: [],
+				}).pipe(Effect.ignore)
+			)
 		);
 	}
 
