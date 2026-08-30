@@ -370,19 +370,27 @@ export class ProjectClient {
 			);
 	}
 
+	// Dispatches the canonical project.meta.update rather than reading and
+	// rewriting an acepe config file. The config round-trip it used to make
+	// could never complete -- both halves are unsupported on the contract -- so
+	// the visibility toggle silently failed and external sessions stayed hidden
+	// with no way to bring them back.
 	updateProjectShowExternalCliSessions(
 		path: string,
 		value: boolean
-	): Effect.Effect<ProjectAcepeConfig, ProjectError> {
-		return this.getProjectAcepeConfig(path).pipe(
-			Effect.flatMap((config) =>
-				this.saveProjectAcepeConfig(path, {
-					setupScript: config.setupScript,
-					runScript: config.runScript,
-					showExternalCliSessions: value,
-				})
-			)
-		);
+	): Effect.Effect<void, ProjectError> {
+		return backendClient.projects
+			.updateProjectShowExternalCliSessions(path, value)
+			.pipe(
+				Effect.mapError(
+					(error) =>
+						new ProjectError(
+							`Failed to update session visibility: ${error.message}`,
+							"STORAGE_ERROR",
+							error instanceof Error ? error : undefined
+						)
+				)
+			);
 	}
 
 	listProjectImages(projectPath: string): Effect.Effect<string[], ProjectError> {

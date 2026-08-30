@@ -30,6 +30,7 @@ const mapProject = (row: RpcProjectedProject): ProjectData => ({
 	color: row.color,
 	sort_order: 0,
 	icon_path: null,
+	show_external_cli_sessions: row.showExternalCliSessions,
 });
 
 const loadVisibleProjects = Effect.fn("loadVisibleProjects")(function* () {
@@ -176,6 +177,23 @@ export const projects = {
 			sort_order: 0,
 			icon_path: null,
 		};
+	}),
+
+	updateProjectShowExternalCliSessions: Effect.fn(
+		"projects.updateProjectShowExternalCliSessions"
+	)(function* (path: string, show: boolean) {
+		const existing = yield* requireProjectedByPath("project.meta.update", path);
+		const commandId = yield* nextCommandId("project-meta-update-external-sessions");
+		yield* withRpcClient("project.meta.update", (client) =>
+			client.dispatch(
+				ProjectMetaUpdateCommand.make({
+					type: "project.meta.update",
+					commandId,
+					projectId: existing.projectId,
+					showExternalCliSessions: show,
+				})
+			)
+		);
 	}),
 
 	updateProjectIcon: (

@@ -355,7 +355,10 @@ function getProjectCreateButtonAriaLabel(projectName: string): string {
 }
 
 function getShowExternalCliSessions(projectPath: string): boolean {
-	return projectShowExternalCliSessions.get(projectPath) ?? true;
+	// Matches DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS on the server, which hides them.
+	// Defaulting to true here made the checkbox claim external sessions were
+	// shown while the backend was filtering them out.
+	return projectShowExternalCliSessions.get(projectPath) ?? false;
 }
 
 function isAcepeOnlyFilterActive(projectPath: string): boolean {

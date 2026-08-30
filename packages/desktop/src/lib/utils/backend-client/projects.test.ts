@@ -88,6 +88,9 @@ describe("projects rpc facade", () => {
 						color: "indigo",
 						sort_order: 0,
 						icon_path: null,
+						// Carried through so the sidebar checkbox can show the stored
+						// value instead of guessing a default the server disagrees with.
+						show_external_cli_sessions: false,
 					},
 				]);
 			})
@@ -146,6 +149,28 @@ describe("projects rpc facade", () => {
 				const command = dispatched[0];
 				expect(command?.type).toBe("project.meta.update");
 				expect(command?.type === "project.meta.update" ? command.color : null).toBe("pink");
+			})
+		));
+
+	it("writes the external-session visibility through project.meta.update", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const dispatched: OrchestrationCommand[] = [];
+				setAppRpcClientForTest(
+					makeClient({
+						dispatch: (command) => {
+							dispatched.push(command);
+							return Effect.succeed({ sequence: 1 });
+						},
+					})
+				);
+				yield* projects.updateProjectShowExternalCliSessions("/repo/acepe", true);
+				expect(dispatched).toHaveLength(1);
+				const command = dispatched[0];
+				expect(command?.type).toBe("project.meta.update");
+				expect(
+					command?.type === "project.meta.update" ? command.showExternalCliSessions : null
+				).toBe(true);
 			})
 		));
 
