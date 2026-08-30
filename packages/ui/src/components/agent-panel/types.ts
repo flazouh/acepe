@@ -735,9 +735,27 @@ export function resolveReviewWorkspaceSelectedIndex(
 	return selectedIndex;
 }
 
+/**
+ * Presentation state for the bulk "Keep all reviewed" control.
+ *
+ * - `enabled`: every file can still be marked reviewed in one click.
+ * - `disabled`: the control is visible but not actionable yet, e.g. the
+ *   per-session review state has not loaded.
+ * - `applied`: the whole snapshot is already reviewed, so the control turns
+ *   into a non-actionable confirmation badge.
+ */
+export type AgentPanelModifiedFilesKeepState =
+	| "enabled"
+	| "disabled"
+	| "applied";
+
 export interface AgentPanelModifiedFilesTrailingModel {
 	reviewLabel: string;
 	onReview?: () => void;
+	keepState?: AgentPanelModifiedFilesKeepState;
+	keepLabel?: string;
+	appliedLabel?: string;
+	onKeep?: () => void;
 	reviewedCount: number;
 	totalCount: number;
 }

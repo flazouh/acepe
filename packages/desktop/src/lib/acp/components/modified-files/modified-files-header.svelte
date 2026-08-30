@@ -36,6 +36,7 @@ import { getModelDisplayName } from "../model-selector-logic.js";
 import { SelectorItem } from "@acepe/ui";
 import AgentIcon from "../agent-icon.svelte";
 import type { FileReviewStatus } from "../review-panel/review-session-state.js";
+import { buildKeepAllReviewEntries } from "./logic/keep-all-review-progress.js";
 import { normalizeCustomShipInstructions } from "./logic/build-pr-prompt-preview.js";
 import {
 	buildPrGenerationPrefsForAgentSelection,
@@ -43,12 +44,14 @@ import {
 	getValidPrGenerationModelId,
 } from "./logic/pr-generation-preferences.js";
 import PrLinkFooterButton from "../shared/pr-link-footer-button.svelte";
-import { getReviewStatusByFilePath } from "./logic/review-progress.js";
+import { getReviewStatusByFilePath, hasKeepAllBeenApplied } from "./logic/review-progress.js";
 import type { ModifiedFilesState } from "../../types/modified-files-state.js";
 import {
+	canKeepAllFiles,
 	countReviewedFiles,
 	getModifiedFilesDiffTotals,
 	getPromptEditorState,
+	isModifiedFilesReviewComplete,
 	mapReviewStatusForHeader,
 } from "./logic/modified-files-header-state.js";
 
@@ -207,11 +210,38 @@ const reviewedFileCount = $derived.by(() => {
 	return countReviewedFiles(modifiedFilesState, reviewStatusByFilePath);
 });
 
+const isReviewComplete = $derived.by(() => {
+	return isModifiedFilesReviewComplete(modifiedFilesState, reviewedFileCount);
+});
+
+const isKeepAllApplied = $derived.by(() => {
+	if (!modifiedFilesState) return false;
+	if (!sessionId) return false;
+	if (!sessionReviewStateStore.isLoaded(sessionId)) return false;
+
+	return hasKeepAllBeenApplied(
+		modifiedFilesState.files,
+		sessionReviewStateStore.getState(sessionId)
+	);
+});
+
+const canKeepAll = $derived.by(() => {
+	return canKeepAllFiles({
+		sessionId: sessionId ?? null,
+		isSessionReviewLoaded: sessionId ? sessionReviewStateStore.isLoaded(sessionId) : false,
+		isKeepAllApplied,
+	});
+});
+
 const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 	reviewLabel: "Review",
 	onReview: () => {
 		handleReviewButtonClick(0);
 	},
+	keepState: isReviewComplete ? "applied" : canKeepAll ? "enabled" : "disabled",
+	keepLabel: "Keep",
+	appliedLabel: isKeepAllApplied ? "Applied" : "Reviewed",
+	onKeep: handleKeepAllClick,
 	reviewedCount: reviewedFileCount,
 	totalCount: modifiedFilesState?.fileCount ?? 0,
 });
@@ -239,6 +269,20 @@ function handleCreatePrClick(): void {
 		reactiveModels
 	);
 	onCreatePr(config);
+}
+
+function handleKeepAllClick(): void {
+	if (!sessionId) return;
+	if (!modifiedFilesState) return;
+	if (!sessionReviewStateStore.isLoaded(sessionId)) return;
+
+	for (const reviewEntry of buildKeepAllReviewEntries(modifiedFilesState.files)) {
+		sessionReviewStateStore.upsertFileProgress(
+			sessionId,
+			reviewEntry.revisionKey,
+			reviewEntry.progress
+		);
+	}
 }
 
 function handleRevertFile(filePath: string): void {

@@ -40,6 +40,31 @@
 			<HugeiconsIcon name="code" class="size-[11px] shrink-0" data-testid="modified-files-review-code-icon" />
 			{model.reviewLabel}
 		</Button>
+
+		{#if model.keepState === "applied"}
+			<Button variant="secondary" size="xs" disabled class="disabled:opacity-100">
+				<HugeiconsIcon
+					name="check-circle"
+					class="size-[11px] shrink-0 text-success"
+					data-testid="modified-files-keep-applied-icon"
+				/>
+				{model.appliedLabel ?? "Applied"}
+			</Button>
+		{:else if model.keepState}
+			<Button
+				variant="default"
+				size="xs"
+				disabled={model.keepState === "disabled"}
+				onclick={() => model.onKeep?.()}
+			>
+				<HugeiconsIcon
+					name="check"
+					class="size-[11px] shrink-0"
+					data-testid="modified-files-keep-icon"
+				/>
+				{model.keepLabel ?? "Keep"}
+			</Button>
+		{/if}
 	</div>
 {/if}
 
