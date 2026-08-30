@@ -169,6 +169,14 @@ export default defineConfig({
 			"**/.{idea,git,cache,output,temp}/**",
 			"**/src-tauri/**",
 		],
+		server: {
+			deps: {
+				// `@acepe/ui` components import font CSS directly. Vitest externalizes
+				// node_modules, so Node's ESM loader sees the raw `.css` file and throws
+				// ERR_UNKNOWN_FILE_EXTENSION. Inlining lets Vite transform it instead.
+				inline: [/@fontsource-variable\//, /@fontsource\//],
+			},
+		},
 		// Tell Vitest to use browser entry points when running tests
 		// @ts-expect-error
 		resolve: process.env.VITEST
