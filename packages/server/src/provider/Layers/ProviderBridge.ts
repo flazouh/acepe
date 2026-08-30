@@ -454,6 +454,22 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 // resumed session comes back broken instead of merely idle. So a session
 // only gets ensureSessionOpen'd lazily, the next time it actually receives a
 // live command (message.send, turn.cancel, ...) — see ensureSessionOpen.
+// What ensureSessionOpen found. "opened" means THIS call forked the open;
+// "running" means a previously forked open's fiber is still alive -- which
+// includes the window where the adapter has not registered the session yet,
+// so a dispatch racing it needs the same registration-lag retry an "opened"
+// dispatch gets (found live: a session.set-model plus the first prompt both
+// arriving on the ticks right after session.create's eager open took the
+// no-retry path and killed the thread before its first turn). "unopenable"
+// means the session cannot be opened from here at all.
+type SessionOpenOutcome = "opened" | "running" | "unopenable"
+
+// Whether a dispatch racing this outcome should absorb the adapter's
+// "session not registered yet" failure. True for both an open this call
+// started and one already in flight; see SessionOpenOutcome.
+const openAbsorbsRegistrationLag = (outcome: SessionOpenOutcome): boolean =>
+	outcome !== "unopenable"
+
 const ensureSessionOpen = Effect.fn("ProviderBridge.ensureSessionOpen")(function*(
 	state: BridgeState,
 	sessionId: SessionId
@@ -467,20 +483,20 @@ const ensureSessionOpen = Effect.fn("ProviderBridge.ensureSessionOpen")(function
 	// reopening here is what stops that from permanently poisoning the
 	// session — appendFailure alone never retries.
 	if (Option.isSome(existing) && existing.value.pollUnsafe() === undefined) {
-		return false
+		return "running" as const satisfies SessionOpenOutcome
 	}
 	const adapters = yield* Ref.get(state.sessionAdapters)
 	const adapter = HashMap.get(adapters, sessionId)
 	if (Option.isNone(adapter)) {
-		return false
+		return "unopenable" as const satisfies SessionOpenOutcome
 	}
 	const projects = yield* Ref.get(state.sessionProjects)
 	const projectId = HashMap.get(projects, sessionId)
 	if (Option.isNone(projectId)) {
-		return false
+		return "unopenable" as const satisfies SessionOpenOutcome
 	}
 	yield* openSession(state, sessionId, projectId.value, adapter.value)
-	return true
+	return "opened" as const satisfies SessionOpenOutcome
 })
 
 // openSession forks the forwarding fiber and returns immediately without
@@ -647,7 +663,7 @@ const considerMessageSent = Effect.fn("ProviderBridge.considerMessageSent")(func
 	if (!claimed || phase === "replay" || event.payload.origin === "imported") {
 		return
 	}
-	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
+	const openOutcome = yield* ensureSessionOpen(state, event.payload.sessionId)
 	const adapters = yield* Ref.get(state.sessionAdapters)
 	const adapter = HashMap.get(adapters, event.payload.sessionId)
 	if (Option.isNone(adapter)) {
@@ -663,7 +679,9 @@ const considerMessageSent = Effect.fn("ProviderBridge.considerMessageSent")(func
 		event.payload.sessionId,
 		adapter.value.providerId,
 		"sendPrompt",
-		justOpened ? Stream.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch
+		openAbsorbsRegistrationLag(openOutcome)
+			? Stream.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE)
+			: dispatch
 	)
 })
 
@@ -676,7 +694,7 @@ const considerTurnCancelled = Effect.fn("ProviderBridge.considerTurnCancelled")(
 	if (!claimed || phase === "replay") {
 		return
 	}
-	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
+	const openOutcome = yield* ensureSessionOpen(state, event.payload.sessionId)
 	const adapters = yield* Ref.get(state.sessionAdapters)
 	const adapter = HashMap.get(adapters, event.payload.sessionId)
 	if (Option.isNone(adapter)) {
@@ -686,7 +704,10 @@ const considerTurnCancelled = Effect.fn("ProviderBridge.considerTurnCancelled")(
 		sessionId: event.payload.sessionId,
 		...(event.payload.turnId === undefined ? {} : { turnId: event.payload.turnId })
 	})
-	yield* (justOpened ? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch).pipe(
+	yield* (openAbsorbsRegistrationLag(openOutcome)
+		? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE)
+		: dispatch
+	).pipe(
 		Effect.catchCause((cause) =>
 			appendFailure(state, event.payload.sessionId, adapter.value.providerId, "cancelTurn", Cause.pretty(cause))
 		)
@@ -702,7 +723,7 @@ const considerInteractionReplied = Effect.fn("ProviderBridge.considerInteraction
 	if (!claimed || phase === "replay") {
 		return
 	}
-	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
+	const openOutcome = yield* ensureSessionOpen(state, event.payload.sessionId)
 	const adapters = yield* Ref.get(state.sessionAdapters)
 	const adapter = HashMap.get(adapters, event.payload.sessionId)
 	if (Option.isNone(adapter)) {
@@ -720,7 +741,10 @@ const considerInteractionReplied = Effect.fn("ProviderBridge.considerInteraction
 		permissionId: event.payload.approvalRequestId,
 		decision: event.payload.decision
 	})
-	yield* (justOpened ? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE) : dispatch).pipe(
+	yield* (openAbsorbsRegistrationLag(openOutcome)
+		? Effect.retry(dispatch, LAZY_OPEN_RETRY_SCHEDULE)
+		: dispatch
+	).pipe(
 		Effect.catchCause((cause) =>
 			appendFailure(
 				state,
@@ -753,8 +777,8 @@ const considerSessionModeSet = Effect.fn("ProviderBridge.considerSessionModeSet"
 	if (!claimed || phase === "replay") {
 		return
 	}
-	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
-	if (justOpened) {
+	const openOutcome = yield* ensureSessionOpen(state, event.payload.sessionId)
+	if (openOutcome === "opened") {
 		// openSession applied the mode recorded above already.
 		return
 	}
@@ -774,7 +798,7 @@ const considerSessionModeSet = Effect.fn("ProviderBridge.considerSessionModeSet"
 		adapter.value,
 		event.payload.sessionId,
 		event.payload.modeId,
-		false
+		openAbsorbsRegistrationLag(openOutcome)
 	)
 })
 
@@ -794,8 +818,8 @@ const considerSessionModelSet = Effect.fn("ProviderBridge.considerSessionModelSe
 	if (!claimed || phase === "replay") {
 		return
 	}
-	const justOpened = yield* ensureSessionOpen(state, event.payload.sessionId)
-	if (justOpened) {
+	const openOutcome = yield* ensureSessionOpen(state, event.payload.sessionId)
+	if (openOutcome === "opened") {
 		// openSession applied the model recorded above already.
 		return
 	}
@@ -812,7 +836,7 @@ const considerSessionModelSet = Effect.fn("ProviderBridge.considerSessionModelSe
 		adapter.value,
 		event.payload.sessionId,
 		event.payload.modelId,
-		false
+		openAbsorbsRegistrationLag(openOutcome)
 	)
 })
 

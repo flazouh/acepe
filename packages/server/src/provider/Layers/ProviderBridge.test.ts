@@ -338,6 +338,87 @@ const makeModelScriptedAdapter = Effect.fn("makeModelScriptedAdapter")(function*
 	return { adapter, setModelRequests }
 })
 
+// An adapter whose per-session registration lags behind startSession, the way
+// every real adapter's does: ClaudeAdapter only registers a session once its
+// startSession stream actually starts running on the forked forwarding fiber.
+// setModel and sendPrompt answer the adapters' own "not registered yet"
+// rendering until then. This is the shape a live first send has when the
+// composer recorded a picked model: session.create opens eagerly, and
+// session.set-model plus message.send arrive on the very next bridge ticks.
+const makeLaggingRegistrationAdapter = Effect.fn("makeLaggingRegistrationAdapter")(function*(
+	providerId: ProviderId
+) {
+	const startEvents = yield* Queue.unbounded<
+		import("@acepe/contracts").OrchestrationEvent,
+		Done
+	>()
+	const registered = yield* Ref.make(false)
+	const setModelRequests = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+	const sendPromptCount = yield* Ref.make(0)
+	const notRegistered = (sessionId: SessionId, operation: "setModel" | "sendPrompt") =>
+		new ProviderAdapterError({
+			providerId,
+			operation,
+			detail: `No Fake session '${sessionId}'.`
+		})
+	const adapter: ProviderAdapter & {
+		readonly setModel: (request: SetModelRequest) => Effect.Effect<void, ProviderAdapterError>
+	} = {
+		providerId,
+		capabilities: ProviderCapabilities.make({ enabled: [] }),
+		presence: Effect.succeed({ providerId, installed: true, authenticated: true }),
+		startSession: () =>
+			// Registration completes only after the forwarding fiber has had
+			// real time to run -- long enough that back-to-back bridge ticks
+			// definitely observe the unregistered window.
+			Effect.sleep(Duration.millis(120)).pipe(
+				Effect.andThen(Ref.set(registered, true)),
+				Effect.as(Stream.fromQueue(startEvents)),
+				Stream.unwrap
+			),
+		sendPrompt: (request) =>
+			Ref.get(registered).pipe(
+				Effect.flatMap((isRegistered) =>
+						isRegistered
+							? Ref.update(sendPromptCount, (count) => count + 1).pipe(
+								Effect.as(
+									MessageSentEvent.make({
+										sequence: 0,
+										eventId: EventId.make(`fake:${request.messageId}`),
+										aggregateKind: "session",
+										aggregateId: request.sessionId,
+										occurredAt: "2026-08-24T00:00:00.000Z",
+										commandId: CommandId.make(`fake:${request.messageId}`),
+										causationEventId: null,
+										correlationId: CommandId.make(`fake:${request.messageId}`),
+										metadata: {},
+										type: "MessageSent",
+										payload: {
+											sessionId: request.sessionId,
+											messageId: request.messageId,
+											text: request.text
+										}
+									})
+								)
+							)
+						: Effect.fail(notRegistered(request.sessionId, "sendPrompt"))
+				),
+				Stream.fromEffect
+			),
+		cancelTurn: () => Effect.void,
+		setModel: (request) =>
+			Ref.get(registered).pipe(
+				Effect.flatMap((isRegistered) =>
+					isRegistered
+						? Ref.update(setModelRequests, (current) =>
+							Arr.append(current, request.modelId)).pipe(Effect.asVoid)
+						: Effect.fail(notRegistered(request.sessionId, "setModel"))
+				)
+			)
+	}
+	return { adapter, setModelRequests, sendPromptCount }
+})
+
 // A prior run's durable history for the model-reopen test, mirroring
 // dispatchPriorRunWithMode above.
 const dispatchPriorRunWithModel = Effect.fn("dispatchPriorRunWithModel")(function*(
@@ -1779,6 +1860,83 @@ Vitest.describe("ProviderBridge", () => {
 	// that the bridge had no method to act on at all, so a person picked a
 	// model, the composer showed it, and the agent kept running the one it
 	// started with. Same shape as the set-mode routing test above.
+// The live first-send shape after the composer records a picked model:
+	// session.create opens the session eagerly, then session.set-model and
+	// message.send arrive on the immediately following bridge ticks, while
+	// the forked open fiber has not registered the adapter session yet.
+	// Found live: both calls took the no-retry path, failed with the
+	// adapters' "not registered yet" rendering, and the thread died with
+	// ProviderSessionFailed before its first prompt.
+	Vitest.it.live("absorbs registration lag for a set-model and prompt racing an eager open", () =>
+		Effect.gen(function*() {
+			const lagProviderId = ProviderId.make("fake-provider-lagging-registration")
+			const scripted = yield* makeLaggingRegistrationAdapter(lagProviderId)
+			const TestLive = ProviderBridgeLive.pipe(
+				Layer.provideMerge(ProviderAdapterRegistryLive([scripted.adapter])),
+				Layer.provideMerge(EngineLive)
+			)
+			yield* Effect.gen(function*() {
+				const engine = yield* OrchestrationEngine
+				const store = yield* OrchestrationEventStore
+				yield* engine.dispatch(
+					ProjectCreateCommand.make({
+						type: "project.create",
+						commandId: CommandId.make("cmd-project-lag"),
+						projectId,
+						title: "Acepe",
+						workspaceRoot: "/tmp"
+					})
+				)
+				yield* engine.dispatch(
+					SessionCreateCommand.make({
+						type: "session.create",
+						commandId: CommandId.make("cmd-session-lag"),
+						sessionId,
+						projectId,
+						title: "Lagging session",
+						providerId: lagProviderId
+					})
+				)
+				yield* engine.dispatch(
+					SessionSetModelCommand.make({
+						type: "session.set-model",
+						commandId: CommandId.make("cmd-set-model-lag"),
+						sessionId,
+						modelId: "haiku"
+					})
+				)
+				yield* engine.dispatch(
+					MessageSendCommand.make({
+						type: "message.send",
+						commandId: CommandId.make("cmd-message-lag"),
+						sessionId,
+						messageId: userMessageId,
+						text: "Ping"
+					})
+				)
+				const promptCount = yield* waitUntil(
+					Ref.get(scripted.sendPromptCount),
+					(value) => value >= 1
+				)
+				Vitest.assert.strictEqual(promptCount, 1)
+				const models = yield* Ref.get(scripted.setModelRequests)
+				Vitest.assert.deepStrictEqual(models, ["haiku"])
+				const events = yield* Stream.runCollect(store.readFrom(0, 200))
+				const failures = events.filter((event) => event.type === "ProviderSessionFailed")
+				Vitest.assert.deepStrictEqual(
+					failures.map((event) =>
+						event.type === "ProviderSessionFailed" ? event.payload.operation : ""
+					),
+					[]
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(TestLive),
+				Effect.scoped
+			)
+		})
+	)
+
 	Vitest.it.live("routes session.set-model to an adapter that can switch model", () =>
 		Effect.gen(function*() {
 			const modelProviderId = ProviderId.make("fake-provider-sets-model")
