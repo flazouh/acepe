@@ -78,9 +78,11 @@ const agentItems = $derived(
 				phase.status === "failed"
 					? `Agent setup failed: ${withoutTrailingPeriod(phase.message)}. Click to retry.`
 					: null,
-			// Only a known-false answer marks the row; absent means the probe
+			// From the store's canonical agent row, not the prop: callers pass
+			// assorted Agent/AgentInfo projections that predate the flag. Only
+			// a known-false answer marks the row -- absent means the probe
 			// never answered (custom agents), and silence is not signed-out.
-			signedOut: agent.authenticated === false,
+			signedOut: agentStore.getAgent(agent.id)?.authenticated === false,
 		};
 	})
 );
