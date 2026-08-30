@@ -175,6 +175,10 @@ export const SessionCreatedPayload = Schema.Struct({
 	title: TrimmedNonEmptyString,
 	providerId: Schema.optionalKey(TrimmedNonEmptyString),
 	origin: Schema.optionalKey(TranscriptFactOrigin),
+	// See SessionCreateCommand.ephemeral: a session the engine runs in full
+	// and the session library never lists. Absent means a normal, listed
+	// session, which is every event written before this field existed.
+	ephemeral: Schema.optionalKey(Schema.Boolean),
 })
 export type SessionCreatedPayload = typeof SessionCreatedPayload.Type
 

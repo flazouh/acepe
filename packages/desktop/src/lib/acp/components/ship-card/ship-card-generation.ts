@@ -39,7 +39,21 @@ function runGeneration(
 	agentId: string | undefined,
 	modelId: string | undefined
 ): Effect.Effect<ShipCardData, AgentError> {
-	return backendClient.acp.newSession(cwd, agentId).pipe(
+	// `ephemeral: true` is what actually keeps this session out of the sidebar.
+	// It rides session.create -> SessionCreated -> the projected row, and both
+	// the session library query and the provider-file scan exclude it -- see
+	// SessionCreateCommand.ephemeral. Without the marker this turn's prompt
+	// shows up in the project's thread list as "Generate a git commit message
+	// and pull request de...".
+	const openEphemeralSession = backendClient.acp.newSession(
+		cwd,
+		agentId,
+		undefined,
+		undefined,
+		undefined,
+		{ ephemeral: true }
+	);
+	return openEphemeralSession.pipe(
 		Effect.mapError((e) => new AgentError("newSession", e)),
 		Effect.flatMap((sessionResult) => {
 			const ephemeralSessionId = sessionResult.sessionId;

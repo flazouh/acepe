@@ -41,6 +41,7 @@ const readById = Effect.fn("ProjectionSessions.readById")(function*(
 			pr_link_mode,
 			provider_session_id,
 			provider_session_failed,
+			ephemeral,
 			current_mode_id,
 			current_model_id,
 			available_models
@@ -85,6 +86,7 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			pr_link_mode,
 			provider_session_id,
 			provider_session_failed,
+			ephemeral,
 			current_mode_id,
 			current_model_id,
 			available_models
@@ -102,6 +104,7 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			${session.prLinkMode},
 			${session.providerSessionId},
 			${sqliteFlag(session.providerSessionFailed)},
+			${sqliteFlag(session.ephemeral)},
 			${session.currentModeId ?? null},
 			${session.currentModelId ?? null},
 			${storedModels}
@@ -119,6 +122,7 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			pr_link_mode = excluded.pr_link_mode,
 			provider_session_id = excluded.provider_session_id,
 			provider_session_failed = excluded.provider_session_failed,
+			ephemeral = excluded.ephemeral,
 			current_mode_id = excluded.current_mode_id,
 			current_model_id = excluded.current_model_id,
 			available_models = excluded.available_models
@@ -166,6 +170,7 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							pr_link_mode,
 							provider_session_id,
 							provider_session_failed,
+							ephemeral,
 							current_mode_id,
 							current_model_id,
 							available_models
@@ -187,6 +192,7 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							pr_link_mode,
 							provider_session_id,
 							provider_session_failed,
+							ephemeral,
 							current_mode_id,
 							current_model_id,
 							available_models

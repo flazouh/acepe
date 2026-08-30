@@ -75,6 +75,19 @@ export const ProjectedSession = Schema.Struct({
 	// ghost -- its disk-scanned row is still real and openable, and this
 	// flag intentionally stays false for that case (see evolveProjectedSession).
 	providerSessionFailed: Schema.Boolean,
+	// True for a session Acepe opened to do a job of its own rather than to
+	// hold a conversation the user started -- today the ship card's one hidden
+	// turn that writes a commit message and PR copy. It is a full session
+	// underneath (aggregate, provider adapter, turn, transcript) and is
+	// deliberately absent from the session library: readSessions in
+	// ProjectionSnapshotQuery excludes it, and ProviderSessionDiscovery drops
+	// the provider file it leaves on disk, so neither the projection union nor
+	// the disk scan can put it in the sidebar.
+	//
+	// Carried from SessionCreateCommand.ephemeral through SessionCreated. False
+	// for every session created before the field existed and for every normal
+	// one since.
+	ephemeral: Schema.Boolean,
 	// The mode this session runs in, read off the canonical SessionModeSet
 	// event (issue #272). This is the ONLY source of truth for the current
 	// mode: a provider reports its own opening mode at every (re)open --
@@ -128,6 +141,7 @@ const ProjectionSessionRow = Schema.Struct({
 	pr_link_mode: SessionPrLinkMode.pipe(Schema.NullOr),
 	provider_session_id: Schema.NullOr(TrimmedNonEmptyString),
 	provider_session_failed: SqliteFlag,
+	ephemeral: SqliteFlag,
 	current_mode_id: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 	current_model_id: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 	// JSON text through the same schema that wrote it, the way
@@ -177,6 +191,7 @@ const projectedSessionFromRow = (
 	prLinkMode: row.pr_link_mode,
 	providerSessionId: row.provider_session_id,
 	providerSessionFailed: row.provider_session_failed === 1,
+	ephemeral: row.ephemeral === 1,
 	currentModeId: row.current_mode_id ?? null,
 	currentModelId: row.current_model_id ?? null,
 	availableModels: row.available_models ?? null
@@ -310,6 +325,7 @@ const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSes
 	prLinkMode: session.prLinkMode,
 	providerSessionId: session.providerSessionId,
 	providerSessionFailed: session.providerSessionFailed,
+	ephemeral: session.ephemeral,
 	currentModeId: currentModeIdOf(session),
 	currentModelId: currentModelIdOf(session),
 	availableModels: availableModelsOf(session)
@@ -334,6 +350,7 @@ const projectSessionCreated = (
 				prLinkMode: null,
 				providerSessionId: null,
 				providerSessionFailed: false,
+				ephemeral: payload.ephemeral ?? false,
 				currentModeId: null,
 				currentModelId: null,
 				availableModels: null
@@ -373,6 +390,7 @@ const projectSessionMetaUpdated = (
 						payload.prLinkMode !== undefined ? payload.prLinkMode : stamped.prLinkMode,
 					providerSessionId: providerSessionId !== null ? providerSessionId : stamped.providerSessionId,
 					providerSessionFailed: stamped.providerSessionFailed,
+					ephemeral: stamped.ephemeral,
 					currentModeId: currentModeIdOf(stamped),
 					currentModelId: currentModelIdOf(stamped),
 					availableModels: publishedModels !== null

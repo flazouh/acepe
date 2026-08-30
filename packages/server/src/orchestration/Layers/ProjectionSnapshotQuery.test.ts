@@ -39,6 +39,7 @@ const deletedSessionId = SessionId.make("session-deleted")
 const projectId = ProjectId.make("project-1")
 const otherProjectId = ProjectId.make("project-2")
 const otherProjectSessionId = SessionId.make("session-other-project")
+const ephemeralSessionId = SessionId.make("session-ephemeral")
 
 const TempSqlite = Layer.unwrap(
 	Effect.gen(function*() {
@@ -87,6 +88,39 @@ const insertSession = Effect.fn("insertSession")(function*(
 			${NOW},
 			${archivedAt},
 			${deletedAt}
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
+const insertEphemeralSession = Effect.fn("insertEphemeralSession")(function*(
+	id: SessionId,
+	title: string,
+	ownerProjectId: ProjectId = projectId
+) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_sessions (
+			session_id,
+			project_id,
+			title,
+			provider,
+			created_at,
+			updated_at,
+			last_activity_at,
+			archived_at,
+			deleted_at,
+			ephemeral
+		) VALUES (
+			${id},
+			${ownerProjectId},
+			${title},
+			NULL,
+			${NOW},
+			${NOW},
+			${NOW},
+			NULL,
+			NULL,
+			1
 		)
 	`.withoutTransform.pipe(Effect.asVoid)
 })
@@ -833,6 +867,37 @@ Vitest.layer(isolatedQuery())("mid-apply isolation", (it) => {
 				return
 			}
 			Vitest.assert.strictEqual(message.content.text, "after")
+		})
+	)
+})
+
+// The ship card opens a session, runs one hidden turn to write a commit
+// message and PR copy, then closes it. That session is a real session -- the
+// same session.create every thread uses -- and these two queries are what the
+// sidebar lists, so without the exclusion it lands in the project's thread
+// list titled with its own prompt.
+Vitest.layer(isolatedQuery())("ephemeral sessions", (it) => {
+	it.effect("are absent from both the library and the project session list", () =>
+		Effect.gen(function*() {
+			const query = yield* ProjectionSnapshotQuery
+			yield* insertProject()
+			yield* insertSession(sessionId, "Ship the slice")
+			yield* insertEphemeralSession(
+				ephemeralSessionId,
+				"Generate a git commit message and pull request description"
+			)
+			yield* checkpoint("projection.sessions", 4)
+			yield* checkpoint("projection.projects", 4)
+			const library = yield* query.forRequest(librarySnapshotRequest())
+			Vitest.assert.deepStrictEqual(
+				library.sessions.map((row) => row.sessionId),
+				[sessionId]
+			)
+			const project = yield* query.forRequest(projectSnapshotRequest(projectId))
+			Vitest.assert.deepStrictEqual(
+				project.sessions.map((row) => row.sessionId),
+				[sessionId]
+			)
 		})
 	)
 })

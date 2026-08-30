@@ -100,6 +100,47 @@ const insertAcepeSession = Effect.fn("insertAcepeSession")(function*(
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
+/**
+ * The projection row for a session Acepe opened to do a job of its own -- the
+ * ship card's hidden commit-message turn. It runs a real provider, so a real
+ * JSONL lands in the provider's own directory and this scan reads it.
+ */
+const insertEphemeralSession = Effect.fn("insertEphemeralSession")(function*(
+	sessionId: string,
+	providerSessionId: string | null
+) {
+	const sql = yield* SqlClient.SqlClient
+	yield* sql`
+		INSERT INTO projection_sessions (
+			session_id,
+			project_id,
+			title,
+			provider,
+			created_at,
+			updated_at,
+			last_activity_at,
+			archived_at,
+			deleted_at,
+			provider_session_id,
+			provider_session_failed,
+			ephemeral
+		) VALUES (
+			${sessionId},
+			${"project-acme"},
+			${"Generate a git commit message and pull request description"},
+			${"claude"},
+			${NOW},
+			${NOW},
+			${NOW},
+			NULL,
+			NULL,
+			${providerSessionId},
+			0,
+			1
+		)
+	`.withoutTransform.pipe(Effect.asVoid)
+})
+
 Vitest.layer(SuiteLive)("ProviderSessionDiscovery", (it) => {
 	it.effect("lists sessions for a project and caches until the directory changes", () =>
 		Effect.gen(function*() {
@@ -199,5 +240,34 @@ Vitest.layer(SuiteLive)("ProviderSessionDiscovery", (it) => {
 			Vitest.assert.strictEqual(byId.get("own"), "acepe")
 			Vitest.assert.strictEqual(byId.get("adopted"), "acepe")
 			Vitest.assert.strictEqual(byId.get("other"), "external")
+		}))
+
+	// Keeping an ephemeral session out of the session library is not enough on
+	// its own: its provider writes a real file here, and being "known" would
+	// mark that file origin "acepe", which is exactly the origin that survives
+	// the hide-external-sessions filter. It has to be gone before the sidebar
+	// ever sees the scan.
+	it.effect("drops the provider file an ephemeral session leaves behind", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const homeDir = yield* fs.makeTempDirectoryScoped()
+			const projectPath = "/Users/example/ephemeral"
+			const projectDir = path.join(homeDir, ".claude", "projects", pathToSlug(projectPath))
+			yield* writeSession(fs, path, projectDir, "thread.jsonl", "A real thread", "thread")
+			yield* writeSession(fs, path, projectDir, "shipcard.jsonl", "Generate a git commit", "shipcard")
+
+			yield* insertAcepeSession("acepe-thread", "thread")
+			yield* insertEphemeralSession("acepe-shipcard", "shipcard")
+
+			const discovery = yield* ProviderSessionDiscovery.pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(discoveryLayerFor(homeDir))
+			)
+			const sessions = yield* discovery.listSessionsForProject(projectPath)
+			Vitest.assert.deepStrictEqual(
+				sessions.map((session) => session.id),
+				["thread"]
+			)
 		}))
 })

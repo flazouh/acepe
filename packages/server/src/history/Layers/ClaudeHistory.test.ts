@@ -52,6 +52,8 @@ const oracle = {
 		prLinkMode: null,
 		providerSessionId: null,
 		providerSessionFailed: false,
+		// An imported session is a thread the user had; never an ephemeral one.
+		ephemeral: false,
 		// An imported session never carries a SessionModeSet, so the canonical
 		// mode is absent and the provider's opening mode stands.
 		currentModeId: null,

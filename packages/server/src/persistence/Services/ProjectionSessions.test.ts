@@ -221,6 +221,7 @@ Vitest.describe("evolveProjectedSession", () => {
 				prLinkMode: null,
 				providerSessionId: null,
 				providerSessionFailed: false,
+				ephemeral: false,
 				currentModeId: null,
 				currentModelId: null,
 				availableModels: null
@@ -469,6 +470,43 @@ Vitest.describe("evolveProjectedSession", () => {
 				])
 			)
 			Vitest.assert.strictEqual(row.providerSessionId, null)
+		})
+	)
+
+	Vitest.it.effect("records the ephemeral marker the SessionCreated event carries", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "Generate a git commit message",
+						ephemeral: true
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.ephemeral, true)
+		})
+	)
+
+	Vitest.it.effect("keeps the ephemeral marker across later events", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "Generate a git commit message",
+						ephemeral: true
+					}),
+					sessionEvent(2, "MessageSent", LATER, {
+						sessionId,
+						messageId,
+						text: "Generate a git commit message and pull request description"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.ephemeral, true)
 		})
 	)
 

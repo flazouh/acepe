@@ -162,6 +162,18 @@ export type TranscriptFactOrigin = typeof TranscriptFactOrigin.Type
 // session exactly as before — see ProviderBridge.ts, which only claims
 // sessions carrying a providerId it can resolve in the adapter registry.
 
+// An ephemeral session is a real session in every way the engine cares about
+// -- it gets an aggregate, a provider adapter, a turn, and a transcript -- and
+// is deliberately absent from the session library the sidebar lists. The ship
+// card opens one to write a commit message and PR copy, then closes it; its
+// prompt is machinery, never a thread the user started, so listing it next to
+// their real threads is wrong.
+//
+// This is the canonical marker for that, carried on the command, the event and
+// the projected row, so the exclusion happens in the query that answers "which
+// sessions does this project have" rather than in a component squinting at
+// titles. Absent means a normal, listed session -- every caller that existed
+// before this field, and every future one that does not opt out.
 export const SessionCreateCommand = Schema.Struct({
 	type: Schema.Literal("session.create"),
 	commandId: CommandId,
@@ -170,6 +182,7 @@ export const SessionCreateCommand = Schema.Struct({
 	title: TrimmedNonEmptyString,
 	providerId: Schema.optionalKey(TrimmedNonEmptyString),
 	origin: Schema.optionalKey(TranscriptFactOrigin),
+	ephemeral: Schema.optionalKey(Schema.Boolean),
 })
 export type SessionCreateCommand = typeof SessionCreateCommand.Type
 

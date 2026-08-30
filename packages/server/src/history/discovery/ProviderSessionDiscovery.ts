@@ -72,32 +72,61 @@ export const ProviderSessionDiscoveryLive = Layer.effect(
 		// `session_id` for one it created itself, `provider_session_id` for
 		// one it adopted from the provider. Union both, because the scan
 		// only ever has the provider's own id to match on.
-		const knownSessionIds = Effect.fn("knownSessionIds")(function*() {
+		//
+		// The ephemeral ids are the same union for the sessions Acepe opened to
+		// do a job of its own (see ProjectedSession.ephemeral). Excluding them
+		// from the library query alone is not enough: an ephemeral session runs
+		// a real provider, which writes a real file into the provider's own
+		// directory, and this scan reads that directory. Left in, the file
+		// comes back as a discovered session and the sidebar lists it -- and
+		// worse, `known` would call it origin "acepe", so it would survive the
+		// external-session filter that hides everything Acepe never started.
+		const projectedSessionIds = Effect.fn("projectedSessionIds")(function*() {
 			const projected = yield* projectionSessions.list()
-			const ids = new Set<string>()
+			const known = new Set<string>()
+			const ephemeral = new Set<string>()
 			for (const session of projected) {
-				ids.add(session.sessionId)
+				known.add(session.sessionId)
 				if (session.providerSessionId !== null) {
-					ids.add(session.providerSessionId)
+					known.add(session.providerSessionId)
+				}
+				if (session.ephemeral) {
+					ephemeral.add(session.sessionId)
+					if (session.providerSessionId !== null) {
+						ephemeral.add(session.providerSessionId)
+					}
 				}
 			}
-			return ids
+			return { known, ephemeral }
 		})
 
 		const withOrigin = (
 			scanned: ReadonlyArray<ScannedSession>,
-			known: ReadonlySet<string>
+			known: ReadonlySet<string>,
+			ephemeral: ReadonlySet<string>
 		): ReadonlyArray<DiscoveredSession> =>
-			scanned.map((session) => ({
-				...session,
-				origin: known.has(session.id) ? ("acepe" as const) : ("external" as const)
-			}))
+			scanned
+				.filter((session) => !ephemeral.has(session.id))
+				.map((session) => ({
+					...session,
+					origin: known.has(session.id) ? ("acepe" as const) : ("external" as const)
+				}))
 
 		const listSessionsForProject = (projectPath: TrimmedNonEmptyString) =>
 			Effect.gen(function*() {
 				const signature = yield* projectDirectorySignature(fs, path, projectsRoot, projectPath)
-				const known = yield* knownSessionIds()
-				const knownSignature = Arr.join(Arr.sort([...known], Str.Order), ",")
+				const { known, ephemeral } = yield* projectedSessionIds()
+				// Both sets go into the signature: an id can enter `ephemeral`
+				// without changing `known` (the ship card's session learns its
+				// provider id after it is already known under its own), and a
+				// cache entry built before that would keep serving the file.
+				const knownSignature = Arr.join(
+					[
+						Arr.join(Arr.sort([...known], Str.Order), ","),
+						Arr.join(Arr.sort([...ephemeral], Str.Order), ",")
+					],
+					"|"
+				)
 				const cache = yield* Ref.get(sessionCache)
 				const cached = cache.get(projectPath)
 				if (
@@ -108,7 +137,7 @@ export const ProviderSessionDiscoveryLive = Layer.effect(
 					return cached.sessions
 				}
 				const scanned = yield* listClaudeSessionsForProject(fs, path, projectsRoot, projectPath)
-				const sessions = withOrigin(scanned, known)
+				const sessions = withOrigin(scanned, known, ephemeral)
 				yield* Ref.update(
 					sessionCache,
 					(map) => new Map(map).set(projectPath, { signature, knownSignature, sessions })

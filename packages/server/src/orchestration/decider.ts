@@ -225,7 +225,8 @@ const sessionCreatedEvent = (
 		projectId: command.projectId,
 		title: command.title,
 		...(command.providerId === undefined ? {} : { providerId: command.providerId }),
-		...(command.origin === undefined ? {} : { origin: command.origin })
+		...(command.origin === undefined ? {} : { origin: command.origin }),
+		...(command.ephemeral === undefined ? {} : { ephemeral: command.ephemeral })
 	}
 })
 

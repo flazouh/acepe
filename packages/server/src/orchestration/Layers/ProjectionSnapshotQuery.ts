@@ -128,6 +128,7 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 					pr_link_mode,
 					provider_session_id,
 					provider_session_failed,
+					ephemeral,
 					current_mode_id,
 					current_model_id,
 					available_models
@@ -536,16 +537,28 @@ export const ProjectionSnapshotQueryLive = Layer.effect(ProjectionSnapshotQuery)
 			return yield* Effect.forEach(projectRows, decodeStoredProjectedProject)
 		})
 
+		/**
+		 * The session library: every session a project has, as the sidebar
+		 * lists them.
+		 *
+		 * Ephemeral sessions are excluded here, in the query that answers the
+		 * question, rather than by whatever renders the answer. One of them is
+		 * a session in every other respect -- it has an aggregate, a provider
+		 * adapter, a turn and a transcript, and `readSession` below still
+		 * returns it by id, which is what lets the ship card stream its own
+		 * hidden turn -- it is simply not a thread the user started, so it does
+		 * not belong in the list of their threads. See ProjectedSession.ephemeral.
+		 */
 		const readSessions = Effect.fn("ProjectionSnapshotQuery.readSessions")(function*(
 			projectId: ProjectId | null
 		) {
 			if ((yield* tableExists(PROJECTION_SESSIONS_TABLE)) === false) {
 				return Arr.empty<ProjectedSession>()
 			}
-			if (projectId === null) {
-				return yield* projectedSessions.list()
-			}
-			return yield* projectedSessions.listForProject(projectId)
+			const listed = projectId === null
+				? yield* projectedSessions.list()
+				: yield* projectedSessions.listForProject(projectId)
+			return Arr.filter(listed, (session) => session.ephemeral === false)
 		})
 
 		const readLibrarySnapshot = Effect.fn("ProjectionSnapshotQuery.readLibrarySnapshot")(

@@ -337,6 +337,49 @@ Vitest.describe("decide", () => {
 		})
 	)
 
+	// The ship card opens a session to write a commit message and PR copy and
+	// closes it again. Without this marker on the event, the projected row
+	// cannot be told apart from a thread the user started, and the sidebar
+	// lists it.
+	Vitest.it.effect("carries ephemeral into the SessionCreated payload", () =>
+		Effect.gen(function*() {
+			const events = yield* decide(
+				projectReadModel,
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId,
+					sessionId,
+					projectId,
+					title: "First session",
+					providerId: "claude-code",
+					ephemeral: true
+				}),
+				identity
+			)
+			Vitest.assert.deepStrictEqual(events, [
+				{
+					sequence: 2,
+					eventId,
+					aggregateKind: "session",
+					aggregateId: sessionId,
+					occurredAt,
+					commandId,
+					causationEventId: null,
+					correlationId: commandId,
+					metadata: {},
+					type: "SessionCreated",
+					payload: {
+						sessionId,
+						projectId,
+						title: "First session",
+						providerId: "claude-code",
+						ephemeral: true
+					}
+				}
+			])
+		})
+	)
+
 	Vitest.it.effect("rejects session.create when the project is missing", () =>
 		Effect.gen(function*() {
 			const error = yield* Effect.flip(
