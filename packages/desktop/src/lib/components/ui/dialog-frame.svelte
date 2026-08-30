@@ -108,11 +108,16 @@ const rendersVisibleTitle = $derived(!hideHeader && showTitle);
 const bodyClass = $derived(
 	size === "palette" || size === "palette-lg"
 		? "overflow-hidden p-0"
-		: isAutoHeight
-			? "overflow-visible p-0"
-			: contentOverflow === "hidden"
-				? "flex min-h-0 flex-1 flex-col overflow-hidden p-0.5"
-				: "min-h-0 flex-1 overflow-y-auto p-0.5"
+		: // The settings modal is edge-to-edge: its nav panel has to reach the
+			// dialog's own rounded corners, so the body adds no inset of its own and
+			// does not scroll -- the nav and the content pane each scroll themselves.
+			size === "settings"
+			? "flex min-h-0 flex-1 flex-col overflow-hidden p-0"
+			: isAutoHeight
+				? "overflow-visible p-0"
+				: contentOverflow === "hidden"
+					? "flex min-h-0 flex-1 flex-col overflow-hidden p-0.5"
+					: "min-h-0 flex-1 overflow-y-auto p-0.5"
 );
 
 function handleOpenChange(nextOpen: boolean): void {
