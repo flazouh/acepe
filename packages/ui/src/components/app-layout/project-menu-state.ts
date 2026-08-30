@@ -4,10 +4,7 @@ import type { ProjectColorOption } from "./project-color-options.js";
 
 export interface ProjectHeaderOverflowMenuState {
 	readonly selectedColorHex: string;
-	readonly hasIcon: boolean;
-	readonly hasResetProjectIcon: boolean;
 	readonly showColorPicker: boolean;
-	readonly showSettingsSection: boolean;
 }
 
 export function getSelectedProjectColorHex(input: {
@@ -20,33 +17,20 @@ export function getSelectedProjectColorHex(input: {
 	return selectedOption?.hex ?? input.colorOptions[0]?.hex ?? Colors[COLOR_NAMES.RED];
 }
 
+// The color picker used to hide behind a project icon. Nothing can set an icon
+// any more -- a project icon has no home on the server, so the menu items that
+// picked and cleared one are gone -- so the picker only depends on whether the
+// caller offers a color action.
 export function buildProjectHeaderOverflowMenuState(input: {
 	readonly currentColor: string | undefined;
 	readonly colorOptions: readonly ProjectColorOption[];
-	readonly projectIconSrc: string | null;
 	readonly hasColorChange: boolean;
-	readonly hasResetProjectIconAction: boolean;
-	readonly hasRemoveProjectAction: boolean;
-	readonly hasChangeProjectIconAction?: boolean;
 }): ProjectHeaderOverflowMenuState {
-	const hasIcon = Boolean(input.projectIconSrc);
-	const hasResetProjectIcon = Boolean(hasIcon && input.hasResetProjectIconAction);
-	const showColorPicker = Boolean(input.hasColorChange && !hasIcon);
-	const showSettingsSection = Boolean(
-		showColorPicker ||
-			input.hasRemoveProjectAction ||
-			hasResetProjectIcon ||
-			input.hasChangeProjectIconAction
-	);
-
 	return {
 		selectedColorHex: getSelectedProjectColorHex({
 			currentColor: input.currentColor,
 			colorOptions: input.colorOptions,
 		}),
-		hasIcon,
-		hasResetProjectIcon,
-		showColorPicker,
-		showSettingsSection,
+		showColorPicker: input.hasColorChange,
 	};
 }

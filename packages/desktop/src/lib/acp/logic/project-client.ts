@@ -4,7 +4,6 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type { ProjectAcepeConfig, ProjectData } from "../../utils/backend-client/types.js";
 import { backendClient } from "../../utils/backend-client.js";
-import { convertFileSrc } from "../../utils/file-src.js";
 import type { Project } from "./project-manager.svelte.js";
 import { ProjectError } from "./project-manager.svelte.js";
 
@@ -14,31 +13,6 @@ const PROJECTS_HOT_CACHE_VERSION = 1;
 interface ProjectsHotCachePayload {
 	readonly version: number;
 	readonly projects: readonly ProjectData[];
-}
-
-/**
- * Converts a filesystem icon path to a URL the webview can load.
- * Returns the value unchanged if it's falsy, or already a web/data/asset URL.
- */
-export function convertIconPath(iconPath: string | null | undefined): string | null {
-	if (!iconPath) {
-		return iconPath === undefined ? null : iconPath;
-	}
-
-	if (
-		iconPath.startsWith("http://") ||
-		iconPath.startsWith("https://") ||
-		iconPath.startsWith("data:") ||
-		iconPath.startsWith("asset://")
-	) {
-		return iconPath;
-	}
-
-	return convertFileSrc(iconPath);
-}
-
-export function normalizeProjectIconUpdatePath(iconPath: string | null): string | null {
-	return iconPath === "" ? null : iconPath;
 }
 
 const readProjectsHotCacheItem = fromThrowable(
@@ -75,13 +49,6 @@ const removeProjectsHotCacheItem = fromThrowable(
 	() => undefined
 );
 
-function normalizeOptionalString(value: string | null | undefined): string | null | undefined {
-	if (value === null) {
-		return null;
-	}
-	return typeof value === "string" ? value : undefined;
-}
-
 function normalizeOptionalDateString(value: string | null | undefined): string | undefined {
 	return typeof value === "string" ? value : undefined;
 }
@@ -108,7 +75,6 @@ function normalizeCachedProject(project: ProjectData): ProjectData | null {
 		created_at: project.created_at,
 		color: project.color,
 		sort_order: project.sort_order,
-		icon_path: normalizeOptionalString(project.icon_path),
 		show_external_cli_sessions: normalizeOptionalBoolean(project.show_external_cli_sessions),
 	};
 }
@@ -172,7 +138,6 @@ function projectToCachedProjectData(project: Project): ProjectData {
 		created_at: projectDateToStorageString(project.createdAt),
 		color: project.color,
 		sort_order: project.sortOrder ?? null,
-		icon_path: project.iconPath ?? null,
 		show_external_cli_sessions: project.showExternalCliSessions,
 	};
 }
@@ -197,7 +162,6 @@ export class ProjectClient {
 			createdAt: new Date(project.created_at),
 			color: resolveProjectColor(project.color),
 			sortOrder: project.sort_order ?? undefined,
-			iconPath: convertIconPath(project.icon_path ?? null),
 			showExternalCliSessions: project.show_external_cli_sessions,
 		};
 	}
@@ -322,21 +286,6 @@ export class ProjectClient {
 		);
 	}
 
-	updateProjectIcon(path: string, iconPath: string | null): Effect.Effect<Project, ProjectError> {
-		const normalizedIconPath = normalizeProjectIconUpdatePath(iconPath);
-		return backendClient.projects.updateProjectIcon(path, normalizedIconPath).pipe(
-			Effect.mapError(
-				(error) =>
-					new ProjectError(
-						`Failed to update project icon: ${error.message}`,
-						"STORAGE_ERROR",
-						error instanceof Error ? error : undefined
-					)
-			),
-			Effect.map((project) => this.mapProject(project))
-		);
-	}
-
 	getProjectAcepeConfig(path: string): Effect.Effect<ProjectAcepeConfig, ProjectError> {
 		return backendClient.projects
 			.getProjectAcepeConfig(path)
@@ -393,21 +342,6 @@ export class ProjectClient {
 			);
 	}
 
-	listProjectImages(projectPath: string): Effect.Effect<string[], ProjectError> {
-		return backendClient.projects
-			.listProjectImages(projectPath)
-			.pipe(
-				Effect.mapError(
-					(error) =>
-						new ProjectError(
-							`Failed to list project images: ${error.message}`,
-							"STORAGE_ERROR",
-							error instanceof Error ? error : undefined
-						)
-				)
-			);
-	}
-
 	updateProjectOrder(orderedPaths: string[]): Effect.Effect<Project[], ProjectError> {
 		return backendClient.projects.updateProjectOrder(orderedPaths).pipe(
 			Effect.mapError(
@@ -443,21 +377,6 @@ export class ProjectClient {
 			);
 	}
 
-	backfillProjectIcons(): Effect.Effect<number, ProjectError> {
-		return backendClient.projects
-			.backfillProjectIcons()
-			.pipe(
-				Effect.mapError(
-					(error) =>
-						new ProjectError(
-							`Failed to backfill project icons: ${error.message}`,
-							"STORAGE_ERROR",
-							error instanceof Error ? error : undefined
-						)
-				)
-			);
-	}
-
 	/**
 	 * Remove a project.
 	 *
@@ -472,26 +391,6 @@ export class ProjectClient {
 					(error) =>
 						new ProjectError(
 							`Failed to remove project: ${error.message}`,
-							"STORAGE_ERROR",
-							error instanceof Error ? error : undefined
-						)
-				)
-			);
-	}
-
-	/**
-	 * Browse for a project icon image file.
-	 *
-	 * @returns Effect containing the selected file path or null if cancelled
-	 */
-	browseProjectIcon(): Effect.Effect<string | null, ProjectError> {
-		return backendClient.projects
-			.browseProjectIcon()
-			.pipe(
-				Effect.mapError(
-					(error) =>
-						new ProjectError(
-							`Failed to browse project icon: ${error.message}`,
 							"STORAGE_ERROR",
 							error instanceof Error ? error : undefined
 						)

@@ -59,10 +59,6 @@ function createProjectClient(options: {
 		updateProjectColor: vi.fn((path: string, _color: string) =>
 			Effect.succeed(createProject(path, "Updated"))
 		),
-		updateProjectIcon: vi.fn((path: string, _iconPath: string | null) =>
-			Effect.succeed(createProject(path, "Updated"))
-		),
-		listProjectImages: vi.fn((_projectPath: string) => Effect.succeed([] as string[])),
 		updateProjectShowExternalCliSessions: vi.fn((_path: string, value: boolean) =>
 			Effect.succeed({
 				setupScript: "",
@@ -70,8 +66,6 @@ function createProjectClient(options: {
 				showExternalCliSessions: value,
 			})
 		),
-		browseProjectIcon: vi.fn(() => Effect.succeed(null as string | null)),
-		backfillProjectIcons: vi.fn(() => Effect.succeed(0)),
 		updateProjectOrder: vi.fn((_orderedPaths: string[]) => Effect.succeed(options.storageProjects)),
 		removeProject: vi.fn((_path: string) => Effect.succeed(undefined)),
 	} satisfies ProjectManagerClient;

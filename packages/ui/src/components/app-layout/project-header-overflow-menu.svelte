@@ -68,14 +68,11 @@ interface Props {
 	projectName: string;
 	currentColor?: string;
 	onColorChange?: (color: string) => void;
-	projectIconSrc?: string | null;
-	onResetProjectIcon?: () => void;
 	onRemoveProject?: () => void;
 	onMoveUp?: () => void;
 	onMoveDown?: () => void;
 	moveUpDisabled?: boolean;
 	moveDownDisabled?: boolean;
-	onChangeProjectIcon?: () => void;
 	hideExternalCliSessions?: boolean;
 	onHideExternalCliSessionsChange?: (hide: boolean) => void;
 	hideExternalCliSessionsLabel?: string;
@@ -87,14 +84,11 @@ let {
 	projectName,
 	currentColor,
 	onColorChange,
-	projectIconSrc = null,
-	onResetProjectIcon,
 	onRemoveProject,
 	onMoveUp,
 	onMoveDown,
 	moveUpDisabled = false,
 	moveDownDisabled = false,
-	onChangeProjectIcon,
 	hideExternalCliSessions = false,
 	onHideExternalCliSessionsChange,
 	hideExternalCliSessionsLabel = "External CLI",
@@ -116,15 +110,9 @@ const menuState = $derived(
 	buildProjectHeaderOverflowMenuState({
 		currentColor,
 		colorOptions,
-		projectIconSrc,
 		hasColorChange: Boolean(onColorChange),
-		hasResetProjectIconAction: Boolean(onResetProjectIcon),
-		hasRemoveProjectAction: Boolean(onRemoveProject),
-		hasChangeProjectIconAction: Boolean(onChangeProjectIcon),
 	}),
 );
-const hasIcon = $derived(menuState.hasIcon);
-const hasResetProjectIcon = $derived(menuState.hasResetProjectIcon);
 const showColorPicker = $derived(menuState.showColorPicker);
 
 const menuSections = $derived.by(() => {
@@ -251,38 +239,12 @@ function createSessionsMenuSection(): ProjectMenuSection | null {
 function createAppearanceMenuSection(): ProjectMenuSection | null {
 	const entries: ProjectMenuEntry[] = [];
 
-	if (onChangeProjectIcon) {
-		entries.push({
-			kind: "action",
-			id: "change-project-icon",
-			label: "Icon...",
-			icon: "image",
-			onSelect: () => {
-				onChangeProjectIcon?.();
-				closeMenu();
-			},
-		});
-	}
-
 	if (showColorPicker) {
 		entries.push({
 			kind: "color-submenu",
 			id: "project-color",
 			label: "Color",
 			icon: "sliders",
-		});
-	}
-
-	if (hasIcon && onResetProjectIcon) {
-		entries.push({
-			kind: "action",
-			id: "reset-project-icon",
-			label: "Reset to letter badge",
-			icon: "avatar",
-			onSelect: () => {
-				onResetProjectIcon?.();
-				closeMenu();
-			},
 		});
 	}
 

@@ -175,9 +175,7 @@ function scheduleImmediatePostStartupWork(callback: () => void): void {
 type ProjectManagerLike = Pick<
 	ProjectManager,
 	"loadProjects" | "projectCount" | "projects" | "projectStorageFresh" | "mergeLibraryProjects"
-> & {
-	triggerProjectIconBackfill?: () => void;
-};
+>;
 
 export function writeSplashSeenHotCache(seen: boolean): void {
 	if (typeof localStorage === "undefined") {
@@ -529,12 +527,7 @@ export class InitializationManager {
 		return this.traceStartupResult(
 			"loadProjects",
 			this.projectManager.loadProjects(preferredPaths).pipe(
-				Effect.map(() => {
-					this.schedulePostStartupWork(() => {
-						this.projectManager.triggerProjectIconBackfill?.();
-					});
-					return undefined;
-				}),
+				Effect.asVoid,
 				Effect.mapError(
 					(error) =>
 						new InitializationError("loadProjects", error instanceof Error ? error : undefined)

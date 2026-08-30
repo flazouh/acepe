@@ -37,8 +37,6 @@ interface Props {
 	effectiveTheme?: "light" | "dark";
 	onProjectClick?: (projectPath: string) => void;
 	onProjectColorChange?: (projectPath: string, color: string) => void;
-	onChangeProjectIcon?: (projectPath: string) => void;
-	onResetProjectIcon?: (projectPath: string) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectFile?: (filePath: string, projectPath: string) => void;
 	/** Called when collapsed project paths change */
@@ -80,8 +78,6 @@ let {
 	effectiveTheme = "light",
 	onProjectClick,
 	onProjectColorChange,
-	onChangeProjectIcon,
-	onResetProjectIcon,
 	onRemoveProject,
 	onSelectFile,
 	onCollapsedProjectPathsChange,
@@ -176,8 +172,6 @@ function handleCreateSessionForProject(projectPath: string, agentId?: string) {
 	{canCreateSession}
 	{shortcutKeys}
 	{onProjectColorChange}
-	{onChangeProjectIcon}
-	{onResetProjectIcon}
 	{onRemoveProject}
 	{sessionGroups}
 	{hasResults}

@@ -85,8 +85,9 @@ describe("ProjectHeaderOverflowMenu", () => {
 		expect(onHideExternalCliSessionsChange).toHaveBeenCalledWith(true);
 	});
 
+	// A project icon has no home on the server, so Appearance offers the color
+	// and nothing else. Neither icon item may come back without one.
 	it("separates appearance actions from destructive project removal", async () => {
-		const onChangeProjectIcon = vi.fn();
 		const onColorChange = vi.fn();
 		const onRemoveProject = vi.fn();
 
@@ -94,7 +95,6 @@ describe("ProjectHeaderOverflowMenu", () => {
 			props: {
 				projectName: "acepe",
 				currentColor: "red",
-				onChangeProjectIcon,
 				onColorChange,
 				onRemoveProject,
 			},
@@ -106,15 +106,15 @@ describe("ProjectHeaderOverflowMenu", () => {
 			code: "ArrowRight",
 		});
 
-		expect(await screen.findByRole("menuitem", { name: "Icon..." })).not.toBeNull();
-		expect(screen.getByRole("menuitem", { name: "Color" })).not.toBeNull();
+		expect(await screen.findByRole("menuitem", { name: "Color" })).not.toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Icon..." })).toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Reset to letter badge" })).toBeNull();
 		expect(screen.queryByRole("menuitem", { name: "Remove Project" })).toBeNull();
 
-		await fireEvent.click(screen.getByRole("menuitem", { name: "Icon..." }));
-		expect(onChangeProjectIcon).toHaveBeenCalledTimes(1);
-
+		// Close the open submenu, then reopen the menu at its top level.
 		await fireEvent.click(screen.getByLabelText("Project menu"));
-		await fireEvent.keyDown(screen.getByRole("menuitem", { name: "Project" }), {
+		await fireEvent.click(screen.getByLabelText("Project menu"));
+		await fireEvent.keyDown(await screen.findByRole("menuitem", { name: "Project" }), {
 			key: "ArrowRight",
 			code: "ArrowRight",
 		});

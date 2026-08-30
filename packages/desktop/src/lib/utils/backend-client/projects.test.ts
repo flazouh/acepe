@@ -113,7 +113,6 @@ describe("projects rpc facade", () => {
 						color: "indigo",
 						// Straight off the projection: the facade never invents a rank.
 						sort_order: null,
-						icon_path: null,
 						// Carried through so the sidebar checkbox can show the stored
 						// value instead of guessing a default the server disagrees with.
 						show_external_cli_sessions: false,

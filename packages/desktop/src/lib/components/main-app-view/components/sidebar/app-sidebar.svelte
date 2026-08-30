@@ -6,7 +6,6 @@ import { toast } from "svelte-sonner";
 import { copyTextToClipboard } from "$lib/acp/components/agent-panel/logic/clipboard-manager.js";
 import { SessionList } from "$lib/acp/components/index.js";
 import { buildSessionSummaryFromCold } from "$lib/acp/application/dto/session-summary.js";
-import ProjectIconPickerDialog from "$lib/acp/components/project-icon-picker-dialog.svelte";
 import type { SessionListItem } from "$lib/acp/components/session-list/session-list-types.js";
 import type { SessionDisplayItem } from "$lib/acp/types/thread-display-item.js";
 import { DEFAULT_BROWSER_HOME_URL } from "$lib/acp/constants/browser-defaults.js";
@@ -179,36 +178,6 @@ function handleToggleShowExternalCliSessions(
 	);
 }
 
-function handleChangeProjectIcon(projectPath: string) {
-	void Effect.runPromise(
-		projectManager.listProjectImages(projectPath).pipe(
-			Effect.match({
-				onSuccess: (images) => {
-					iconPickerProjectPath = projectPath;
-					iconPickerImages = images;
-					iconPickerOpen = true;
-				},
-				onFailure: (error) => {
-					toast.error(`Failed to load project images: ${error.message}`);
-					logger.error("[ProjectIcon] Failed to list project images", { projectPath, error });
-				},
-			})
-		)
-	);
-}
-
-function handleResetProjectIcon(projectPath: string) {
-	void Effect.runPromise(
-		projectManager.updateProjectIcon(projectPath, null).pipe(
-			Effect.catch((error) => {
-				toast.error(`Failed to reset project icon: ${error.message}`);
-				logger.error("[ProjectIcon] Failed to reset", { projectPath, error });
-				return Effect.void;
-			})
-		)
-	);
-}
-
 function handleRemoveProject(projectPath: string) {
 	void Effect.runPromise(
 		removeProjectFromSidebar({
@@ -356,18 +325,7 @@ const availableAgents = $derived(
 const effectiveTheme = $derived(themeState.effectiveTheme);
 const defaultAgentId = $derived(agentPreferencesStore.defaultAgentId);
 
-let iconPickerOpen = $state(false);
-let iconPickerImages = $state<string[]>([]);
-let iconPickerProjectPath = $state("");
 let reorderInFlight = $state(false);
-
-function handleIconPickerOpenChange(open: boolean) {
-	iconPickerOpen = open;
-	if (!open) {
-		iconPickerImages = [];
-		iconPickerProjectPath = "";
-	}
-}
 
 // The projection owns the order. Nothing is reordered here before the write
 // lands: an optimistic local rank is a second authority for the same fact, and
@@ -393,43 +351,6 @@ function handleReorderProjects(orderedPaths: string[]) {
 						orderedPaths,
 					});
 				},
-			})
-		)
-	);
-}
-
-function handleSelectProjectIcon(iconPath: string) {
-	const projectPath = iconPickerProjectPath;
-	if (!projectPath) {
-		return;
-	}
-
-	void Effect.runPromise(
-		projectManager.updateProjectIcon(projectPath, iconPath).pipe(
-			Effect.match({
-				onSuccess: () => undefined,
-				onFailure: (error) => {
-					toast.error(`Failed to update project icon: ${error.message}`);
-					logger.error("[ProjectIcon] Failed to change", { projectPath, error });
-				},
-			})
-		)
-	);
-}
-
-function handleBrowseProjectIcon() {
-	const projectPath = iconPickerProjectPath;
-	handleIconPickerOpenChange(false);
-	if (!projectPath) {
-		return;
-	}
-
-	void Effect.runPromise(
-		projectManager.browseAndSetProjectIcon(projectPath).pipe(
-			Effect.catch((error) => {
-				toast.error(`Failed to update project icon: ${error.message}`);
-				logger.error("[ProjectIcon] Failed to change", { projectPath, error });
-				return Effect.void;
 			})
 		)
 	);
@@ -470,8 +391,6 @@ const visibleSessions = $derived.by(() => {
 			{defaultAgentId}
 			{effectiveTheme}
 			onProjectColorChange={handleProjectColorChange}
-			onChangeProjectIcon={handleChangeProjectIcon}
-			onResetProjectIcon={handleResetProjectIcon}
 			onRemoveProject={handleRemoveProject}
 			isSessionOpen={(sessionId) => panelStore.isSessionOpen(sessionId)}
 			onSelectFile={handleSelectFile}
@@ -496,12 +415,3 @@ const visibleSessions = $derived.by(() => {
 		/>
 	{/snippet}
 </AppSidebarLayout>
-
-<ProjectIconPickerDialog
-	open={iconPickerOpen}
-	projectPath={iconPickerProjectPath}
-	images={iconPickerImages}
-	onSelect={handleSelectProjectIcon}
-	onBrowse={handleBrowseProjectIcon}
-	onOpenChange={handleIconPickerOpenChange}
-/>

@@ -1,16 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
+import { ProjectClient } from "../project-client.js";
 import type { Project } from "../project-manager.svelte.js";
-
-// Mock convertFileSrc before importing the module under test
-mock.module("../../../utils/file-src.js", () => ({
-	convertFileSrc: (path: string) => `asset://localhost/${encodeURIComponent(path)}`,
-}));
-
-import {
-	convertIconPath,
-	normalizeProjectIconUpdatePath,
-	ProjectClient,
-} from "../project-client.js";
 
 const originalLocalStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
 let localStorageValues: Map<string, string>;
@@ -23,7 +13,6 @@ function createProject(path: string, name: string): Project {
 		createdAt: new Date("2026-01-01T00:00:00.000Z"),
 		color: "#00BCD4",
 		sortOrder: 3,
-		iconPath: "/tmp/project.png",
 		showExternalCliSessions: true,
 	};
 }
@@ -52,79 +41,6 @@ afterEach(() => {
 	Object.defineProperty(globalThis, "localStorage", originalLocalStorageDescriptor);
 });
 
-describe("convertIconPath", () => {
-	it("returns null when iconPath is null", () => {
-		const result = convertIconPath(null);
-		expect(result).toBeNull();
-	});
-
-	it("returns null when iconPath is undefined", () => {
-		const result = convertIconPath(undefined);
-		// undefined is falsy, converted to null to match return type
-		expect(result).toBeNull();
-	});
-
-	it('returns "" unchanged when iconPath is empty string (user-cleared sentinel)', () => {
-		const result = convertIconPath("");
-		// Empty string is falsy, passes through without calling convertFileSrc
-		expect(result).toBe("");
-	});
-
-	it("does not call convertFileSrc for empty string", () => {
-		// Verify the empty string is returned as-is (not converted to an asset:// URL)
-		const result = convertIconPath("");
-		expect(result).not.toContain("asset://");
-		expect(result).toBe("");
-	});
-
-	it("returns http:// URLs unchanged", () => {
-		const url = "http://example.com/logo.png";
-		expect(convertIconPath(url)).toBe(url);
-	});
-
-	it("returns https:// URLs unchanged", () => {
-		const url = "https://example.com/logo.png";
-		expect(convertIconPath(url)).toBe(url);
-	});
-
-	it("returns data: URIs unchanged", () => {
-		const dataUri = "data:image/png;base64,iVBORw0KGgoAAAANS";
-		expect(convertIconPath(dataUri)).toBe(dataUri);
-	});
-
-	it("returns asset:// URLs unchanged", () => {
-		const assetUrl = "asset://localhost/path/to/icon.png";
-		expect(convertIconPath(assetUrl)).toBe(assetUrl);
-	});
-
-	it("converts a filesystem path via convertFileSrc", () => {
-		const result = convertIconPath("/path/to/logo.png");
-		// Our mock returns asset://localhost/<encoded-path>
-		expect(result).toStartWith("asset://");
-		expect(result).toContain("logo.png");
-	});
-
-	it("converts a relative-looking path via convertFileSrc", () => {
-		const result = convertIconPath("icons/project.svg");
-		expect(result).toStartWith("asset://");
-		expect(result).toContain("project.svg");
-	});
-});
-
-describe("normalizeProjectIconUpdatePath", () => {
-	it("converts empty string reset sentinel to null", () => {
-		expect(normalizeProjectIconUpdatePath("")).toBeNull();
-	});
-
-	it("keeps file paths unchanged", () => {
-		expect(normalizeProjectIconUpdatePath("/tmp/icon.png")).toBe("/tmp/icon.png");
-	});
-
-	it("keeps null unchanged", () => {
-		expect(normalizeProjectIconUpdatePath(null)).toBeNull();
-	});
-});
-
 describe("ProjectClient hot cache", () => {
 	it("round-trips cached projects without calling the backend", () => {
 		const client = new ProjectClient();
@@ -136,7 +52,7 @@ describe("ProjectClient hot cache", () => {
 		expect(cachedProjects?.[0]?.path).toBe("/repo/acepe");
 		expect(cachedProjects?.[0]?.createdAt.toISOString()).toBe("2026-01-01T00:00:00.000Z");
 		expect(cachedProjects?.[0]?.lastOpened?.toISOString()).toBe("2026-01-02T00:00:00.000Z");
-		expect(cachedProjects?.[0]?.iconPath).toStartWith("asset://");
+		expect(cachedProjects?.[0]?.sortOrder).toBe(3);
 		expect(cachedProjects?.[0]?.showExternalCliSessions).toBe(true);
 	});
 

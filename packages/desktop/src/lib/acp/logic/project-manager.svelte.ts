@@ -17,6 +17,12 @@ export interface Project {
 	createdAt: Date;
 	color: string;
 	sortOrder?: number;
+	/**
+	 * A per-project image for the badge, in place of its letter. Nothing sets
+	 * one today: a project icon has no home on the server, so the menu items
+	 * that used to pick and clear one were removed. The badge falls back to the
+	 * letter whenever this is absent, which is always.
+	 */
 	iconPath?: string | null;
 	showExternalCliSessions?: boolean;
 	/**
@@ -204,11 +210,7 @@ type ProjectClientPort = Pick<
 	| "importProject"
 	| "addProject"
 	| "updateProjectColor"
-	| "updateProjectIcon"
-	| "listProjectImages"
 	| "updateProjectShowExternalCliSessions"
-	| "browseProjectIcon"
-	| "backfillProjectIcons"
 	| "updateProjectOrder"
 	| "removeProject"
 >;
@@ -636,25 +638,6 @@ export class ProjectManager {
 		);
 	}
 
-	updateProjectIcon(path: string, iconPath: string | null): Effect.Effect<void, ProjectError> {
-		return this.client.updateProjectIcon(path, iconPath).pipe(
-			Effect.map((updatedProject) => {
-				const existingIndex = this.projects.findIndex((project) => project.path === path);
-				if (existingIndex >= 0) {
-					this.projects = this.projects.map((project, index) =>
-						index === existingIndex ? updatedProject : project
-					);
-					this.projectStorageFresh = true;
-					this.writeCurrentProjectsToCache();
-				}
-			})
-		);
-	}
-
-	listProjectImages(projectPath: string): Effect.Effect<string[], ProjectError> {
-		return this.client.listProjectImages(projectPath);
-	}
-
 	updateProjectShowExternalCliSessions(
 		path: string,
 		value: boolean
@@ -672,7 +655,6 @@ export class ProjectManager {
 									createdAt: project.createdAt,
 									color: project.color,
 									sortOrder: project.sortOrder,
-									iconPath: project.iconPath,
 									showExternalCliSessions: value,
 								}
 							: project
@@ -700,48 +682,6 @@ export class ProjectManager {
 					Effect.map(() => undefined)
 				);
 			})
-		);
-	}
-
-	/**
-	 * Browse for a project icon and set it on the project.
-	 * Opens native file picker for images, then updates the project icon if a file was selected.
-	 *
-	 * @param projectPath - The project path to update
-	 * @returns Effect containing void on success
-	 */
-	browseAndSetProjectIcon(projectPath: string): Effect.Effect<void, ProjectError> {
-		return this.client.browseProjectIcon().pipe(
-			Effect.flatMap((selectedFilePath) => {
-				if (selectedFilePath === null) {
-					return Effect.succeed(undefined);
-				}
-				return this.updateProjectIcon(projectPath, selectedFilePath);
-			})
-		);
-	}
-
-	triggerProjectIconBackfill(): void {
-		void Effect.runPromise(
-			this.client.backfillProjectIcons().pipe(
-				Effect.flatMap((updatedCount) => {
-					if (updatedCount === 0) {
-						return Effect.succeed(undefined);
-					}
-					return this.loadProjectsFromStorage({
-						showLoading: true,
-						recordTrace: true,
-						firstPageOnly: false,
-						preferredPaths: [],
-					});
-				}),
-				Effect.match({
-					onSuccess: () => undefined,
-					onFailure: (error) => {
-						console.warn("Project icon backfill failed:", error);
-					},
-				})
-			)
 		);
 	}
 

@@ -30,7 +30,6 @@ const mapProject = (row: RpcProjectedProject): ProjectData => ({
 	created_at: row.createdAt,
 	color: row.color,
 	sort_order: row.sortOrder,
-	icon_path: null,
 	show_external_cli_sessions: row.showExternalCliSessions,
 });
 
@@ -214,7 +213,6 @@ export const projects = {
 			created_at: existing.createdAt,
 			color: decodedColor,
 			sort_order: existing.sortOrder,
-			icon_path: null,
 			show_external_cli_sessions: existing.showExternalCliSessions,
 		};
 	}),
@@ -235,18 +233,6 @@ export const projects = {
 			);
 		}
 	),
-
-	updateProjectIcon: (
-		_path: string,
-		_iconPath: string | null
-	): Effect.Effect<ProjectData, AppError> => unsupportedOnContract("projects.updateProjectIcon"),
-
-	backfillProjectIcons: (): Effect.Effect<number, AppError> => Effect.succeed(0),
-
-	browseProjectIcon: (): Effect.Effect<string | null, AppError> => Effect.succeed(null),
-
-	listProjectImages: (_projectPath: string): Effect.Effect<string[], AppError> =>
-		Effect.succeed([]),
 
 	getProjectAcepeConfig: (_path: string): Effect.Effect<ProjectAcepeConfig, AppError> =>
 		unsupportedOnContract("projects.getProjectAcepeConfig"),

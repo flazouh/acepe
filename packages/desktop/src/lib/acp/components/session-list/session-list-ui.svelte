@@ -43,8 +43,6 @@ interface Props {
 	/** Open sessions that solicit attention when their project group is collapsed. */
 	attentionBySessionId?: ReadonlyMap<string, SessionAttentionEntry>;
 	onProjectColorChange?: (projectPath: string, color: string) => void;
-	onChangeProjectIcon?: (projectPath: string) => void;
-	onResetProjectIcon?: (projectPath: string) => void;
 	onRemoveProject?: (projectPath: string) => void;
 	onSelectSession: (item: SessionListItem) => void;
 	onCreateSession?: () => void;
@@ -93,8 +91,6 @@ let {
 	initialCollapsedProjectPaths = [],
 	attentionBySessionId = new Map(),
 	onProjectColorChange,
-	onChangeProjectIcon,
-	onResetProjectIcon,
 	onRemoveProject,
 	onSelectSession,
 	onCreateSession: _onCreateSession,
@@ -418,10 +414,6 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		onColorChange={onProjectColorChange
 			? (color) => onProjectColorChange(group.projectPath, color)
 			: undefined}
-		projectIconSrc={group.projectIconSrc}
-		onResetProjectIcon={onResetProjectIcon
-			? () => onResetProjectIcon(group.projectPath)
-			: undefined}
 		onRemoveProject={onRemoveProject ? () => onRemoveProject(group.projectPath) : undefined}
 		onMoveUp={() => {
 			void handleProjectContextMove(group.projectPath, -1);
@@ -432,9 +424,6 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 		moveUpDisabled={onReorderProjects === undefined || projectIndex === 0}
 		moveDownDisabled={onReorderProjects === undefined ||
 			projectIndex === sessionGroups.length - 1}
-		onChangeProjectIcon={onChangeProjectIcon
-			? () => onChangeProjectIcon(group.projectPath)
-			: undefined}
 		hideExternalCliSessions={isAcepeOnlyFilterActive(group.projectPath)}
 		onHideExternalCliSessionsChange={onToggleShowExternalCliSessions
 			? (hide) => onToggleShowExternalCliSessions(group.projectPath, !hide)

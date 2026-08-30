@@ -73,7 +73,6 @@ export interface ProjectData {
 	 * project.
 	 */
 	sort_order: number | null;
-	icon_path?: string | null;
 	show_external_cli_sessions?: boolean;
 }
 

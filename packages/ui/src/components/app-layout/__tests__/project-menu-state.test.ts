@@ -22,50 +22,25 @@ describe("project menu state", () => {
 			buildProjectHeaderOverflowMenuState({
 				currentColor: "blue",
 				colorOptions,
-				projectIconSrc: null,
 				hasColorChange: true,
-				hasResetProjectIconAction: false,
-				hasRemoveProjectAction: true,
 			})
 		).toEqual({
 			selectedColorHex: "#0000ff",
-			hasIcon: false,
-			hasResetProjectIcon: false,
 			showColorPicker: true,
-			showSettingsSection: true,
 		});
 	});
 
-	it("hides color picker when a custom icon is present and can show reset action", () => {
-		expect(
-			buildProjectHeaderOverflowMenuState({
-				currentColor: "red",
-				colorOptions,
-				projectIconSrc: "icon.png",
-				hasColorChange: true,
-				hasResetProjectIconAction: true,
-				hasRemoveProjectAction: false,
-			})
-		).toMatchObject({
-			hasIcon: true,
-			hasResetProjectIcon: true,
-			showColorPicker: false,
-			showSettingsSection: true,
-		});
-	});
-
-	it("hides settings section when no actions are available", () => {
+	// An icon used to hide the color picker. No project can have one now, so
+	// only the color action itself decides.
+	it("hides the color picker only when there is no color action", () => {
 		expect(
 			buildProjectHeaderOverflowMenuState({
 				currentColor: undefined,
 				colorOptions,
-				projectIconSrc: null,
 				hasColorChange: false,
-				hasResetProjectIconAction: false,
-				hasRemoveProjectAction: false,
 			})
 		).toMatchObject({
-			showSettingsSection: false,
+			showColorPicker: false,
 		});
 	});
 });
