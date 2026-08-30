@@ -195,55 +195,6 @@ describe("settings rpc facade", () => {
 			})
 		));
 
-	it("loads thread list settings from the hot cache", () =>
-		Effect.runPromise(
-			Effect.gen(function* () {
-				localStorageValues.set(
-					"acepe.thread_list_settings.hot_cache",
-					JSON.stringify({
-						version: 1,
-						settings: {
-							hiddenProjects: ["/repo/cached"],
-						},
-					})
-				);
-				setAppRpcClientForTest(makeClient({}));
-				const loaded = yield* settings.getThreadListSettings();
-				expect(loaded).toEqual({
-					hiddenProjects: ["/repo/cached"],
-				});
-			})
-		));
-
-	it("returns empty thread list settings when no cache exists", () =>
-		Effect.runPromise(
-			Effect.gen(function* () {
-				setAppRpcClientForTest(makeClient({}));
-				const loaded = yield* settings.getThreadListSettings();
-				expect(loaded).toEqual({
-					hiddenProjects: [],
-				});
-			})
-		));
-
-	it("mirrors saved thread list settings into the hot cache", () =>
-		Effect.runPromise(
-			Effect.gen(function* () {
-				setAppRpcClientForTest(makeClient({}));
-				const threadListSettings = {
-					hiddenProjects: ["/repo/new-hidden"],
-				};
-				const result = yield* Effect.result(settings.saveThreadListSettings(threadListSettings));
-				expect(Result.isSuccess(result)).toBe(true);
-				expect(localStorageValues.get("acepe.thread_list_settings.hot_cache")).toBe(
-					JSON.stringify({
-						version: 1,
-						settings: threadListSettings,
-					})
-				);
-			})
-		));
-
 	it("fails resetDatabase because it is not on the contract", () =>
 		Effect.runPromise(
 			Effect.gen(function* () {

@@ -46,5 +46,4 @@ export type {
 	ProjectData,
 	ProjectInfo,
 	ProjectSessionCounts,
-	ThreadListSettings,
 } from "./types.js";

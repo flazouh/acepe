@@ -11,7 +11,6 @@ export type {
 	ProjectData,
 	ProjectInfo,
 	ProjectSessionCounts,
-	ThreadListSettings,
 } from "./backend-client/index.js";
 
 export { backendClient, openFileInEditor, revealInFinder } from "./backend-client/index.js";

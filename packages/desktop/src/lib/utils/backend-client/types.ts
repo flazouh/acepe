@@ -81,15 +81,3 @@ export interface ProjectAcepeConfig {
 	runScript: string;
 	showExternalCliSessions: boolean;
 }
-
-/**
- * Thread list display settings.
- *
- * Archived-ness deliberately does NOT live here. It is canonical session
- * truth (`archivedAt` on the orchestration session row, projected onto
- * SessionCold); a client-side archived list beside it was a second authority
- * for the same fact and let the provider process keep running.
- */
-export interface ThreadListSettings {
-	hiddenProjects: string[];
-}

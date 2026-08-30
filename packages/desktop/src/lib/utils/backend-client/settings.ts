@@ -13,21 +13,13 @@ import * as Schema from "effect/Schema";
 import { AgentError, type AppError } from "../../acp/errors/app-error.js";
 import type { UserSettingKey } from "../../services/user-settings-types.js";
 import { decodeEffect, nextCommandId, unsupportedOnContract, withRpcClient } from "./rpc-bridge.ts";
-import type { ThreadListSettings } from "./types.js";
 
 const CUSTOM_KEYBINDINGS_HOT_CACHE_KEY = "acepe.custom_keybindings.hot_cache";
 const CUSTOM_KEYBINDINGS_HOT_CACHE_VERSION = 1;
-const THREAD_LIST_SETTINGS_HOT_CACHE_KEY = "acepe.thread_list_settings.hot_cache";
-const THREAD_LIST_SETTINGS_HOT_CACHE_VERSION = 1;
 
 interface CustomKeybindingsHotCachePayload {
 	readonly version: number;
 	readonly keybindings: Record<string, string>;
-}
-
-interface ThreadListSettingsHotCachePayload {
-	readonly version: number;
-	readonly settings: ThreadListSettings;
 }
 
 const inflightSettingsSnapshot = Effect.runSync(
@@ -116,89 +108,6 @@ const readCustomKeybindingsHotCache = (): Record<string, string> | null => {
 
 const writeCustomKeybindingsHotCache = (keybindings: Record<string, string>): void => {
 	void Effect.runSync(Effect.result(writeCustomKeybindingsHotCacheItem(keybindings)));
-};
-
-const readThreadListSettingsHotCacheItem = fromThrowable(
-	(): string | null => {
-		if (typeof localStorage === "undefined") {
-			return null;
-		}
-		return localStorage.getItem(THREAD_LIST_SETTINGS_HOT_CACHE_KEY);
-	},
-	() => null
-);
-
-const writeThreadListSettingsHotCacheItem = fromThrowable(
-	(settings: ThreadListSettings): void => {
-		if (typeof localStorage === "undefined") {
-			return;
-		}
-		const payload: ThreadListSettingsHotCachePayload = {
-			version: THREAD_LIST_SETTINGS_HOT_CACHE_VERSION,
-			settings,
-		};
-		localStorage.setItem(THREAD_LIST_SETTINGS_HOT_CACHE_KEY, JSON.stringify(payload));
-	},
-	() => undefined
-);
-
-const removeThreadListSettingsHotCacheItem = fromThrowable(
-	(): void => {
-		if (typeof localStorage === "undefined") {
-			return;
-		}
-		localStorage.removeItem(THREAD_LIST_SETTINGS_HOT_CACHE_KEY);
-	},
-	() => undefined
-);
-
-const normalizeThreadListSettings = (settings: ThreadListSettings): ThreadListSettings | null => {
-	if (!Array.isArray(settings.hiddenProjects)) {
-		return null;
-	}
-
-	const hiddenProjects: string[] = [];
-	for (const projectPath of settings.hiddenProjects) {
-		if (typeof projectPath !== "string") {
-			return null;
-		}
-		hiddenProjects.push(projectPath);
-	}
-
-	return {
-		hiddenProjects,
-	};
-};
-
-const parseThreadListSettingsHotCache = fromThrowable(
-	(stored: string): ThreadListSettings | null => {
-		const parsed = JSON.parse(stored) as ThreadListSettingsHotCachePayload;
-		if (!parsed || parsed.version !== THREAD_LIST_SETTINGS_HOT_CACHE_VERSION || !parsed.settings) {
-			return null;
-		}
-		return normalizeThreadListSettings(parsed.settings);
-	},
-	() => null
-);
-
-const readThreadListSettingsHotCache = (): ThreadListSettings | null => {
-	const cachedItemResult = Effect.runSync(Effect.result(readThreadListSettingsHotCacheItem()));
-	const cachedItem = Result.isSuccess(cachedItemResult) ? cachedItemResult.success : null;
-	if (cachedItem === null) {
-		return null;
-	}
-
-	const parsedResult = Effect.runSync(Effect.result(parseThreadListSettingsHotCache(cachedItem)));
-	if (Result.isSuccess(parsedResult) && parsedResult.success !== null) {
-		return parsedResult.success;
-	}
-
-	void Effect.runSync(Effect.result(removeThreadListSettingsHotCacheItem()));
-	return null;
-};
-
-const writeThreadListSettingsHotCache = (settings: ThreadListSettings): void => {
-	void Effect.runSync(Effect.result(writeThreadListSettingsHotCacheItem(settings)));
 };
 
 const loadSettingsSnapshot = Effect.fn("loadSettingsSnapshot")(function* () {
@@ -315,23 +224,6 @@ export const settings = {
 				return undefined;
 			})
 		),
-
-	getThreadListSettings: (): Effect.Effect<ThreadListSettings, AppError> => {
-		const cachedSettings = readThreadListSettingsHotCache();
-		if (cachedSettings !== null) {
-			return Effect.succeed(cachedSettings);
-		}
-		return Effect.succeed({
-			hiddenProjects: [],
-		});
-	},
-
-	saveThreadListSettings: (
-		threadListSettings: ThreadListSettings
-	): Effect.Effect<void, AppError> => {
-		writeThreadListSettingsHotCache(threadListSettings);
-		return Effect.void;
-	},
 
 	resetDatabase: (): Effect.Effect<void, AppError> =>
 		unsupportedOnContract("storage.reset_database"),
