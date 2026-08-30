@@ -17,7 +17,12 @@
 // (TurnCompleted, alongside TurnCancelled) IS a real terminal signal on the
 // contract, handled below.
 
-import type { ApprovalDecision, OrchestrationEvent, SessionId } from "@acepe/contracts";
+import type {
+	ApprovalDecision,
+	OrchestrationEvent,
+	ProviderOperation,
+	SessionId,
+} from "@acepe/contracts";
 import {
 	librarySnapshotRequest,
 	providerModes,
@@ -39,6 +44,7 @@ import type {
 	SessionTurnState,
 	ToolArguments,
 	TranscriptDeltaOperation,
+	TurnFailureSnapshot,
 	UsageTelemetryData,
 } from "../../services/acp-types.js";
 import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
@@ -1069,27 +1075,47 @@ export class OrchestrationCanonicalBridge {
 		return [toSessionStateAcpEnvelope(envelope)];
 	}
 
-	private onTurnCancelled(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {
+	/**
+	 * Closes the open turn on a terminal signal.
+	 *
+	 * Cancelled, failed and completed differ only in the turn state they land
+	 * on and whether they carry a failure, so one place decides what closing a
+	 * turn means.
+	 */
+	private endTurn(
+		sessionId: string,
+		turnState: SessionTurnState,
+		failure: TurnFailureSnapshot | null
+	): AcpEventEnvelope[] {
 		const state = this.stateFor(sessionId);
 		const toRevision = nextRevision(state.revision, false);
+		const changedFields: SessionStateField[] = ["turnState", "activity", "activeStreamingTail"];
+		if (failure !== null) {
+			changedFields.push("activeTurnFailure");
+		}
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
 			activity: idleActivity,
-			turnState: "Cancelled",
+			turnState,
+			...(failure === null ? {} : { activeTurnFailure: failure }),
 			activeStreamingTail: null,
 			transcriptOperations: [],
 			operationPatches: [],
 			interactionPatches: [],
-			changedFields: ["turnState", "activity", "activeStreamingTail"],
+			changedFields,
 		};
 		state.revision = toRevision;
-		state.turnState = "Cancelled";
+		state.turnState = turnState;
 		state.activity = idleActivity;
 		state.turnStartedAtMs = null;
 		state.assistantEntryId = null;
 		state.assistantEntryRunSeq = 0;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+	}
+
+	private onTurnCancelled(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {
+		return this.endTurn(sessionId, "Cancelled", null);
 	}
 
 	/**
@@ -1104,59 +1130,20 @@ export class OrchestrationCanonicalBridge {
 	 */
 	private onProviderSessionFailed(
 		sessionId: string,
-		operation: string,
+		operation: ProviderOperation,
 		detail: string
 	): AcpEventEnvelope[] {
-		const state = this.stateFor(sessionId);
-		const toRevision = nextRevision(state.revision, false);
-		const delta: SessionStateDelta = {
-			fromRevision: state.revision,
-			toRevision,
-			activity: idleActivity,
-			turnState: "Failed",
-			activeTurnFailure: {
-				turn_id: null,
-				message: detail,
-				details: `provider operation: ${operation}`,
-				kind: "fatal",
-				source: "transport",
-			},
-			activeStreamingTail: null,
-			transcriptOperations: [],
-			operationPatches: [],
-			interactionPatches: [],
-			changedFields: ["turnState", "activity", "activeStreamingTail", "activeTurnFailure"],
-		};
-		state.revision = toRevision;
-		state.turnState = "Failed";
-		state.activity = idleActivity;
-		state.turnStartedAtMs = null;
-		state.assistantEntryId = null;
-		state.assistantEntryRunSeq = 0;
-		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+		return this.endTurn(sessionId, "Failed", {
+			turn_id: null,
+			message: detail,
+			details: `provider operation: ${operation}`,
+			kind: "fatal",
+			source: "transport",
+		});
 	}
 
 	private onTurnCompleted(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {
-		const state = this.stateFor(sessionId);
-		const toRevision = nextRevision(state.revision, false);
-		const delta: SessionStateDelta = {
-			fromRevision: state.revision,
-			toRevision,
-			activity: idleActivity,
-			turnState: "Completed",
-			activeStreamingTail: null,
-			transcriptOperations: [],
-			operationPatches: [],
-			interactionPatches: [],
-			changedFields: ["turnState", "activity", "activeStreamingTail"],
-		};
-		state.revision = toRevision;
-		state.turnState = "Completed";
-		state.activity = idleActivity;
-		state.turnStartedAtMs = null;
-		state.assistantEntryId = null;
-		state.assistantEntryRunSeq = 0;
-		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+		return this.endTurn(sessionId, "Completed", null);
 	}
 }
 

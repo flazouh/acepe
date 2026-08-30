@@ -13,7 +13,7 @@
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import { AgentError } from "$lib/acp/errors/app-error.js";
-import { EventSubscriber } from "$lib/acp/logic/event-subscriber.js";
+import { sharedEventSubscriber } from "$lib/acp/logic/event-subscriber.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { SessionStateEnvelope } from "$lib/services/acp-types.js";
 import { backendClient } from "$lib/utils/backend-client.js";
@@ -82,6 +82,10 @@ function runGeneration(
 				resolveStream = resolve;
 				rejectStream = reject;
 			});
+			// The Effect below only attaches a handler once sendPrompt resolves. A
+			// provider that dies on the prompt rejects before that, so keep a
+			// no-op handler attached from the start.
+			void streamPromise.catch(() => undefined);
 
 			const timeoutId = setTimeout(() => {
 				if (settled) {
@@ -90,8 +94,6 @@ function runGeneration(
 				settled = true;
 				rejectStream(new Error(`Ship card generation timed out after ${GENERATION_TIMEOUT_MS}ms`));
 			}, GENERATION_TIMEOUT_MS);
-
-			const subscriber = new EventSubscriber();
 
 			// The canonical session-state lane is the one the app itself runs on
 			// (orchestration-canonical-bridge.ts is its only producer), so the ship
@@ -135,7 +137,7 @@ function runGeneration(
 				}
 			};
 
-			return subscriber.subscribeSessionState(handleEnvelope).pipe(
+			return sharedEventSubscriber.subscribeSessionState(handleEnvelope).pipe(
 				Effect.mapError((e) => {
 					clearTimeout(timeoutId);
 					closeEphemeral();
@@ -144,7 +146,7 @@ function runGeneration(
 				Effect.flatMap((listenerId) => {
 					const fullCleanup = (): void => {
 						clearTimeout(timeoutId);
-						subscriber.unsubscribeById(listenerId);
+						sharedEventSubscriber.unsubscribeById(listenerId);
 						closeEphemeral();
 					};
 

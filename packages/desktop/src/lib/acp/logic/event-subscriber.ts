@@ -57,7 +57,7 @@ export class EventSubscriber {
 	 * Unsubscribe a specific listener by ID.
 	 * The event-source subscription is only closed when all listeners are unsubscribed.
 	 *
-	 * @param listenerId - The ID returned from subscribe()
+	 * @param listenerId - The ID returned from subscribeSessionState()
 	 */
 	unsubscribeById(listenerId: string): void {
 		this.sessionStateListeners.delete(listenerId);
@@ -161,6 +161,17 @@ export class EventSubscriber {
 		);
 	}
 }
+
+/**
+ * The page's one subscriber.
+ *
+ * `openAcpEventSource` builds an OrchestrationCanonicalBridge and parks it in
+ * a module global that the reopen hydration realigns, so a second subscriber
+ * means a second bridge replaying the stream from sequence 0 and a realign
+ * landing on the wrong one. Every reader shares this instance; the class
+ * already fans one event source out to many listeners.
+ */
+export const sharedEventSubscriber = new EventSubscriber();
 
 function runListenerSafely(run: () => void, onError: (error: unknown) => void): void {
 	const listenerResult = Effect.runSync(Effect.result(fromThrowable(run, (error) => error)()));

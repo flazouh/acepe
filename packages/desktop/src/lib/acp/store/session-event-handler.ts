@@ -6,7 +6,6 @@
  */
 
 import type { SessionStateEnvelope, SessionStateGraph } from "../../services/acp-types.js";
-import type { TurnErrorUpdate } from "../types/turn-error.js";
 import type { SessionCold, SessionIdentity } from "./types.js";
 
 /**

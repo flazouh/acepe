@@ -26,15 +26,14 @@ vi.mock("$lib/acp/utils/logger.js", () => ({
 }));
 
 vi.mock("$lib/acp/logic/event-subscriber.js", () => ({
-	EventSubscriber: class {
+	sharedEventSubscriber: {
 		subscribeSessionState(handler: (envelope: SessionStateEnvelope) => void) {
 			sessionStateListener = handler;
 			return mockSubscribeSessionState(handler);
-		}
-
+		},
 		unsubscribeById(listenerId: string): void {
 			mockUnsubscribeById(listenerId);
-		}
+		},
 	},
 }));
 
@@ -179,6 +178,62 @@ describe("generateShipContentStreaming", () => {
 		expect(vi.getTimerCount()).toBe(0);
 		expect(mockUnsubscribeById).toHaveBeenCalledWith("listener-1");
 		expect(mockCloseSession).toHaveBeenCalledWith(EPHEMERAL_SESSION_ID);
+	});
+
+	/**
+	 * The bridge stamps turnState on EVERY delta, including token deltas that
+	 * repeat "Running" while listing only transcript fields as changed. Reading
+	 * it unconditionally would let a token arriving after the terminal delta
+	 * reopen a finished turn.
+	 */
+	it("ignores a turnState the delta does not claim changed", async () => {
+		const bridge = new OrchestrationCanonicalBridge(() => Effect.succeed("/repo"));
+		const onUpdate = vi.fn();
+
+		const generation = Effect.runPromise(
+			Effect.result(generateShipContentStreaming("prompt", "/repo", onUpdate, "claude-code"))
+		);
+
+		await vi.waitFor(() => {
+			expect(mockSendPrompt).toHaveBeenCalledTimes(1);
+		});
+
+		deliverOrchestrationEvent(
+			bridge,
+			orchestrationEvent("MessageSent", {
+				sessionId: shipSessionId,
+				messageId: shipMessageId,
+				text: "prompt",
+			})
+		);
+		deliverOrchestrationEvent(
+			bridge,
+			orchestrationEvent("TokenAppended", {
+				sessionId: shipSessionId,
+				messageId: shipMessageId,
+				token: "<ship><commit-message>fix</commit-message></ship>",
+			})
+		);
+		deliverOrchestrationEvent(
+			bridge,
+			orchestrationEvent("TurnCompleted", { sessionId: shipSessionId })
+		);
+		// A late token delta repeats turnState "Running" without claiming it changed.
+		deliverOrchestrationEvent(
+			bridge,
+			orchestrationEvent("TokenAppended", {
+				sessionId: shipSessionId,
+				messageId: shipMessageId,
+				token: " trailing",
+			})
+		);
+
+		const result = await generation;
+
+		if (Result.isFailure(result)) {
+			throw new Error(`expected success, got ${result.failure.message}`);
+		}
+		expect(result.success.commitMessage).toBe("fix");
 	});
 
 	it("fails the generation when the canonical lane reports a failed turn", async () => {

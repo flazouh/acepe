@@ -17,7 +17,6 @@ import type {
 	TranscriptDelta,
 } from "../../services/acp-types.js";
 import type { AppError } from "../errors/app-error.js";
-import type { TurnErrorUpdate } from "../types/turn-error.js";
 import type { CanonicalSessionProjection } from "./canonical-session-projection.js";
 import type { ComposerMachineService } from "./composer-machine-service.svelte.js";
 import type { SessionConnectionManager } from "./services/session-connection-manager.js";

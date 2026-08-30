@@ -133,8 +133,16 @@ export function observeShipTurnEnvelope(
 	}
 
 	const delta = envelope.payload.delta;
+	// A delta carries a turnState whether or not the turn moved:
+	// orchestration-canonical-bridge's token deltas repeat "Running" and list
+	// only transcript fields as changed. session-state-command-router reads
+	// turnState only when changedFields names it, and so does this, or a token
+	// arriving after a terminal delta would reopen a finished turn.
+	const turnStateChanged = delta.changedFields?.includes("turnState") ?? false;
 	return {
 		assistantText: applyTranscriptOperations(state.assistantText, delta.transcriptOperations),
-		outcome: outcomeForTurnState(delta.turnState, delta.activeTurnFailure?.message ?? null),
+		outcome: turnStateChanged
+			? outcomeForTurnState(delta.turnState, delta.activeTurnFailure?.message ?? null)
+			: state.outcome,
 	};
 }

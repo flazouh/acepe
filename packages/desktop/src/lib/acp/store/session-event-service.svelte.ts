@@ -23,14 +23,12 @@ import type {
 } from "../../services/converted-session-types.js";
 import type { AppError } from "../errors/app-error.js";
 import { AgentError } from "../errors/app-error.js";
-import { EventSubscriber } from "../logic/event-subscriber";
+import { sharedEventSubscriber } from "../logic/event-subscriber";
 import { checkSessionStateEnvelopeByteBudget } from "../session-state/session-state-envelope-budget.js";
 import { createLogger } from "../utils/logger.js";
 import type { SessionEventHandler } from "./session-event-handler.js";
 
 const logger = createLogger({ id: "session-event-service", name: "SessionEventService" });
-
-type PendingSessionEvent = { kind: "sessionState"; envelope: SessionStateEnvelope };
 
 interface SessionStateEnvelopeFrontier {
 	graphRevision: number;
@@ -111,11 +109,9 @@ interface ConnectionMaterializationWaiter {
 }
 
 export class SessionEventService {
-	// Event subscriber for session updates
-	private eventSubscriber: EventSubscriber | null = null;
 	private sessionStateSubscriptionId: string | null = null;
 	// Pending events buffer for sessions being created (race condition handling)
-	private pendingEvents = new SvelteMap<string, PendingSessionEvent[]>();
+	private pendingEvents = new SvelteMap<string, SessionStateEnvelope[]>();
 	private pendingEventTimestamps = new SvelteMap<string, number>();
 	private static readonly PENDING_EVENT_TIMEOUT_MS = 10000; // 10 seconds
 	private static readonly MAX_PENDING_EVENTS_PER_SESSION = 100; // Prevent unbounded growth
@@ -229,22 +225,17 @@ export class SessionEventService {
 	 * Initialize session update subscription.
 	 */
 	initializeSessionUpdates(handler: SessionEventHandler): Effect.Effect<void, AppError> {
-		if (this.eventSubscriber && this.sessionStateSubscriptionId) {
+		if (this.sessionStateSubscriptionId) {
 			return Effect.succeed(undefined);
 		}
-		// Recover from a partial/failed initialization attempt.
-		if (this.eventSubscriber && !this.sessionStateSubscriptionId) {
-			this.eventSubscriber = null;
-		}
 
-		const subscriber = new EventSubscriber();
-		return subscriber
+		return sharedEventSubscriber
 			.subscribeSessionState((envelope: SessionStateEnvelope) => {
+				this.recordInboundEvent();
 				this.handleSessionStateEnvelope(envelope, handler);
 			})
 			.pipe(
 				Effect.map((sessionStateSubscriptionId) => {
-					this.eventSubscriber = subscriber;
 					this.sessionStateSubscriptionId = sessionStateSubscriptionId;
 					this.startTelemetryReporter();
 					logger.debug("Session state subscription initialized", {
@@ -254,9 +245,8 @@ export class SessionEventService {
 				}),
 				Effect.mapError((error) => {
 					if (this.sessionStateSubscriptionId !== null) {
-						subscriber.unsubscribeById(this.sessionStateSubscriptionId);
+						sharedEventSubscriber.unsubscribeById(this.sessionStateSubscriptionId);
 					}
-					this.eventSubscriber = null;
 					this.sessionStateSubscriptionId = null;
 					logger.error("Failed to initialize session state subscription", { error });
 					return new AgentError(
@@ -282,10 +272,9 @@ export class SessionEventService {
 		this.latestSessionStateEnvelopeFrontier.clear();
 		this.stopTelemetryReporter();
 
-		if (this.eventSubscriber && this.sessionStateSubscriptionId !== null) {
-			this.eventSubscriber.unsubscribeById(this.sessionStateSubscriptionId);
+		if (this.sessionStateSubscriptionId !== null) {
+			sharedEventSubscriber.unsubscribeById(this.sessionStateSubscriptionId);
 		}
-		this.eventSubscriber = null;
 		this.sessionStateSubscriptionId = null;
 	}
 
@@ -318,7 +307,6 @@ export class SessionEventService {
 			return;
 		}
 
-		this.recordInboundEvent();
 		this.latestSessionStateEnvelopeFrontier.set(
 			envelope.sessionId,
 			maxEnvelopeFrontier(latestFrontier, incomingFrontier)
@@ -373,7 +361,7 @@ export class SessionEventService {
 
 	private flushPendingEventsChunked(
 		sessionId: string,
-		pending: PendingSessionEvent[],
+		pending: SessionStateEnvelope[],
 		handler: SessionEventHandler,
 		offset: number
 	): void {
@@ -382,7 +370,7 @@ export class SessionEventService {
 		const chunkSize = end - offset;
 
 		for (let i = offset; i < end; i++) {
-			this.handleSessionStateEnvelope(pending[i].envelope, handler);
+			this.handleSessionStateEnvelope(pending[i], handler);
 		}
 		const chunkDuration = this.nowMs() - chunkStart;
 		this.telemetryMaxReplayChunkDurationMs = Math.max(
@@ -479,10 +467,7 @@ export class SessionEventService {
 			graphRevision: envelope.graphRevision,
 			lastEventSeq: envelope.lastEventSeq,
 		});
-		this.bufferPending(sessionId, {
-			kind: "sessionState",
-			envelope,
-		});
+		this.bufferPending(sessionId, envelope);
 	}
 
 	private dropStaleBufferedSessionState(
@@ -494,22 +479,20 @@ export class SessionEventService {
 			return;
 		}
 
-		const retained = pending.filter((pendingEvent) => {
-			return (
-				pendingEvent.kind !== "sessionState" ||
+		const retained = pending.filter(
+			(buffered) =>
 				!isOlderEnvelopeFrontier(frontier, {
-					graphRevision: pendingEvent.envelope.graphRevision,
-					lastEventSeq: pendingEvent.envelope.lastEventSeq,
+					graphRevision: buffered.graphRevision,
+					lastEventSeq: buffered.lastEventSeq,
 				})
-			);
-		});
+		);
 		if (retained.length === pending.length) {
 			return;
 		}
 		this.pendingEvents.set(sessionId, retained);
 	}
 
-	private bufferPending(sessionId: string, pendingEvent: PendingSessionEvent): void {
+	private bufferPending(sessionId: string, pendingEvent: SessionStateEnvelope): void {
 		const pending = this.pendingEvents.get(sessionId) ?? [];
 
 		// Enforce buffer size limit to prevent unbounded memory growth
@@ -539,8 +522,9 @@ export class SessionEventService {
 			this.scheduleOrphanedEventCleanup(sessionId);
 		}
 
-		logger.debug("Buffered event for pending session", {
+		logger.debug("Buffered session-state envelope for pending session", {
 			sessionId,
+			kind: pendingEvent.payload.kind,
 			bufferSize: pending.length,
 		});
 	}
