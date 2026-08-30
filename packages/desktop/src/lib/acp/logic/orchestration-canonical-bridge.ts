@@ -44,7 +44,7 @@ import type {
 import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
 import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import type { AcpEventEnvelope } from "./acp-event-bridge.js";
-import { normalizeEditEntry } from "./aggregate-file-edits.js";
+import { noToolArguments, toolArgumentsFromCanonical } from "./tool-arguments-projection.js";
 import {
 	observedStatusToOperationState,
 	observedStatusToToolCallStatus,
@@ -176,58 +176,6 @@ function awaitingModelActivityAt(turnStartedAtMs: number | null): SessionGraphAc
 	};
 }
 
-const noArguments: ToolArguments = { kind: "other", raw: null };
-
-/**
- * The tool's own arguments, as the observation carried them.
- *
- * Handed through as `raw` rather than classified here: the display pipeline
- * already knows how to read an edit out of them (aggregate-file-edits.ts reads
- * file_path/old_string/new_string/content), and re-deriving a shape in the
- * bridge would be a second place to get it wrong. Absent arguments stay the
- * shared empty value, so nothing downstream has to special-case them.
- */
-/**
- * The tool's own arguments, shaped for the transcript.
- *
- * An edit becomes `{kind: "edit", edits}` because that is what the row mapper
- * reads to render a diff (transcript-viewport-row-mapper.ts's `editDiffs`);
- * anything else travels raw, since only the tool that produced it knows what
- * its arguments mean. `normalizeEditEntry` is shared with aggregate-file-edits
- * so the key names a provider might use live in exactly one place.
- */
-/**
- * A created file is an edit whose new content is its content.
- *
- * A Write carries `content` and no `new_string`, and every renderer of a diff
- * keys on `newString` -- `resolveEditDiffs` drops any entry without one. Left
- * as it arrives, the proposed content of a new file is data the transcript
- * holds and can never show.
- */
-const asDiffableEdit = (entry: EditEntry): EditEntry =>
-	entry.newString !== null && entry.newString !== undefined
-		? entry
-		: {
-				filePath: entry.filePath,
-				oldString: entry.oldString,
-				newString: entry.content ?? null,
-				content: entry.content,
-			};
-
-const toolArgumentsFrom = (
-	input: Schema.JsonObject | null | undefined,
-	kind: string | null | undefined
-): ToolArguments => {
-	if (input === null || input === undefined) {
-		return noArguments;
-	}
-	const raw = input as unknown as JsonValue;
-	if (kind !== "edit") {
-		return { kind: "other", raw };
-	}
-	const entry = normalizeEditEntry(input);
-	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [asDiffableEdit(entry)] };
-};
 
 const PERMISSION_ID_PREFIX = "perm-";
 
@@ -626,7 +574,7 @@ export class OrchestrationCanonicalBridge {
 			kind: asOperationToolKind(payload.kind),
 			provider_status: observedStatusToToolCallStatus(payload.status),
 			title: payload.title,
-			arguments: toolArgumentsFrom(payload.input, payload.kind),
+			arguments: toolArgumentsFromCanonical(payload.input, payload.kind),
 			progressive_arguments: null,
 			// #273: the tool's own result, canonical on the observation itself.
 			// transcript-viewport-row-mapper.ts already renders it through
@@ -814,7 +762,7 @@ export class OrchestrationCanonicalBridge {
 			kind: null,
 			provider_status: observedStatusToToolCallStatus("pending"),
 			title: payload.title,
-			arguments: noArguments,
+			arguments: noToolArguments,
 			progressive_arguments: null,
 			result: null,
 			command: null,

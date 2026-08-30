@@ -1327,6 +1327,41 @@ describe("OrchestrationCanonicalBridge tool arguments", () => {
 		expect(serialised).toContain('"newString":"160"');
 	});
 
+	/**
+	 * The other half of the same live bug: a Bash row showed its output and an
+	 * empty command block. Raw arguments are not enough here either --
+	 * transcript-viewport-row-mapper reads the command off execute-shaped
+	 * arguments (commandSummaryFromOperation), and `other` gives it nothing.
+	 */
+	it("shapes a shell tool's arguments so the row can show the command", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "tool-bash:activity",
+				toolCallId: "tool-bash",
+				operationId: null,
+				status: "completed",
+				title: "Bash",
+				path: null,
+				kind: "execute",
+				input: { command: "echo acepe-273-probe", description: "probe" },
+				output: "acepe-273-probe",
+			})
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const [operation] = payload.payload.delta.operationPatches;
+		expect(operation?.arguments).toEqual({
+			kind: "execute",
+			command: "echo acepe-273-probe",
+		});
+	});
+
 	it("a tool that sent no arguments still produces an operation", () => {
 		const bridge = makeBridge();
 		const envelopes = runTranslate(

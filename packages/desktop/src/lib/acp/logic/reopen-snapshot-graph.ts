@@ -48,7 +48,7 @@ import type {
 import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
 import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
 import { isBuiltInCanonicalAgentId } from "../types/agent-id.js";
-import { normalizeEditEntry } from "./aggregate-file-edits.js";
+import { noToolArguments, toolArgumentsFromCanonical } from "./tool-arguments-projection.js";
 import type { ObservedToolCallStatus } from "./observed-tool-call-status.js";
 import {
 	observedStatusToOperationState,
@@ -122,34 +122,6 @@ function transcriptEntryFromMessage(message: RpcProjectedMessage): TranscriptEnt
 	}
 }
 
-const noToolArguments: ToolArguments = { kind: "other", raw: null };
-
-/** The reopen half of the bridge's `toolArgumentsFrom`: same rule, same reason. */
-const toolArgumentsFromActivity = (activity: RpcProjectedSessionActivity): ToolArguments => {
-	const input = activity.input;
-	if (input === null || input === undefined) {
-		return noToolArguments;
-	}
-	const raw = input as unknown as JsonValue;
-	if (activity.toolKind !== "edit") {
-		return { kind: "other", raw };
-	}
-	const entry = normalizeEditEntry(input);
-	return entry === null ? { kind: "other", raw } : { kind: "edit", edits: [asDiffableEdit(entry)] };
-};
-
-/** The reopen half of the bridge's `asDiffableEdit`. */
-function asDiffableEdit(entry: EditEntry): EditEntry {
-	return entry.newString !== null && entry.newString !== undefined
-		? entry
-		: {
-				filePath: entry.filePath,
-				oldString: entry.oldString,
-				newString: entry.content ?? null,
-				content: entry.content,
-			};
-}
-
 // AC-263, reopen half: `RpcProjectedSessionActivity.status` is a free-form
 // server string (Schema.optionalKey(Schema.String)), not the same literal
 // union `observed-tool-call-status.ts` maps -- narrow the ones the server
@@ -198,7 +170,7 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 		// column). A reopened session must show the same proposed change the
 		// live bridge shows, or a permission that survives a reopen becomes
 		// unreviewable.
-		arguments: toolArgumentsFromActivity(activity),
+		arguments: toolArgumentsFromCanonical(activity.input, activity.toolKind),
 		progressive_arguments: null,
 		// #273, reopen half: the tool's own result, carried per activity by the
 		// snapshot (output column). A reopened session must render the same
