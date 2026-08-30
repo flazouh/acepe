@@ -152,6 +152,34 @@ function cacheAnsweredCapabilityAxes(
 	}
 }
 
+/**
+ * Records a model or mode picked before the provider ever answered, through
+ * the canonical set command, degrading to a warning on failure. The session
+ * is usable on the provider's default either way, so recording must never
+ * abort creation. ProviderBridge keeps the last recorded value and re-applies
+ * it when the provider session (lazily) opens.
+ */
+function recordInitialSelectionWithDegrade(
+	sessionId: string,
+	agentId: string,
+	label: "model" | "mode",
+	apply: Effect.Effect<void, AppError> | null
+): Effect.Effect<void, AppError> {
+	if (apply === null) {
+		return Effect.succeed(undefined);
+	}
+	return apply.pipe(
+		Effect.catch((error) => {
+			logger.warn(`Failed to record the initial ${label} before the provider answered`, {
+				sessionId,
+				agentId,
+				error: error.message,
+			});
+			return Effect.succeed(undefined);
+		})
+	);
+}
+
 function canSendFromCanonical(reader: ISessionStateReader, sessionId: string): boolean {
 	return reader.getSessionCanSend(sessionId) === true;
 }
@@ -522,34 +550,18 @@ export class SessionConnectionManager {
 						});
 						// newSession's wire command carries no model/mode field, so a
 						// pair picked in the pre-start composer is recorded through
-						// the canonical set commands instead. ProviderBridge keeps
-						// the last recorded value and re-applies it when the session
-						// lazily opens on the first prompt, so the choice survives
-						// even though no provider session exists yet. Degrade with a
-						// warning rather than failing creation -- the session is
-						// usable on the provider's default either way.
-						const recordInitialSelection = (
-							label: "model" | "mode",
-							apply: Effect.Effect<void, AppError> | null
-						): Effect.Effect<void, AppError> =>
-							apply === null
-								? Effect.succeed(undefined)
-								: apply.pipe(
-										Effect.catch((error) => {
-											logger.warn(`Failed to record the initial ${label} for a deferred session`, {
-												sessionId,
-												agentId: options.agentId,
-												error: error.message,
-											});
-											return Effect.succeed(undefined);
-										})
-									);
-						return recordInitialSelection(
+						// the canonical set commands -- see
+						// recordInitialSelectionWithDegrade.
+						return recordInitialSelectionWithDegrade(
+							sessionId,
+							options.agentId,
 							"model",
 							options.initialModelId ? api.setModel(sessionId, options.initialModelId) : null
 						).pipe(
 							Effect.flatMap(() =>
-								recordInitialSelection(
+								recordInitialSelectionWithDegrade(
+									sessionId,
+									options.agentId,
 									"mode",
 									options.initialModeId ? api.setMode(sessionId, options.initialModeId) : null
 								)
@@ -613,7 +625,7 @@ export class SessionConnectionManager {
 					const explicitInitialModel = options.initialModelId
 						? (availableModels.find((model) => model.id === options.initialModelId) ?? null)
 						: null;
-					if (options.initialModeId && explicitInitialMode === null) {
+					if (rawModes !== undefined && options.initialModeId && explicitInitialMode === null) {
 						// A requested mode id the live agent doesn't report is not a user
 						// mistake to fail loudly on: the desktop's canonical mode ids
 						// (CanonicalModeId.BUILD = "build") don't line up with this
@@ -635,13 +647,40 @@ export class SessionConnectionManager {
 							}
 						);
 					}
+					// Validation only applies to an ANSWERED catalog. The live
+					// backend-client newSession answers deferredCreation: false and
+					// no models at all, and a model the composer picked (from the
+					// preconnection probe) must not be rejected against that
+					// silence -- it is recorded below instead, exactly like the
+					// deferred branch records it.
+					const providerAnsweredModels = rawModels !== undefined;
+					const providerAnsweredModes = rawModes !== undefined;
 					const explicitSelectionError =
-						options.initialModelId && explicitInitialModel === null
+						providerAnsweredModels && options.initialModelId && explicitInitialModel === null
 							? new AgentError(
 									"setModel",
 									new Error(`Requested model '${options.initialModelId}' is not available`)
 								)
 							: null;
+					const recordUnansweredSelections = recordInitialSelectionWithDegrade(
+						sessionId,
+						options.agentId,
+						"model",
+						!providerAnsweredModels && options.initialModelId
+							? api.setModel(sessionId, options.initialModelId)
+							: null
+					).pipe(
+						Effect.flatMap(() =>
+							recordInitialSelectionWithDegrade(
+								sessionId,
+								options.agentId,
+								"mode",
+								!providerAnsweredModes && options.initialModeId
+									? api.setMode(sessionId, options.initialModeId)
+									: null
+							)
+						)
+					);
 					const hasExplicitInitialSelection =
 						explicitInitialMode !== null || explicitInitialModel !== null;
 					const targetMode = explicitInitialMode ? explicitInitialMode : currentMode;
@@ -649,7 +688,7 @@ export class SessionConnectionManager {
 						explicitInitialMode !== null && explicitInitialMode.id !== currentMode?.id;
 					const targetModel = explicitInitialModel ?? currentModel;
 
-					const applyInitialSelection: Effect.Effect<
+					const applyAnsweredSelection: Effect.Effect<
 						{ currentMode: Mode | null; currentModel: Model | null },
 						AppError
 					> = explicitSelectionError
@@ -679,6 +718,10 @@ export class SessionConnectionManager {
 									currentMode,
 									currentModel,
 								});
+
+					const applyInitialSelection = recordUnansweredSelections.pipe(
+						Effect.flatMap(() => applyAnsweredSelection)
+					);
 
 					return applyInitialSelection.pipe(
 						Effect.catch((error) =>

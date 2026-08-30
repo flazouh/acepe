@@ -1964,6 +1964,75 @@ describe("SessionConnectionManager.createSession", () => {
 		expect(connectionManager.initializeConnectedSession).not.toHaveBeenCalled();
 	});
 
+	// The REAL backend-client newSession answers deferredCreation: false and
+	// carries no models/modes at all (see backend-client/acp.ts). A model the
+	// composer picked must not be validated against that silence -- found
+	// live: every first send with a picked model failed creation with
+	// "Requested model 'default' is not available" and closed the session.
+	it("records a picked model and mode without validation when creation answers no catalog", async () => {
+		newSession.mockReturnValue(
+			Effect.succeed({
+				sessionId: "session-live",
+				creationAttemptId: null,
+				deferredCreation: false,
+			})
+		);
+		setModel.mockReturnValue(Effect.succeed(undefined));
+		setMode.mockReturnValue(Effect.succeed(undefined));
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await runToResult(
+			manager.createSession(
+				{ projectPath, agentId, initialModelId: "default", initialModeId: "auto" },
+				createMockEventHandler()
+			)
+		);
+		Result.getOrThrow(result);
+
+		expect(setModel).toHaveBeenCalledWith("session-live", "default");
+		expect(setMode).toHaveBeenCalledWith("session-live", "auto");
+		expect(closeSession).not.toHaveBeenCalled();
+	});
+
+	// The validation stays for a provider that DID answer a catalog: a picked
+	// id missing from a real answer is still an error, not a silent no-op.
+	it("still rejects a picked model missing from an answered catalog", async () => {
+		newSession.mockReturnValue(
+			Effect.succeed({
+				sessionId: "session-live",
+				deferredCreation: false,
+				models: {
+					currentModelId: "real-model",
+					availableModels: [{ modelId: "real-model", name: "Real", description: null }],
+				},
+			})
+		);
+		closeSession.mockReturnValue(Effect.succeed(undefined));
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await runToResult(
+			manager.createSession(
+				{ projectPath, agentId, initialModelId: "ghost-model" },
+				createMockEventHandler()
+			)
+		);
+		expect(Result.isFailure(result)).toBe(true);
+	});
+
 	it("keeps deferred creation attempt out of the session store until promotion", async () => {
 		newSession.mockReturnValue(
 			Effect.succeed({
