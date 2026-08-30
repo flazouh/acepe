@@ -1423,6 +1423,39 @@ describe("OrchestrationCanonicalBridge -> session-state-command-router (reopened
 		expect(refreshes).toBe(0);
 		expect(appended).toBe(2);
 	});
+
+	/**
+	 * ProviderBridge emits ProviderSessionFailed when a real adapter's event
+	 * stream dies, and it is the only contract event that reports a turn ending
+	 * badly. Untranslated, the session's canonical turnState stayed "Running"
+	 * for good and every reader waiting on the turn waited forever.
+	 */
+	it("ends the open turn when the provider adapter dies", () => {
+		const bridge = makeBridge();
+		const messageId = MessageId.make("message-provider-failed");
+
+		runTranslate(bridge, makeEvent("MessageSent", { sessionId, messageId, text: "why?" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ProviderSessionFailed", {
+				sessionId,
+				providerId: "claude-code",
+				operation: "sendPrompt",
+				detail: "adapter stream died",
+			})
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		if (payload === undefined || payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.turnState).toBe("Failed");
+		expect(delta.activeTurnFailure?.message).toBe("adapter stream died");
+		expect(delta.activeStreamingTail).toBeNull();
+		expect(delta.changedFields).toContain("activeTurnFailure");
+	});
 });
 
 describe("OrchestrationCanonicalBridge -> session-state-command-router (full live-turn pipeline)", () => {

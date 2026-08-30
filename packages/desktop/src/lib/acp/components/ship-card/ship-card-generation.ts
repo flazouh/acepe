@@ -15,9 +15,14 @@ import * as Effect from "effect/Effect";
 import { AgentError } from "$lib/acp/errors/app-error.js";
 import { EventSubscriber } from "$lib/acp/logic/event-subscriber.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
-import type { SessionUpdate, TurnErrorData } from "$lib/services/converted-session-types.js";
+import type { SessionStateEnvelope } from "$lib/services/acp-types.js";
 import { backendClient } from "$lib/utils/backend-client.js";
 import { parseShipXml, type ShipCardData } from "./ship-card-parser.js";
+import {
+	initialShipTurnObserverState,
+	observeShipTurnEnvelope,
+	type ShipTurnObserverState,
+} from "./ship-card-turn-observer.js";
 
 const GENERATION_TIMEOUT_MS = 60_000;
 
@@ -68,7 +73,8 @@ function runGeneration(
 				void Effect.runPromise(backendClient.acp.closeSession(ephemeralSessionId));
 			};
 
-			let accumulated = "";
+			let observed: ShipTurnObserverState = initialShipTurnObserverState;
+			let settled = false;
 			let resolveStream!: (data: ShipCardData) => void;
 			let rejectStream!: (e: Error) => void;
 
@@ -78,26 +84,40 @@ function runGeneration(
 			});
 
 			const timeoutId = setTimeout(() => {
+				if (settled) {
+					return;
+				}
+				settled = true;
 				rejectStream(new Error(`Ship card generation timed out after ${GENERATION_TIMEOUT_MS}ms`));
 			}, GENERATION_TIMEOUT_MS);
 
-			const extractTurnErrorMessage = (error: TurnErrorData): string =>
-				typeof error === "string" ? error : error.message;
-
 			const subscriber = new EventSubscriber();
 
-			const handleUpdate = (update: SessionUpdate): void => {
-				const updateSessionId = (update as { session_id?: string | null }).session_id;
-				if (updateSessionId !== ephemeralSessionId) return;
+			// The canonical session-state lane is the one the app itself runs on
+			// (orchestration-canonical-bridge.ts is its only producer), so the ship
+			// card reads the streamed reply and the turn outcome from there.
+			const handleEnvelope = (envelope: SessionStateEnvelope): void => {
+				if (settled) {
+					return;
+				}
+				const previousText = observed.assistantText;
+				observed = observeShipTurnEnvelope(observed, envelope, ephemeralSessionId);
 
-				if (update.type === "agentMessageChunk" && update.chunk.content.type === "text") {
-					accumulated += update.chunk.content.text;
-					if (onUpdate) {
-						onUpdate(parseShipXml(accumulated));
-					}
-				} else if (update.type === "turnComplete") {
+				if (observed.outcome.kind === "failed") {
+					settled = true;
 					clearTimeout(timeoutId);
-					const parsed = parseShipXml(accumulated);
+					logger.warn("Ship card generation: turn failed", {
+						message: observed.outcome.message,
+					});
+					rejectStream(new Error(observed.outcome.message));
+					return;
+				}
+
+				const parsed = parseShipXml(observed.assistantText);
+
+				if (observed.outcome.kind === "completed") {
+					settled = true;
+					clearTimeout(timeoutId);
 					logger.info("Ship card generation: turn complete", {
 						complete: parsed.complete,
 						hasCommitMessage: parsed.commitMessage !== null,
@@ -107,15 +127,15 @@ function runGeneration(
 						onUpdate(parsed);
 					}
 					resolveStream(parsed);
-				} else if (update.type === "turnError") {
-					clearTimeout(timeoutId);
-					const message = extractTurnErrorMessage(update.error);
-					logger.warn("Ship card generation: turn error", { message });
-					rejectStream(new Error(message));
+					return;
+				}
+
+				if (onUpdate && observed.assistantText !== previousText) {
+					onUpdate(parsed);
 				}
 			};
 
-			return subscriber.subscribe(handleUpdate).pipe(
+			return subscriber.subscribeSessionState(handleEnvelope).pipe(
 				Effect.mapError((e) => {
 					clearTimeout(timeoutId);
 					closeEphemeral();

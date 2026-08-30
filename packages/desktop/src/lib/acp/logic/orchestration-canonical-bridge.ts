@@ -376,6 +376,14 @@ export class OrchestrationCanonicalBridge {
 				return Effect.succeed(
 					this.onTurnCompleted(event.payload.sessionId, event.payload.turnId ?? null)
 				);
+			case "ProviderSessionFailed":
+				return Effect.succeed(
+					this.onProviderSessionFailed(
+						event.payload.sessionId,
+						event.payload.operation,
+						event.payload.detail
+					)
+				);
 			case "SessionModeSet":
 				return Effect.succeed(this.onSessionModeSet(event.payload.sessionId, event.payload.modeId));
 			case "SessionModelSet":
@@ -1130,6 +1138,50 @@ export class OrchestrationCanonicalBridge {
 		};
 		state.revision = toRevision;
 		state.turnState = "Cancelled";
+		state.activity = idleActivity;
+		state.turnStartedAtMs = null;
+		state.assistantEntryId = null;
+		state.assistantEntryRunSeq = 0;
+		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+	}
+
+	/**
+	 * A dead provider adapter ends the open turn.
+	 *
+	 * ProviderBridge emits ProviderSessionFailed when a real adapter's event
+	 * stream dies, and nothing else on the contract reports a failed turn. Left
+	 * untranslated, the session's canonical turnState stayed "Running" forever:
+	 * the composer kept showing work in progress, and anything waiting on the
+	 * turn (the ship card's hidden session, for one) waited until its own
+	 * timeout instead of learning the turn was over.
+	 */
+	private onProviderSessionFailed(
+		sessionId: string,
+		operation: string,
+		detail: string
+	): AcpEventEnvelope[] {
+		const state = this.stateFor(sessionId);
+		const toRevision = nextRevision(state.revision, false);
+		const delta: SessionStateDelta = {
+			fromRevision: state.revision,
+			toRevision,
+			activity: idleActivity,
+			turnState: "Failed",
+			activeTurnFailure: {
+				turn_id: null,
+				message: detail,
+				details: `provider operation: ${operation}`,
+				kind: "fatal",
+				source: "transport",
+			},
+			activeStreamingTail: null,
+			transcriptOperations: [],
+			operationPatches: [],
+			interactionPatches: [],
+			changedFields: ["turnState", "activity", "activeStreamingTail", "activeTurnFailure"],
+		};
+		state.revision = toRevision;
+		state.turnState = "Failed";
 		state.activity = idleActivity;
 		state.turnStartedAtMs = null;
 		state.assistantEntryId = null;
