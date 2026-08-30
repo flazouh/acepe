@@ -111,7 +111,8 @@ const openSession = Effect.fn("openSession")(function*(adapter: CodexAdapter) {
 		.startSession({
 			sessionId,
 			projectId,
-			workspaceRoot: "/tmp/acepe"
+			workspaceRoot: "/tmp/acepe",
+			envOverrides: {}
 		})
 		.pipe(
 			Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -431,7 +432,8 @@ Vitest.layer(PlatformLive)("liveCreateAppServer", (it) => {
 			const handle = yield* liveCreateAppServer(spawner, layerScope, {
 				cwd: "/tmp",
 				command: "cat",
-				args: Arr.empty()
+				args: Arr.empty(),
+				envOverrides: {}
 			})
 			const permission = yield* Effect.flip(
 				handle.reply({

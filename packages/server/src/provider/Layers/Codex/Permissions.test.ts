@@ -137,7 +137,8 @@ const openSession = Effect.fn("openSession")(function*(adapter: CodexAdapter) {
 		.startSession({
 			sessionId,
 			projectId,
-			workspaceRoot: "/tmp/acepe"
+			workspaceRoot: "/tmp/acepe",
+			envOverrides: {}
 		})
 		.pipe(
 			Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),

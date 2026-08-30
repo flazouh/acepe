@@ -115,6 +115,7 @@ Vitest.layer(PlatformLive)("liveCreateTransport", (it) => {
 			const scope = yield* Effect.scope
 			const handle = yield* liveCreateTransport({
 				cwd: "/tmp",
+				envOverrides: {},
 				launch: { command: "cat", args: Arr.empty() },
 				spawner,
 				scope

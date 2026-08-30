@@ -107,7 +107,7 @@ const startTestSession = Effect.fn("startTestSession")(function*() {
 	})
 	const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
 	yield* adapter
-		.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe" })
+		.startSession({ sessionId, projectId, workspaceRoot: "/tmp/acepe", envOverrides: {} })
 		.pipe(
 			Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
 			Effect.forkChild({ startImmediately: true })

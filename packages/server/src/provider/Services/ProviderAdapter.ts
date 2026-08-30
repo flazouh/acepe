@@ -1,4 +1,5 @@
 import {
+	AgentEnvOverrides,
 	type OrchestrationEvent,
 	MessageId,
 	ProjectId,
@@ -52,7 +53,14 @@ export type ProviderPresence = typeof ProviderPresence.Type
 export const StartSessionRequest = Schema.Struct({
 	sessionId: SessionId,
 	projectId: ProjectId,
-	workspaceRoot: TrimmedNonEmptyString
+	workspaceRoot: TrimmedNonEmptyString,
+	// The per-agent environment a person configured in settings, resolved
+	// ONCE by ProviderBridge and handed down here, so no adapter reads the
+	// setting for itself. Every adapter merges it onto the environment its
+	// child process already inherits; an override with the same name wins.
+	// These are credentials — see provider/AgentEnv.ts for the rules that
+	// keep them out of logs, errors and events.
+	envOverrides: AgentEnvOverrides
 })
 export type StartSessionRequest = typeof StartSessionRequest.Type
 

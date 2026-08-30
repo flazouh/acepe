@@ -44,10 +44,17 @@ import type { ClaudeQueryHandle } from "./Process.ts"
 import { adapterError, type ClaudeMode } from "./Provider.ts"
 import { toolCallPathHint } from "./Tools.ts"
 import type { ClaudeUserPrompt } from "./Wire.ts"
+import type { AgentEnvOverrides } from "../../AgentEnv.ts"
 
 export type SessionRuntime = {
 	readonly sessionId: SessionId
 	readonly workspaceRoot: string
+	// Resolved once by ProviderBridge and carried on the runtime, not read
+	// per query: attachQuery runs again on every cancel and every watchdog
+	// stall recovery, and each of those builds a NEW SDK query with its own
+	// environment, so a session that lost its configured API key on the
+	// second query would be the same bug in a slower form.
+	readonly envOverrides: AgentEnvOverrides
 	// Epoch-ms captured ONCE when openSession builds this runtime -- see
 	// stamp()'s use of it below for why. Deliberately NOT reset by attachQuery
 	// (cancel/watchdog recovery reuse the SAME runtime and its sequence

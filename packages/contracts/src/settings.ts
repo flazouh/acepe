@@ -53,3 +53,41 @@ export const SettingsValue = Schema.String
 export type SettingsValue = typeof SettingsValue.Type
 
 export const APP_SETTINGS_ID: SettingsId = SettingsId.make("app")
+
+// Environment variable names an agent override must never set. Each one can
+// turn a plain "give the child my API key" setting into arbitrary code
+// execution inside the spawned agent: PATH and the DYLD_/LD_ family redirect
+// which binary or library actually loads, and the rest are interpreter
+// pre-run hooks (NODE_OPTIONS --require, BASH_ENV, PERL5OPT, ...). The
+// settings dialog refuses them at input time, and the server refuses them
+// again at the spawn seam, because a stored setting can predate the dialog's
+// own rules or be written by anything that can reach the settings RPC.
+export const BLOCKED_AGENT_ENV_NAMES: ReadonlyArray<string> = [
+	"PATH",
+	"_JAVA_OPTIONS",
+	"PERL5OPT",
+	"NODE_OPTIONS",
+	"PYTHONSTARTUP",
+	"RUBYOPT",
+	"BASH_ENV",
+	"ENV",
+	"PROMPT_COMMAND",
+]
+
+export const BLOCKED_AGENT_ENV_PREFIXES: ReadonlyArray<string> = ["DYLD_", "LD_"]
+
+export const isBlockedAgentEnvName = (name: string): boolean =>
+	BLOCKED_AGENT_ENV_NAMES.includes(name) ||
+	BLOCKED_AGENT_ENV_PREFIXES.some((prefix) => name.startsWith(prefix))
+
+// One agent's overrides, and then the whole map keyed by agent id. The agent
+// id here is the same string the provider adapters call a ProviderId
+// ("claude-code", "codex", "cursor", "copilot", "opencode"), which is what
+// the settings dialog writes.
+export const AgentEnvOverrides = Schema.Record(Schema.String, Schema.String)
+export type AgentEnvOverrides = typeof AgentEnvOverrides.Type
+
+export const AgentEnvOverridesByAgent = Schema.Record(Schema.String, AgentEnvOverrides)
+export type AgentEnvOverridesByAgent = typeof AgentEnvOverridesByAgent.Type
+
+export const AGENT_ENV_OVERRIDES_SETTING_KEY: UserSettingKey = "agent_env_overrides"

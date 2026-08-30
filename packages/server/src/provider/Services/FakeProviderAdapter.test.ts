@@ -61,7 +61,8 @@ Vitest.describe("FakeProviderAdapter", () => {
 				fake.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 			)
 			const prompted = yield* Stream.runCollect(

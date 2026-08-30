@@ -169,7 +169,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			canUseTool: bindCanUseTool(runtime, decidePermission),
 			resume,
 			permissionMode,
-			model
+			model,
+			envOverrides: runtime.envOverrides
 		})
 		yield* Ref.set(runtime.promptQueueRef, promptQueue)
 		yield* Ref.set(runtime.queryRef, queryHandle)
@@ -271,6 +272,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		const runtime: SessionRuntime = {
 			sessionId: request.sessionId,
 			workspaceRoot: request.workspaceRoot,
+			envOverrides: request.envOverrides,
 			openEpochMs,
 			outbound,
 			streamState,

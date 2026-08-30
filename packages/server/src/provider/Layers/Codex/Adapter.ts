@@ -70,11 +70,16 @@ import {
 	parseThreadId,
 	parseTurnId
 } from "./Wire.ts"
+import type { AgentEnvOverrides } from "../../AgentEnv.ts"
 
 export type CodexAppServerInput = {
 	readonly cwd: string
 	readonly command: string
 	readonly args: ReadonlyArray<string>
+	// The agent's configured environment, resolved once by ProviderBridge.
+	// Passed with extendEnv so the child keeps everything it inherits and an
+	// override only wins on a name collision.
+	readonly envOverrides: AgentEnvOverrides
 }
 
 export type CodexAdapter = ProviderAdapter & {
@@ -125,7 +130,8 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function*(
 		const server = yield* options.createAppServer({
 			cwd: request.workspaceRoot,
 			command: options.spawn.command,
-			args: options.spawn.args
+			args: options.spawn.args,
+			envOverrides: request.envOverrides
 		})
 		yield* server.request({
 			operation: "startSession",
@@ -293,6 +299,7 @@ export const liveCreateAppServer = (
 			.spawn(
 				ChildProcess.make(input.command, Arr.fromIterable(input.args), {
 					cwd: input.cwd,
+					env: input.envOverrides,
 					extendEnv: true,
 					detached: false
 				})
@@ -415,7 +422,8 @@ export const makeLiveCodexAdapter = Effect.fn("makeLiveCodexAdapter")(function*(
 			liveCreateAppServer(spawner, layerScope, {
 				cwd: input.cwd,
 				command,
-				args
+				args,
+				envOverrides: input.envOverrides
 			}),
 		presence: Effect.succeed(presenceValue),
 		spawn: {

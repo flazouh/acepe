@@ -57,7 +57,7 @@ Vitest.describe("ClaudeAdapter (live integration)", () => {
 				// forwardAdapterEvents' `ready` Deferred.
 				const started = yield* Deferred.make<void>()
 
-				yield* adapter.startSession({ sessionId, projectId, workspaceRoot }).pipe(
+				yield* adapter.startSession({ sessionId, projectId, workspaceRoot, envOverrides: {} }).pipe(
 					Stream.tap(() => Deferred.succeed(started, undefined)),
 					Stream.tap((event) =>
 						Effect.sync(() => {
@@ -140,7 +140,7 @@ Vitest.describe("ClaudeAdapter (live integration)", () => {
 				let turnDone = false
 				const started = yield* Deferred.make<void>()
 
-				yield* adapter.startSession({ sessionId, projectId, workspaceRoot }).pipe(
+				yield* adapter.startSession({ sessionId, projectId, workspaceRoot, envOverrides: {} }).pipe(
 					Stream.tap(() => Deferred.succeed(started, undefined)),
 					Stream.tap((event) =>
 						Effect.sync(() => {

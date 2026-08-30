@@ -1,4 +1,5 @@
 import {
+	AGENT_ENV_OVERRIDES_SETTING_KEY,
 	CommandId,
 	EventId,
 	type InteractionRepliedEvent,
@@ -41,6 +42,11 @@ import {
 	type SetModeRequest
 } from "../Services/ProviderAdapter.ts"
 import { ProviderAdapterRegistry } from "../Services/ProviderAdapterRegistry.ts"
+import {
+	agentEnvOverridesFor,
+	describeAgentEnvOverrides,
+	EMPTY_AGENT_ENV
+} from "../AgentEnv.ts"
 
 // Structural, not nominal: any adapter can opt into interactive permission
 // prompts by exposing respondToPermission (today only ClaudeAdapter does).
@@ -176,6 +182,18 @@ type BridgeState = {
 	// committed, so openSession applies whatever is recorded here.
 	readonly sessionModels: Ref.Ref<HashMap.HashMap<SessionId, SetModelRequest["modelId"]>>
 	readonly projectRoots: Ref.Ref<HashMap.HashMap<ProjectId, WorkspaceRoot>>
+	// The raw `agent_env_overrides` setting value, taken straight off the
+	// canonical SettingsUpdated events the bridge already replays and
+	// listens to — the same way sessionModes/sessionModels are taken off
+	// their own events. Kept as the raw stored string, parsed per provider
+	// at openSession, so exactly one place decides what a provider's
+	// environment is and no adapter reads a setting for itself.
+	//
+	// SECRETS: this holds API keys. It lives in memory only. The bridge
+	// never writes it to an event, a log line, or a failure detail; see
+	// AgentEnv.ts's describeAgentEnvOverrides for the one diagnostic shape
+	// allowed.
+	readonly agentEnvSetting: Ref.Ref<string>
 	readonly claimedSessions: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedMessages: Ref.Ref<HashSet.HashSet<string>>
 	readonly claimedCancellations: Ref.Ref<HashSet.HashSet<string>>
@@ -307,6 +325,21 @@ const forwardAdapterEvents = (
 		)
 	)
 
+// The one place a provider's configured environment is decided. Every
+// adapter gets it as part of its StartSessionRequest, so the setting is read
+// once here instead of in five provider files, and a provider with nothing
+// configured gets an empty map rather than a missing field to guess about.
+const resolveEnvOverrides = Effect.fn("ProviderBridge.resolveEnvOverrides")(function*(
+	state: BridgeState,
+	providerId: ProviderId
+) {
+	const raw = yield* Ref.get(state.agentEnvSetting)
+	if (raw === "") {
+		return EMPTY_AGENT_ENV
+	}
+	return agentEnvOverridesFor(raw, providerId)
+})
+
 // KNOWN RACE (documented, not fixed in this lane): openSession forks the
 // forwarding fiber and returns immediately without waiting for the adapter
 // to finish its own internal "session open" bookkeeping (e.g. ClaudeAdapter
@@ -358,6 +391,18 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 		)
 		return
 	}
+	const envOverrides = yield* resolveEnvOverrides(state, adapter.providerId)
+	// The diagnostic for "did my configured key actually reach the agent?",
+	// which is the whole bug this carries. NAMES ONLY: the values are
+	// credentials, so describeAgentEnvOverrides is the only shape they may
+	// take in a log line, and nothing else in this file ever touches them.
+	yield* Effect.logInfo("Opening provider session").pipe(
+		Effect.annotateLogs({
+			sessionId,
+			providerId: adapter.providerId,
+			envOverrides: describeAgentEnvOverrides(envOverrides)
+		})
+	)
 	yield* Ref.update(state.sessionAdapters, (current) => HashMap.set(current, sessionId, adapter))
 	yield* Ref.update(state.sessionProjects, (current) => HashMap.set(current, sessionId, projectId))
 	const fiber = yield* forwardAdapterEvents(
@@ -368,7 +413,8 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 		adapter.startSession({
 			sessionId,
 			projectId,
-			workspaceRoot: workspaceRoot.value
+			workspaceRoot: workspaceRoot.value,
+			envOverrides
 		})
 	).pipe(Effect.forkIn(state.layerScope, { startImmediately: true }))
 	yield* Ref.update(state.sessionFibers, (current) => HashMap.set(current, sessionId, fiber))
@@ -813,6 +859,12 @@ const consider = Effect.fn("ProviderBridge.consider")(function*(
 			return yield* Ref.update(state.projectRoots, (current) =>
 				HashMap.set(current, event.payload.projectId, workspaceRoot))
 		}
+		case "SettingsUpdated": {
+			if (event.payload.key !== AGENT_ENV_OVERRIDES_SETTING_KEY) {
+				return
+			}
+			return yield* Ref.set(state.agentEnvSetting, event.payload.value)
+		}
 		case "SessionArchived":
 		case "SessionDeleted":
 			return yield* considerSessionRemoved(state, event.payload.sessionId)
@@ -836,6 +888,7 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		sessionModes: yield* Ref.make(HashMap.empty<SessionId, SetModeRequest["modeId"]>()),
 		sessionModels: yield* Ref.make(HashMap.empty<SessionId, SetModelRequest["modelId"]>()),
 		projectRoots: yield* Ref.make(HashMap.empty<ProjectId, WorkspaceRoot>()),
+		agentEnvSetting: yield* Ref.make(""),
 		claimedSessions: yield* Ref.make(HashSet.empty<string>()),
 		claimedMessages: yield* Ref.make(HashSet.empty<string>()),
 		claimedCancellations: yield* Ref.make(HashSet.empty<string>()),

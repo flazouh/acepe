@@ -54,6 +54,7 @@ import {
 	type SessionRuntime
 } from "./Session.ts"
 import { buildPromptBody, parseModelSelection } from "./Wire.ts"
+import { type AgentEnvOverrides, mergeAgentEnv } from "../../AgentEnv.ts"
 
 export type OpenCodeAdapter = ProviderAdapter & {
 	// OpenCode has no mode request of its own: its HTTP API takes the mode as
@@ -75,6 +76,7 @@ export type OpenCodeAdapter = ProviderAdapter & {
 export type OpenCodeAdapterOptions = {
 	readonly createTransport: (input: {
 		readonly workspaceRoot: string
+		readonly envOverrides: AgentEnvOverrides
 	}) => Effect.Effect<OpenCodeTransport, ProviderAdapterError>
 	readonly presence: Effect.Effect<ProviderPresence>
 }
@@ -99,7 +101,8 @@ export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 		const lastUserMessageId = yield* Ref.make(Option.none<MessageId>())
 		const sequence = yield* Ref.make(0)
 		const transport = yield* options.createTransport({
-			workspaceRoot: request.workspaceRoot
+			workspaceRoot: request.workspaceRoot,
+			envOverrides: request.envOverrides
 		})
 		const created = yield* transport.createSession
 		if (created.directory !== request.workspaceRoot) {
@@ -269,7 +272,11 @@ export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(func
 				workspaceRoot: input.workspaceRoot,
 				command,
 				args: openCodeServeArgs([]),
-				env,
+				// OpenCode deliberately runs on an ALLOW-LISTED environment
+				// (extendEnv is false in liveCreateTransport), so the merge
+				// has to happen here or the agent's own configured variables
+				// would be the thing the isolation drops.
+				env: mergeAgentEnv(env, input.envOverrides),
 				http,
 				spawner
 			})

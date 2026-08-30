@@ -149,7 +149,8 @@ const startAdapter = Effect.fn("OpenCodeAdapter.test.startAdapter")(function*(
 		.startSession({
 			sessionId,
 			projectId,
-			workspaceRoot
+			workspaceRoot,
+			envOverrides: {}
 		})
 		.pipe(
 			Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -556,7 +557,8 @@ Vitest.describe("OpenCodeAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot
+					workspaceRoot,
+					envOverrides: {}
 				})
 				.pipe(Stream.runCollect, Effect.flip)
 			Vitest.assert.strictEqual(error._tag, "ProviderAdapterError")

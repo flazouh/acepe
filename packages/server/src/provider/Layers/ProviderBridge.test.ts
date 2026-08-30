@@ -11,6 +11,7 @@ import {
 	SessionId,
 	SessionSetModelCommand,
 	SessionSetModeCommand,
+	SettingsSetCommand,
 	TokenAppendedEvent,
 	TRACER_REPLY_TEXT,
 	TurnCancelCommand,
@@ -26,6 +27,7 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Logger from "effect/Logger"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Queue from "effect/Queue"
@@ -45,6 +47,7 @@ import {
 	ProviderCapabilities,
 	ProviderId,
 	ProviderAdapterError,
+	type StartSessionRequest,
 	type SetModelRequest,
 	type SetModeRequest
 } from "../Services/ProviderAdapter.ts"
@@ -71,6 +74,9 @@ const tracerSessionId = SessionId.make("session-tracer")
 const userMessageId = MessageId.make("message-user")
 const tracerMessageId = MessageId.make("message-tracer")
 const fakeProviderId = ProviderId.make("fake-provider")
+// Stands in for a real API key in the log-redaction test below. Nothing may
+// print this string.
+const SECRET_PROBE_VALUE = "sk-acepe-probe-must-never-be-logged"
 
 // AC-271: openSession now checks the project's workspaceRoot exists on disk
 // before ever calling the adapter -- see ProviderBridge.ts. Every scripted
@@ -137,14 +143,16 @@ const makeScriptedAdapter = Effect.fn("makeScriptedAdapter")(function*(providerI
 	const cancelCount = yield* Ref.make(0)
 	const sendPromptCount = yield* Ref.make(0)
 	const startSessionCount = yield* Ref.make(0)
+	const lastStartRequest = yield* Ref.make(Option.none<StartSessionRequest>())
 
 	const adapter: ProviderAdapter = {
 		providerId,
 		capabilities: ProviderCapabilities.make({ enabled: [] }),
 		presence: Effect.succeed({ providerId, installed: true, authenticated: true }),
-		startSession: () =>
+		startSession: (request) =>
 			Stream.unwrap(
 				Ref.update(startSessionCount, (count) => count + 1).pipe(
+					Effect.andThen(Ref.set(lastStartRequest, Option.some(request))),
 					Effect.as(Stream.fromQueue(startEvents))
 				)
 			),
@@ -175,7 +183,14 @@ const makeScriptedAdapter = Effect.fn("makeScriptedAdapter")(function*(providerI
 		cancelTurn: () => Ref.update(cancelCount, (count) => count + 1).pipe(Effect.asVoid)
 	}
 
-	return { adapter, startEvents, cancelCount, sendPromptCount, startSessionCount }
+	return {
+		adapter,
+		startEvents,
+		cancelCount,
+		sendPromptCount,
+		startSessionCount,
+		lastStartRequest
+	}
 })
 
 const scriptedToken = (index: number, text: string) =>
@@ -430,6 +445,191 @@ const collaborationModeOf = (params: Json): Option.Option<string> => {
 }
 
 Vitest.describe("ProviderBridge", () => {
+	// The bug this closes: a person set an API key for an agent, the setting
+	// persisted forever, and the agent process never saw it. The bridge is
+	// the ONE place that resolves it, so the proof belongs here — the
+	// adapter that opens the session must be handed the map, keyed by its
+	// own provider id, and an agent with nothing configured must be handed
+	// an empty map rather than someone else's credentials.
+	Vitest.it.live("hands the agent's configured environment to the adapter it opens", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, lastStartRequest, startSessionCount }) => {
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp"
+						})
+					)
+					yield* engine.dispatch(
+						SettingsSetCommand.make({
+							type: "settings.set",
+							commandId: CommandId.make("cmd-env-overrides"),
+							key: "agent_env_overrides",
+							value: JSON.stringify({
+								[fakeProviderId]: {
+									ACEPE_ENV_PROBE: "probe-value",
+									PATH: "/tmp/evil"
+								},
+								"some-other-agent": { ACEPE_ENV_PROBE: "not-this-one" }
+							})
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session"),
+							sessionId,
+							projectId,
+							title: "Real provider session",
+							providerId: fakeProviderId
+						})
+					)
+					yield* waitUntil(Ref.get(startSessionCount), (value) => value >= 1)
+					const request = yield* Ref.get(lastStartRequest)
+					Vitest.assert.isTrue(Option.isSome(request))
+					if (Option.isNone(request)) {
+						return
+					}
+					Vitest.assert.deepStrictEqual(request.value.envOverrides, {
+						ACEPE_ENV_PROBE: "probe-value"
+					})
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			})
+		)
+	)
+
+	// Whatever the bridge says about a session's environment, it must say it
+	// without saying the credential. This captures every log line the bridge
+	// writes while opening a session and asserts the value never appears in
+	// one, while the variable's NAME does — the diagnostic has to stay
+	// useful, not just silent.
+	Vitest.it.live("never writes an override's value into a log line", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, startSessionCount }) =>
+				Effect.gen(function*() {
+					const captured: Array<string> = []
+					// formatLogFmt renders the message AND the log annotations, so
+					// this sees exactly the text a real log sink would write.
+					const collector = Logger.map(Logger.formatLogFmt, (line) => {
+						captured.push(line)
+					})
+					const TestLive = ProviderBridgeLive.pipe(
+						Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+						Layer.provideMerge(EngineLive)
+					)
+					yield* Effect.gen(function*() {
+						const engine = yield* OrchestrationEngine
+						yield* engine.dispatch(
+							ProjectCreateCommand.make({
+								type: "project.create",
+								commandId: CommandId.make("cmd-project"),
+								projectId,
+								title: "Acepe",
+								workspaceRoot: "/tmp"
+							})
+						)
+						yield* engine.dispatch(
+							SettingsSetCommand.make({
+								type: "settings.set",
+								commandId: CommandId.make("cmd-env-overrides"),
+								key: "agent_env_overrides",
+								value: JSON.stringify({
+									[fakeProviderId]: { ACEPE_ENV_PROBE: SECRET_PROBE_VALUE }
+								})
+							})
+						)
+						yield* engine.dispatch(
+							SessionCreateCommand.make({
+								type: "session.create",
+								commandId: CommandId.make("cmd-session"),
+								sessionId,
+								projectId,
+								title: "Real provider session",
+								providerId: fakeProviderId
+							})
+						)
+						yield* waitUntil(Ref.get(startSessionCount), (value) => value >= 1)
+					}).pipe(
+						// @effect-diagnostics-next-line strictEffectProvide:off
+						Effect.provide(TestLive),
+						// Outermost, so the bridge's own layer construction and the
+						// fibers it forks are built under this logger too.
+						// @effect-diagnostics-next-line strictEffectProvide:off
+						Effect.provide(Logger.layer([collector]))
+					)
+					const joined = captured.join("\n")
+					Vitest.assert.isFalse(joined.includes(SECRET_PROBE_VALUE))
+					Vitest.assert.isTrue(joined.includes("ACEPE_ENV_PROBE"))
+				})
+			)
+		)
+	)
+
+	Vitest.it.live("hands an agent with nothing configured an empty environment", () =>
+		makeScriptedAdapter(fakeProviderId).pipe(
+			Effect.flatMap(({ adapter, lastStartRequest, startSessionCount }) => {
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				return Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp"
+						})
+					)
+					yield* engine.dispatch(
+						SettingsSetCommand.make({
+							type: "settings.set",
+							commandId: CommandId.make("cmd-env-overrides"),
+							key: "agent_env_overrides",
+							value: JSON.stringify({
+								"some-other-agent": { ACEPE_ENV_PROBE: "not-this-one" }
+							})
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session"),
+							sessionId,
+							projectId,
+							title: "Real provider session",
+							providerId: fakeProviderId
+						})
+					)
+					yield* waitUntil(Ref.get(startSessionCount), (value) => value >= 1)
+					const request = yield* Ref.get(lastStartRequest)
+					Vitest.assert.isTrue(Option.isSome(request))
+					if (Option.isNone(request)) {
+						return
+					}
+					Vitest.assert.deepStrictEqual(request.value.envOverrides, {})
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			})
+		)
+	)
+
 	Vitest.it.live("forwards a scripted adapter's events into the store in order", () =>
 		makeScriptedAdapter(fakeProviderId).pipe(
 			Effect.flatMap(({ adapter, startEvents, startSessionCount }) => {

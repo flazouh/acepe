@@ -125,6 +125,7 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 		const runtimeHolder = yield* Ref.make(Option.none<SessionRuntime>())
 		const handle = yield* options.connect({
 			launch,
+			envOverrides: request.envOverrides,
 			onSessionUpdate: (notification) => publishSessionUpdate(runtimeHolder, notification),
 			onPermissionRequest: (permission) => decidePermission(runtimeHolder, permission)
 		})

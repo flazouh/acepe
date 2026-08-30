@@ -9,6 +9,7 @@ import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
 import * as Str from "effect/String"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
+import type { AgentEnvOverrides } from "../../AgentEnv.ts"
 import type { Json } from "../Json.ts"
 import { adapterError, type ClaudeMode } from "./Provider.ts"
 import {
@@ -37,6 +38,11 @@ export type ClaudeQueryInput = {
 	// builds a new one. None means the session never chose a model, and then
 	// the SDK runs whatever the operator's own Claude config selects.
 	readonly model: Option.Option<string>
+	// The per-agent environment for this session, already resolved and
+	// sanitized upstream. buildClaudeQueryOptions merges it onto process.env
+	// — the SDK REPLACES the child environment when `env` is given, so the
+	// merge is not optional.
+	readonly envOverrides: AgentEnvOverrides
 }
 
 export type ClaudeQueryHandle = {

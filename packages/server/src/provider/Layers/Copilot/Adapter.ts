@@ -77,6 +77,7 @@ import {
 	SESSION_PROMPT_METHOD,
 	SESSION_SET_MODE_METHOD
 } from "./Wire.ts"
+import type { AgentEnvOverrides } from "../../AgentEnv.ts"
 
 export type CopilotAdapter = ProviderAdapter & {
 	// ACP's session/set_mode over the same JSON-RPC transport session/prompt
@@ -94,7 +95,7 @@ export type CopilotAdapter = ProviderAdapter & {
 
 export type CopilotAdapterOptions = {
 	readonly createTransport: (
-		input: { readonly cwd: string }
+		input: { readonly cwd: string; readonly envOverrides: AgentEnvOverrides }
 	) => Effect.Effect<CopilotAcpHandle, ProviderAdapterError>
 	readonly presence: Effect.Effect<ProviderPresence>
 }
@@ -139,7 +140,10 @@ export const makeCopilotAdapter = Effect.fn("makeCopilotAdapter")(function*(
 		const openToolCalls = yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>())
 		const pendingPermissions = yield* Ref.make(HashMap.empty<string, PendingPermission>())
 		const providerSessionId = yield* Ref.make(Option.none<string>())
-		const transport = yield* options.createTransport({ cwd: request.workspaceRoot })
+		const transport = yield* options.createTransport({
+			cwd: request.workspaceRoot,
+			envOverrides: request.envOverrides
+		})
 		// ACP's opening handshake, before anything else: Copilot answers a
 		// session/new that arrives first with a protocol error, and the
 		// session then looks like a transport fault rather than a missing
@@ -311,6 +315,7 @@ export const makeLiveCopilotAdapter = Effect.fn("makeLiveCopilotAdapter")(functi
 				onSome: (command) =>
 					liveCreateTransport({
 						cwd: input.cwd,
+						envOverrides: input.envOverrides,
 						launch: copilotLaunchConfig(command),
 						spawner,
 						scope: layerScope

@@ -1,6 +1,11 @@
 import { type McpServerConfig, type Options as ClaudeSdkOptions } from "@anthropic-ai/claude-agent-sdk"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
+import {
+	type AgentEnvOverrides,
+	hasAgentEnvOverrides,
+	mergeAgentEnv
+} from "../../AgentEnv.ts"
 import { decodeJsonObject, EMPTY_JSON_OBJECT, type JsonObject } from "../Json.ts"
 import {
 	CLAUDE_ISOLATED_SETTING_SOURCES,
@@ -100,6 +105,10 @@ export const buildClaudeQueryOptions = (
 		// watchdog stall recovery would otherwise revert the model to whatever
 		// the operator's own Claude config selects.
 		readonly model?: Option.Option<string>
+		// The agent's configured environment. Absent and empty both mean
+		// "add nothing", and then no `env` is passed at all so the SDK keeps
+		// its documented default of inheriting process.env untouched.
+		readonly envOverrides?: AgentEnvOverrides
 	},
 	isolation: ClaudeQueryIsolation
 ): ClaudeSdkOptions => ({
@@ -117,6 +126,13 @@ export const buildClaudeQueryOptions = (
 		: {}),
 	...(input.model !== undefined && Option.isSome(input.model)
 		? { model: input.model.value }
+		: {}),
+	// The SDK's `env` REPLACES the subprocess environment rather than
+	// extending it, so the child would lose PATH, HOME and its own
+	// credentials store if the overrides were passed on their own. Merged
+	// over process.env, with the override winning on a name collision.
+	...(input.envOverrides !== undefined && hasAgentEnvOverrides(input.envOverrides)
+		? { env: mergeAgentEnv(process.env, input.envOverrides) }
 		: {}),
 	canUseTool: (toolName, toolInput, options) =>
 		input.canUseTool(toolName, jsonObjectFromValue(toolInput), {

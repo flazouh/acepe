@@ -83,3 +83,39 @@ Vitest.describe("buildClaudeQueryOptions", () => {
 		Vitest.assert.strictEqual(options.includePartialMessages, true)
 	})
 })
+
+// The Claude path is the one where a naive "just pass the overrides as env"
+// would break the agent outright: the SDK REPLACES the subprocess
+// environment when `env` is given, so a child handed only ANTHROPIC_API_KEY
+// would lose PATH and HOME and fail to start at all.
+Vitest.describe("buildClaudeQueryOptions and the agent's configured environment", () => {
+	const fakeCanUseTool = (() =>
+		Promise.resolve({ behavior: "deny" as const, message: "unused in these tests" }))
+
+	const buildWith = (envOverrides: Readonly<Record<string, string>>) =>
+		buildClaudeQueryOptions(
+			{ cwd: "/workspace/repo", canUseTool: fakeCanUseTool, envOverrides },
+			{ pathToClaudeCodeExecutable: Option.none(), mcpServers: {} }
+		)
+
+	Vitest.it("carries an override into the query's environment", () => {
+		const options = buildWith({ ACEPE_ENV_PROBE: "probe-value" })
+		Vitest.assert.strictEqual(options.env?.["ACEPE_ENV_PROBE"], "probe-value")
+	})
+
+	Vitest.it("keeps the parent environment the agent still needs", () => {
+		const options = buildWith({ ACEPE_ENV_PROBE: "probe-value" })
+		Vitest.assert.strictEqual(options.env?.["PATH"], process.env["PATH"])
+		Vitest.assert.strictEqual(options.env?.["HOME"], process.env["HOME"])
+	})
+
+	Vitest.it("refuses an override that would redirect which binary runs", () => {
+		const options = buildWith({ PATH: "/tmp/evil", ACEPE_ENV_PROBE: "probe-value" })
+		Vitest.assert.strictEqual(options.env?.["PATH"], process.env["PATH"])
+	})
+
+	Vitest.it("passes no env at all when the agent has nothing configured", () => {
+		const options = buildWith({})
+		Vitest.assert.isUndefined(options.env)
+	})
+})

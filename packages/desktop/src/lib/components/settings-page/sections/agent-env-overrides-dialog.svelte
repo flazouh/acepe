@@ -1,4 +1,5 @@
 <script lang="ts">
+import { isBlockedAgentEnvName } from "@acepe/contracts";
 import { Button, Input, HugeiconsIcon } from "@acepe/ui";
 import DialogFrame from "$lib/components/ui/dialog-frame.svelte";
 
@@ -15,19 +16,6 @@ interface Props {
 	value: Readonly<Record<string, string>>;
 	onSave: (env: Record<string, string>) => void;
 }
-
-const BLOCKED_ENV_NAMES = new Set([
-	"PATH",
-	"_JAVA_OPTIONS",
-	"PERL5OPT",
-	"NODE_OPTIONS",
-	"PYTHONSTARTUP",
-	"RUBYOPT",
-	"BASH_ENV",
-	"ENV",
-	"PROMPT_COMMAND",
-]);
-const BLOCKED_ENV_PREFIXES = ["DYLD_", "LD_"];
 
 let { agentId, agentName, value, onSave }: Props = $props();
 
@@ -101,14 +89,6 @@ function toggleReveal(rowId: string): void {
 	);
 }
 
-function isBlockedEnvName(name: string): boolean {
-	if (BLOCKED_ENV_NAMES.has(name)) {
-		return true;
-	}
-
-	return BLOCKED_ENV_PREFIXES.some((prefix) => name.startsWith(prefix));
-}
-
 function buildEnvMap(): Record<string, string> | null {
 	const nextEnv: Record<string, string> = {};
 
@@ -130,7 +110,7 @@ function buildEnvMap(): Record<string, string> | null {
 			return null;
 		}
 
-		if (isBlockedEnvName(trimmedName)) {
+		if (isBlockedAgentEnvName(trimmedName)) {
 			validationError = `${trimmedName} is managed by Acepe and cannot be overridden.`;
 			return null;
 		}

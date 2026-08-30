@@ -272,7 +272,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -313,7 +314,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -343,7 +345,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -403,7 +406,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -487,7 +491,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -545,7 +550,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -617,7 +623,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -664,7 +671,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -718,7 +726,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -761,7 +770,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -795,7 +805,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
@@ -826,7 +837,8 @@ Vitest.describe("CursorAdapter", () => {
 				.startSession({
 					sessionId,
 					projectId,
-					workspaceRoot: "/tmp/acepe"
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
 				})
 				.pipe(
 					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
