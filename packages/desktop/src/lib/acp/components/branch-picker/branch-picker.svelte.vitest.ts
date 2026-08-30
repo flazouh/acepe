@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, render, waitFor } from "@testing-library/svelte";
+import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AgentError } from "../../errors/app-error.js";
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -34,32 +36,6 @@ vi.mock("$lib/utils/backend-client.js", () => ({
 	},
 }));
 
-interface TestError {
-	readonly message: string;
-}
-
-interface MatchableResult<T> {
-	match(onOk: (value: T) => void, onErr: (error: TestError) => void): void;
-}
-
-function okResult<T>(value: T): MatchableResult<T> {
-	return {
-		match(onOk) {
-			onOk(value);
-		},
-	};
-}
-
-function errResult<T>(message: string): MatchableResult<T> {
-	return {
-		match(_onOk, onErr) {
-			setTimeout(() => {
-				onErr({ message });
-			}, 0);
-		},
-	};
-}
-
 const { default: BranchPicker } = await import("./branch-picker.svelte");
 
 describe("BranchPicker", () => {
@@ -74,9 +50,18 @@ describe("BranchPicker", () => {
 	});
 
 	it("keeps the branch list visible when checkout fails", async () => {
-		mocks.listBranches.mockReturnValue(okResult(["main", "feature/login"]));
+		mocks.listBranches.mockReturnValue(Effect.succeed(["main", "feature/login"]));
+		// Effect.delay(0) pushes the failure onto a macrotask, matching real IPC
+		// latency. Without it the failure resolves before bits-ui finishes its own
+		// item-select close sequence, and the picker's re-open (branchPopoverOpen
+		// = true) loses that race and gets clobbered back to closed.
 		mocks.checkoutBranch.mockReturnValue(
-			errResult<string>("local changes would be overwritten by checkout")
+			Effect.fail(
+				new AgentError(
+					"git.checkoutBranch",
+					new Error("local changes would be overwritten by checkout")
+				)
+			).pipe(Effect.delay(0))
 		);
 
 		const view = render(BranchPicker, {

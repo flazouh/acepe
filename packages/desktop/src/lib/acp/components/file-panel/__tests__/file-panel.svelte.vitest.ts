@@ -1,14 +1,6 @@
 import { cleanup, render, waitFor } from "@testing-library/svelte";
+import * as Effect from "effect/Effect";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-function succeedMatch<T>(value: T) {
-	return {
-		match(onOk: (value: T) => unknown) {
-			onOk(value);
-			return Promise.resolve();
-		},
-	};
-}
 
 vi.mock("svelte", async () => {
 	const { createRequire } = await import("node:module");
@@ -68,9 +60,7 @@ const getFileDiffMock = vi.fn();
 const peekFileContentMock = vi.fn();
 const getProjectGitStatusSummaryMapMock = vi.fn();
 const getProjectFileGitStatusSummaryMock = vi.fn();
-const getProjectGitStatusMock = vi.fn((_projectPath: string) => ({
-	match: () => Promise.resolve(undefined),
-}));
+const getProjectGitStatusMock = vi.fn((_projectPath: string) => Effect.succeed(undefined));
 
 vi.mock("../../../services/file-content-cache.svelte.js", () => ({
 	fileContentCache: {
@@ -117,60 +107,40 @@ describe("FilePanel", () => {
 		peekFileContentMock.mockReset();
 		peekFileContentMock.mockReturnValue(null);
 		getFileContentMock.mockReset();
-		getFileContentMock.mockReturnValue(succeedMatch("const answer = 42;\n"));
+		getFileContentMock.mockReturnValue(Effect.succeed("const answer = 42;\n"));
 		getFileDiffMock.mockReset();
 		getFileDiffMock.mockReturnValue(
-			succeedMatch({
+			Effect.succeed({
 				oldContent: "const answer = 41;\n",
 				newContent: "const answer = 42;\n",
 			})
 		);
 
 		getProjectGitStatusSummaryMapMock.mockReset();
-		getProjectGitStatusSummaryMapMock.mockReturnValue({
-			match: (
-				onOk: (
-					statusMap: ReadonlyMap<
-						string,
-						{ path: string; status: string; insertions: number; deletions: number }
-					>
-				) => void
-			) => {
-				onOk(
-					new Map([
-						[
-							"src/file.ts",
-							{
-								path: "src/file.ts",
-								status: "A",
-								insertions: 5,
-								deletions: 0,
-							},
-						],
-					])
-				);
-				return Promise.resolve();
-			},
-		});
+		getProjectGitStatusSummaryMapMock.mockReturnValue(
+			Effect.succeed(
+				new Map([
+					[
+						"src/file.ts",
+						{
+							path: "src/file.ts",
+							status: "A",
+							insertions: 5,
+							deletions: 0,
+						},
+					],
+				])
+			)
+		);
 		getProjectFileGitStatusSummaryMock.mockReset();
-		getProjectFileGitStatusSummaryMock.mockReturnValue({
-			match: (
-				onOk: (fileStatus: {
-					path: string;
-					status: string;
-					insertions: number;
-					deletions: number;
-				}) => void
-			) => {
-				onOk({
-					path: "src/file.ts",
-					status: "A",
-					insertions: 5,
-					deletions: 0,
-				});
-				return Promise.resolve();
-			},
-		});
+		getProjectFileGitStatusSummaryMock.mockReturnValue(
+			Effect.succeed({
+				path: "src/file.ts",
+				status: "A",
+				insertions: 5,
+				deletions: 0,
+			})
+		);
 
 		getProjectGitStatusMock.mockClear();
 	});
@@ -230,24 +200,14 @@ describe("FilePanel", () => {
 			value: cancelIdleCallbackMock,
 		});
 
-		getProjectFileGitStatusSummaryMock.mockReturnValue({
-			match: (
-				onOk: (fileStatus: {
-					path: string;
-					status: string;
-					insertions: number;
-					deletions: number;
-				}) => void
-			) => {
-				onOk({
-					path: "src/file.ts",
-					status: "M",
-					insertions: 5,
-					deletions: 1,
-				});
-				return Promise.resolve();
-			},
-		});
+		getProjectFileGitStatusSummaryMock.mockReturnValue(
+			Effect.succeed({
+				path: "src/file.ts",
+				status: "M",
+				insertions: 5,
+				deletions: 1,
+			})
+		);
 
 		try {
 			render(FilePanel, {
@@ -317,24 +277,14 @@ describe("FilePanel", () => {
 			value: cancelIdleCallbackMock,
 		});
 
-		getProjectFileGitStatusSummaryMock.mockReturnValue({
-			match: (
-				onOk: (fileStatus: {
-					path: string;
-					status: string;
-					insertions: number;
-					deletions: number;
-				}) => void
-			) => {
-				onOk({
-					path: "docs/readme.md",
-					status: "M",
-					insertions: 5,
-					deletions: 1,
-				});
-				return Promise.resolve();
-			},
-		});
+		getProjectFileGitStatusSummaryMock.mockReturnValue(
+			Effect.succeed({
+				path: "docs/readme.md",
+				status: "M",
+				insertions: 5,
+				deletions: 1,
+			})
+		);
 
 		try {
 			render(FilePanel, {
