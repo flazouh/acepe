@@ -4,6 +4,7 @@ import {
 	EventId,
 	MessageId,
 	type OrchestrationEvent,
+	PROJECT_ICON_AUTO,
 	ProjectId,
 	SessionId
 } from "@acepe/contracts"
@@ -577,6 +578,7 @@ Vitest.layer(isolatedSnapshot())("ProjectionSnapshotQuery grades projects", (it)
 					color: defaultProjectColor("/tmp/acepe"),
 					showExternalCliSessions: false,
 					sortOrder: null,
+					icon: PROJECT_ICON_AUTO,
 					scanWarmedAt: NOW
 				}
 			])

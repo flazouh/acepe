@@ -22,6 +22,7 @@ import {
 	type ProjectedProject,
 	type ProjectedProjectSession,
 	type ProjectedProjectsState,
+	projectIconToRow,
 	PROJECTION_PROJECTS_NAME,
 	ProjectionProjects
 } from "../Services/ProjectionProjects.ts"
@@ -71,6 +72,8 @@ const readProjectById = Effect.fn("ProjectionProjects.readProjectById")(function
 			color,
 			show_external_cli_sessions,
 			sort_order,
+			icon_kind,
+			icon_path,
 			scan_warmed_at
 		FROM projection_projects
 		WHERE project_id = ${projectId}
@@ -247,6 +250,7 @@ const upsertProject = Effect.fn("ProjectionProjects.upsertProject")(function*(
 	tx: SqlClient.SqlClient,
 	project: ProjectedProject
 ) {
+	const icon = projectIconToRow(project.icon)
 	yield* tx`
 		INSERT INTO projection_projects (
 			project_id,
@@ -259,6 +263,8 @@ const upsertProject = Effect.fn("ProjectionProjects.upsertProject")(function*(
 			color,
 			show_external_cli_sessions,
 			sort_order,
+			icon_kind,
+			icon_path,
 			scan_warmed_at
 		) VALUES (
 			${project.projectId},
@@ -271,6 +277,8 @@ const upsertProject = Effect.fn("ProjectionProjects.upsertProject")(function*(
 			${project.color},
 			${project.showExternalCliSessions ? 1 : 0},
 			${project.sortOrder},
+			${icon.kind},
+			${icon.path},
 			${project.scanWarmedAt}
 		)
 		ON CONFLICT(project_id) DO UPDATE SET
@@ -283,6 +291,8 @@ const upsertProject = Effect.fn("ProjectionProjects.upsertProject")(function*(
 			color = excluded.color,
 			show_external_cli_sessions = excluded.show_external_cli_sessions,
 			sort_order = excluded.sort_order,
+			icon_kind = excluded.icon_kind,
+			icon_path = excluded.icon_path,
 			scan_warmed_at = excluded.scan_warmed_at
 	`.withoutTransform.pipe(Effect.asVoid)
 })
@@ -351,6 +361,8 @@ export const ProjectionProjectsLive = Layer.effect(ProjectionProjects)(
 					color,
 					show_external_cli_sessions,
 					sort_order,
+					icon_kind,
+					icon_path,
 					scan_warmed_at
 				FROM projection_projects
 				ORDER BY updated_at DESC, project_id ASC

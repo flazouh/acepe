@@ -4,6 +4,7 @@ import {
 	EventId,
 	MessageId,
 	type OrchestrationEvent,
+	PROJECT_ICON_AUTO,
 	ProjectId,
 	SessionId
 } from "@acepe/contracts"
@@ -133,6 +134,7 @@ Vitest.describe("evolveProjectedProjects", () => {
 				color: defaultProjectColor("/tmp/acepe"),
 				showExternalCliSessions: false,
 				sortOrder: null,
+				icon: PROJECT_ICON_AUTO,
 				scanWarmedAt: NOW
 			})
 			Vitest.assert.isTrue(isScanWarmed(project))

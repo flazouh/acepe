@@ -102,6 +102,9 @@ const projectMetaUpdatedPayload = (command: ProjectMetaUpdateCommand): ProjectMe
 	if (command.sortOrder !== undefined) {
 		draft.sortOrder = command.sortOrder
 	}
+	if (command.icon !== undefined) {
+		draft.icon = command.icon
+	}
 	return draft
 }
 

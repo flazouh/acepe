@@ -4,6 +4,7 @@ import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, IsoDateTime, J
 import { FileGitStatus } from "./fileIndex.ts"
 import { GitBlameLine, GitFileDiff, GitHunkIndex } from "./git.ts"
 import { ProjectColor } from "./projectColor.ts"
+import { ProjectIcon } from "./projectIcon.ts"
 import { ProjectSortOrder } from "./projectSortOrder.ts"
 import { TerminalCols, TerminalRows } from "./terminal.ts"
 import {
@@ -161,6 +162,7 @@ export const ProjectMetaUpdatedPayload = Schema.Struct({
 	color: Schema.optionalKey(ProjectColor),
 	showExternalCliSessions: Schema.optionalKey(Schema.Boolean),
 	sortOrder: Schema.optionalKey(ProjectSortOrder),
+	icon: Schema.optionalKey(ProjectIcon),
 })
 export type ProjectMetaUpdatedPayload = typeof ProjectMetaUpdatedPayload.Type
 

@@ -5,6 +5,10 @@ import {
 	ProjectColor,
 	ProjectCreatedPayload,
 	ProjectDeletedPayload,
+	PROJECT_ICON_AUTO,
+	PROJECT_ICON_NONE,
+	ProjectIcon,
+	ProjectIconRelativePath,
 	ProjectId,
 	ProjectMetaUpdatedPayload,
 	ProjectSortOrder,
@@ -55,6 +59,11 @@ export const ProjectedProject = Schema.Struct({
 	// ordered this project, which is how every project starts and where a
 	// freshly added one stays until the first move ranks the whole list.
 	sortOrder: Schema.NullOr(ProjectSortOrder),
+	// Never null downstream: a project that predates the icon columns, or that
+	// nobody has given an icon, projects the "auto" choice and lets the read
+	// path detect one. Only the choice lives here; the picture it resolves to
+	// is derived from the project's files and is deliberately not stored.
+	icon: ProjectIcon,
 	scanWarmedAt: IsoDateTime
 })
 export type ProjectedProject = typeof ProjectedProject.Type
@@ -90,6 +99,12 @@ const ProjectionProjectRow = Schema.Struct({
 	// and a required key turns the next such omission into a decode failure
 	// instead of a project that reads as never ranked.
 	sort_order: Schema.NullOr(ProjectSortOrder),
+	// Two columns for one choice, because SQLite has no union type. Both null
+	// is "auto", which is what every row predating migration 0035 holds and
+	// why that migration needs no backfill. They are read as a pair exactly
+	// once, in projectIconFromRow, so nothing downstream sees the split.
+	icon_kind: Schema.NullOr(Schema.String).pipe(Schema.optionalKey),
+	icon_path: Schema.NullOr(Schema.String).pipe(Schema.optionalKey),
 	scan_warmed_at: IsoDateTime
 })
 
@@ -122,6 +137,36 @@ export class ProjectionProjects extends Context.Service<
 	ProjectionProjectsShape
 >()("@acepe/server/persistence/Services/ProjectionProjects") {}
 
+const isProjectIconRelativePath = Schema.is(ProjectIconRelativePath)
+
+/**
+ * Rebuild the icon choice from the two columns that hold it.
+ *
+ * Anything the pair cannot express means "auto": both columns null (every row
+ * older than migration 0035), a kind nobody recognises, or a custom pick whose
+ * path no longer decodes. Falling back rather than failing is deliberate here.
+ * A project whose stored icon path went bad should show the detected icon or
+ * its letter, not refuse to load the sidebar.
+ */
+const projectIconFromRow = (
+	kind: string | null | undefined,
+	path: string | null | undefined
+): ProjectIcon => {
+	if (kind === "none") {
+		return PROJECT_ICON_NONE
+	}
+	if (kind === "custom" && isProjectIconRelativePath(path)) {
+		return { kind: "custom", path }
+	}
+	return PROJECT_ICON_AUTO
+}
+
+/** Split the icon choice back into the pair of columns that store it. */
+export const projectIconToRow = (
+	icon: ProjectIcon
+): { readonly kind: string; readonly path: string | null } =>
+	icon.kind === "custom" ? { kind: "custom", path: icon.path } : { kind: icon.kind, path: null }
+
 const projectedProjectFromRow = (row: typeof ProjectionProjectRow.Type): ProjectedProject => ({
 	projectId: row.project_id,
 	title: row.title,
@@ -136,6 +181,7 @@ const projectedProjectFromRow = (row: typeof ProjectionProjectRow.Type): Project
 		? DEFAULT_SHOW_EXTERNAL_CLI_SESSIONS
 		: row.show_external_cli_sessions === 1,
 	sortOrder: row.sort_order,
+	icon: projectIconFromRow(row.icon_kind, row.icon_path),
 	scanWarmedAt: row.scan_warmed_at
 })
 
@@ -227,6 +273,10 @@ const projectProjectCreated = (
 				onNone: () => null,
 				onSome: (project) => project.sortOrder
 			})
+			const icon = Option.match(current, {
+				onNone: (): ProjectIcon => PROJECT_ICON_AUTO,
+				onSome: (project) => project.icon
+			})
 			return putProject(state, {
 				projectId: payload.projectId,
 				title: payload.title,
@@ -238,6 +288,7 @@ const projectProjectCreated = (
 				color,
 				showExternalCliSessions,
 				sortOrder,
+				icon,
 				scanWarmedAt: event.occurredAt
 			})
 		})
@@ -268,6 +319,7 @@ const projectProjectMetaUpdated = (
 							? project.showExternalCliSessions
 							: payload.showExternalCliSessions,
 						sortOrder: payload.sortOrder === undefined ? project.sortOrder : payload.sortOrder,
+						icon: payload.icon === undefined ? project.icon : payload.icon,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -294,6 +346,7 @@ const projectProjectDeleted = (
 						color: project.color,
 						showExternalCliSessions: project.showExternalCliSessions,
 						sortOrder: project.sortOrder,
+						icon: project.icon,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -329,6 +382,7 @@ const projectSessionCreated = (
 						color: project.color,
 						showExternalCliSessions: project.showExternalCliSessions,
 						sortOrder: project.sortOrder,
+						icon: project.icon,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})
@@ -364,6 +418,7 @@ const projectSessionDeleted = (
 						color: project.color,
 						showExternalCliSessions: project.showExternalCliSessions,
 						sortOrder: project.sortOrder,
+						icon: project.icon,
 						scanWarmedAt: project.scanWarmedAt
 					})
 			})

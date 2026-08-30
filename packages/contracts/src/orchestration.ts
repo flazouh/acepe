@@ -4,6 +4,7 @@ import * as Schema from "effect/Schema"
 import { CheckpointFileCount, CheckpointNumber, CheckpointStatus, StreamToken, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import { FileGitStatus } from "./fileIndex.ts"
 import { ProjectColor } from "./projectColor.ts"
+import { ProjectIcon } from "./projectIcon.ts"
 import { ProjectSortOrder } from "./projectSortOrder.ts"
 import {
 	GitBlameLine,
@@ -129,6 +130,10 @@ export const ProjectMetaUpdateCommand = Schema.Struct({
 	// The project's place in the sidebar. Omitted means "leave the stored rank
 	// alone", so a move dispatches one command per project it actually moved.
 	sortOrder: Schema.optionalKey(ProjectSortOrder),
+	// Which icon the project shows. Omitted means "leave the stored choice
+	// alone". Only the choice travels: the picture it resolves to is derived
+	// from the project's files at read time and is never commanded.
+	icon: Schema.optionalKey(ProjectIcon),
 })
 export type ProjectMetaUpdateCommand = typeof ProjectMetaUpdateCommand.Type
 
