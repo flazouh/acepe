@@ -1,6 +1,6 @@
 import * as NodeFs from "node:fs";
 import * as NodePath from "node:path";
-import { hasProjectIconExtension, type ProjectIcon } from "@acepe/contracts";
+import type { ProjectIcon } from "@acepe/contracts";
 
 import { detectProjectIcon, type ProjectTree } from "./projectIconDetection.ts";
 
@@ -115,78 +115,4 @@ export const resolveProjectIcon = (
 		forProject.set(key, resolved);
 	}
 	return resolved;
-};
-
-/** Directories never worth scanning for a project's own images. */
-const IGNORED_DIRECTORIES = new Set([
-	".git",
-	"node_modules",
-	"dist",
-	"build",
-	"out",
-	"target",
-	".next",
-	".svelte-kit",
-	".turbo",
-	"coverage",
-	"vendor",
-]);
-
-const MAX_LISTED_IMAGES = 200;
-const MAX_SCAN_DEPTH = 4;
-
-/**
- * Every image in a project the user could pick, as workspace-relative paths.
- *
- * This is what the picker offers, and it is why choosing an icon needs no
- * native file dialog: people pick their repository's own logo, which is
- * already inside the project. Bounded in both depth and count so a large
- * checkout cannot stall the dialog.
- */
-export const listProjectIconCandidates = (
-	workspaceRoot: string,
-): ReadonlyArray<string> => {
-	const found: Array<string> = [];
-
-	const walk = (relativeDirectory: string, depth: number): void => {
-		if (depth > MAX_SCAN_DEPTH || found.length >= MAX_LISTED_IMAGES) {
-			return;
-		}
-		let entries: ReadonlyArray<NodeFs.Dirent>;
-		try {
-			entries = NodeFs.readdirSync(
-				NodePath.join(workspaceRoot, relativeDirectory),
-				{
-					withFileTypes: true,
-				},
-			);
-		} catch {
-			return;
-		}
-		const sorted = [...entries].sort((left, right) =>
-			left.name.localeCompare(right.name),
-		);
-		for (const entry of sorted) {
-			if (found.length >= MAX_LISTED_IMAGES) {
-				return;
-			}
-			const relativePath =
-				relativeDirectory.length === 0
-					? entry.name
-					: `${relativeDirectory}/${entry.name}`;
-			if (entry.isDirectory()) {
-				if (IGNORED_DIRECTORIES.has(entry.name)) {
-					continue;
-				}
-				walk(relativePath, depth + 1);
-				continue;
-			}
-			if (entry.isFile() && hasProjectIconExtension(entry.name)) {
-				found.push(relativePath);
-			}
-		}
-	};
-
-	walk("", 0);
-	return found;
 };

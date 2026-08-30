@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
 	forgetAllResolvedProjectIcons,
-	listProjectIconCandidates,
 	resolveProjectIcon,
 } from "./projectIconResolver.ts";
 
@@ -80,51 +79,5 @@ describe("resolveProjectIcon", () => {
 		expect(resolveProjectIcon(root, PROJECT_ICON_AUTO)?.startsWith("/")).toBe(
 			true,
 		);
-	});
-});
-
-describe("listProjectIconCandidates", () => {
-	it("finds images anywhere in the project", () => {
-		write("logo.svg");
-		write("docs/diagram.png");
-		write("packages/ui/assets/mark.webp");
-		expect([...listProjectIconCandidates(root)]).toEqual([
-			"docs/diagram.png",
-			"logo.svg",
-			"packages/ui/assets/mark.webp",
-		]);
-	});
-
-	it("ignores files that are not images", () => {
-		write("README.md");
-		write("src/index.ts");
-		expect(listProjectIconCandidates(root)).toHaveLength(0);
-	});
-
-	it("skips directories nobody picks an icon from", () => {
-		write("node_modules/pkg/logo.svg");
-		write(".git/logo.svg");
-		write("dist/logo.svg");
-		write("keep.svg");
-		expect([...listProjectIconCandidates(root)]).toEqual(["keep.svg"]);
-	});
-
-	it("stops descending past a bounded depth", () => {
-		write("a/b/c/d/e/f/deep.png");
-		write("shallow.png");
-		expect([...listProjectIconCandidates(root)]).toEqual(["shallow.png"]);
-	});
-
-	it("answers empty for a workspace root that is not there", () => {
-		expect(
-			listProjectIconCandidates(NodePath.join(root, "missing")),
-		).toHaveLength(0);
-	});
-
-	it("returns workspace-relative paths", () => {
-		write("assets/logo.png");
-		expect(
-			listProjectIconCandidates(root).every((path) => !path.startsWith("/")),
-		).toBe(true);
 	});
 });
