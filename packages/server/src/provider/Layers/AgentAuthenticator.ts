@@ -1,5 +1,4 @@
 import * as Arr from "effect/Array"
-import * as Config from "effect/Config"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -8,7 +7,6 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Ref from "effect/Ref"
-import * as Str from "effect/String"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import {
@@ -22,9 +20,7 @@ import {
 } from "../Services/AgentAuthenticator.ts"
 import type { ProviderId } from "../Services/ProviderAdapter.ts"
 import { type AgentSignInPlan, signInPlanForAgent } from "../signIn.ts"
-
-const pathEntries = (pathVar: string): ReadonlyArray<string> =>
-	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
+import { resolveExecutableOnPath, resolveOverridableExecutable } from "./ExecutableProbe.ts"
 
 // All three streams are closed off, on purpose.
 //
@@ -59,50 +55,20 @@ export const makeAgentAuthenticator = Effect.fn("AgentAuthenticator.make")(funct
 	// and the spawner's own scope kills the process group from there.
 	const inFlight = yield* Ref.make(HashMap.empty<ProviderId, Deferred.Deferred<void>>())
 
-	// A path that cannot be read is a path with no binary on it, not a
-	// failure of its own: every branch here answers Option.none() rather than
-	// turning an unreadable PATH entry into a sign-in error that says nothing
-	// about signing in.
-	const existingFile = (candidate: string) =>
-		fs.exists(candidate).pipe(
-			Effect.orElseSucceed(() => false),
-			Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>()))
-		)
-
-	const readEnv = (key: string) =>
-		Config.option(Config.nonEmptyString(key)).pipe(
-			Effect.orElseSucceed(() => Option.none<string>())
-		)
-
-	// The env override first and then PATH, the same order and the same shape
-	// as every adapter's own binary probe (probeCopilotBinary,
-	// probeCursorBinary, resolveClaudeExecutablePath). A login has to run the
-	// CLI the operator installed, so this deliberately does not look in
-	// Acepe's managed agent cache: what lives there is the ACP server entry
-	// point, and its login subcommand is not what a managed download is for.
-	const resolveSignInBinary = Effect.fn("AgentAuthenticator.resolveSignInBinary")(function*(
-		binaryName: string,
-		binaryEnvKey: string | null
-	) {
-		if (binaryEnvKey !== null) {
-			const override = yield* readEnv(binaryEnvKey)
-			if (Option.isSome(override)) {
-				const found = yield* existingFile(override.value)
-				if (Option.isSome(found)) {
-					return found
-				}
-			}
-		}
-		const pathVar = yield* readEnv("PATH")
-		const directories = Option.match(pathVar, {
-			onNone: () => Arr.empty<string>(),
-			onSome: pathEntries
-		})
-		return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) =>
-			Option.isSome(found)
-				? Effect.succeed(found)
-				: existingFile(path.join(directory, binaryName)))
-	})
+	// The same probe every adapter uses for its own CLI, deliberately not the
+	// managed agent cache: what lives there is the ACP server entry point,
+	// and its login subcommand is not what a managed download is for.
+	//
+	// Binding the services here is the trade bindPresence makes too. signIn
+	// answers an Effect with no requirements, and a probe that reads the
+	// filesystem when it runs has two.
+	const resolveSignInBinary = (binaryName: string, binaryEnvKey: string | null) =>
+		(binaryEnvKey === null
+			? resolveExecutableOnPath(binaryName)
+			: resolveOverridableExecutable(binaryName, binaryEnvKey)).pipe(
+				Effect.provideService(FileSystem.FileSystem, fs),
+				Effect.provideService(Path.Path, path)
+			)
 
 	const runBrowserSignIn = Effect.fn("AgentAuthenticator.runBrowserSignIn")(function*(
 		agentId: ProviderId,
