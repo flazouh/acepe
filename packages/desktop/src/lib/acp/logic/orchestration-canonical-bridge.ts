@@ -49,6 +49,7 @@ import type {
 } from "../../services/acp-types.js";
 import type { EditEntry, JsonValue } from "../../services/converted-session-types.js";
 import { emptySessionGraphCapabilities } from "../store/envelope-reducer/empty-session-graph-capabilities.js";
+import { AGENT_IDS } from "../types/agent-id.js";
 import type { AcpEventEnvelope } from "./acp-event-bridge.js";
 import {
 	observedStatusToOperationState,
@@ -96,14 +97,7 @@ type SessionCanonicalState = {
 	turnStartedAtMs: number | null;
 };
 
-const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set([
-	"claude-code",
-	"copilot",
-	"cursor",
-	"opencode",
-	"codex",
-	"forge",
-] satisfies ReadonlyArray<Exclude<CanonicalAgentId, { custom: string }>>);
+const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set(Object.values(AGENT_IDS));
 
 const toCanonicalAgentId = (providerId: string | undefined): CanonicalAgentId =>
 	providerId !== undefined && KNOWN_AGENT_IDS.has(providerId)
