@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
-import { emptyRpcSessionSnapshot, ProjectId, SessionId } from "@acepe/contracts";
+import {
+	emptyRpcSessionSnapshot,
+	PROJECT_ICON_AUTO,
+	ProjectId,
+	SessionId
+} from "@acepe/contracts";
 
 import {
 	librarySidebarViewModel,
@@ -86,6 +91,8 @@ describe("librarySidebarViewModel", () => {
 						color: "cyan",
 						showExternalCliSessions: false,
 						sortOrder: null,
+						icon: PROJECT_ICON_AUTO,
+						iconPath: null,
 						gitStatus: [],
 					},
 				],

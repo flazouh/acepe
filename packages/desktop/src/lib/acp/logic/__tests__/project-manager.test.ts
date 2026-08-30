@@ -1,4 +1,9 @@
-import { ProjectId, type RpcProjectedProject } from "@acepe/contracts";
+import type { ProjectIcon } from "@acepe/contracts";
+import {
+	PROJECT_ICON_AUTO,
+	ProjectId,
+	type RpcProjectedProject
+} from "@acepe/contracts";
 import { Colors } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -23,6 +28,8 @@ function libraryProject(overrides: Partial<RpcProjectedProject> = {}): RpcProjec
 		color: "cyan",
 		showExternalCliSessions: false,
 		sortOrder: null,
+		icon: PROJECT_ICON_AUTO,
+		iconPath: null,
 		gitStatus: [],
 		...overrides,
 	};
@@ -57,6 +64,9 @@ function createProjectClient(options: {
 		importProject: vi.fn((project: Project) => Effect.succeed(project)),
 		addProject: vi.fn((_project: Project) => Effect.succeed(undefined)),
 		updateProjectColor: vi.fn((path: string, _color: string) =>
+			Effect.succeed(createProject(path, "Updated"))
+		),
+		updateProjectIcon: vi.fn((path: string, _icon: ProjectIcon) =>
 			Effect.succeed(createProject(path, "Updated"))
 		),
 		updateProjectShowExternalCliSessions: vi.fn((_path: string, value: boolean) =>
@@ -183,6 +193,10 @@ describe("computeMissingLibraryProjects", () => {
 				// Unranked. The projection owns the rank and hands out none until
 				// someone moves a project, so the merge must not invent one.
 				sortOrder: undefined,
+				// The icon comes across the same way: the server resolved it, so
+				// the merge carries its answer rather than probing the filesystem.
+				icon: { kind: "auto" },
+				iconPath: null,
 			},
 		]);
 	});

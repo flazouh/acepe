@@ -1,3 +1,4 @@
+import type { ProjectIcon } from "@acepe/contracts";
 import { fromThrowable } from "@acepe/effect-result/fromThrowable";
 import { resolveProjectColor } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
@@ -163,6 +164,8 @@ export class ProjectClient {
 			color: resolveProjectColor(project.color),
 			sortOrder: project.sort_order ?? undefined,
 			showExternalCliSessions: project.show_external_cli_sessions,
+			iconPath: project.icon_path ?? null,
+			icon: project.icon,
 		};
 	}
 
@@ -278,6 +281,20 @@ export class ProjectClient {
 				(error) =>
 					new ProjectError(
 						`Failed to update project color: ${error.message}`,
+						"STORAGE_ERROR",
+						error instanceof Error ? error : undefined
+					)
+			),
+			Effect.map((project) => this.mapProject(project))
+		);
+	}
+
+	updateProjectIcon(path: string, icon: ProjectIcon): Effect.Effect<Project, ProjectError> {
+		return backendClient.projects.updateProjectIcon(path, icon).pipe(
+			Effect.mapError(
+				(error) =>
+					new ProjectError(
+						`Failed to update project icon: ${error.message}`,
 						"STORAGE_ERROR",
 						error instanceof Error ? error : undefined
 					)

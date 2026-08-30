@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it } from "bun:test";
 import {
 	emptyRpcSessionSnapshot,
 	type OrchestrationCommand,
+	PROJECT_ICON_AUTO,
 	ProjectId,
 	type RpcClient,
 	type RpcProjectedProject,
-	SessionId,
+	SessionId
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -29,6 +30,8 @@ const projected: RpcProjectedProject = {
 	color: "indigo",
 	showExternalCliSessions: false,
 	sortOrder: null,
+	icon: PROJECT_ICON_AUTO,
+	iconPath: null,
 	gitStatus: [],
 };
 
@@ -46,6 +49,8 @@ const makeClient = (
 			projectPath: "/repo/acepe",
 			files: [],
 			showExternalCliSessions: false,
+			icon: PROJECT_ICON_AUTO,
+			iconPath: null,
 			gitStatus: [],
 			totalFiles: 0,
 			totalLines: 0,

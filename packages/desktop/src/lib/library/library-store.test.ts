@@ -1,14 +1,15 @@
 import { describe, expect, it } from "bun:test";
 import {
 	CommandId,
-	EventId,
 	emptyRpcSessionSnapshot,
+	EventId,
 	librarySnapshotRequest,
 	MessageId,
+	PROJECT_ICON_AUTO,
 	ProjectId,
 	type RpcClient,
 	type RpcSessionSnapshot,
-	SessionId,
+	SessionId
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -40,6 +41,8 @@ const librarySnapshot: RpcSessionSnapshot = {
 			color: "cyan",
 			showExternalCliSessions: false,
 			sortOrder: null,
+			icon: PROJECT_ICON_AUTO,
+			iconPath: null,
 			gitStatus: [],
 		},
 	],
@@ -127,6 +130,8 @@ describe("composeLibraryStore", () => {
 							projectPath: "/tmp/acepe",
 							files: [],
 							showExternalCliSessions: false,
+							icon: PROJECT_ICON_AUTO,
+							iconPath: null,
 							gitStatus: [],
 							totalFiles: 0,
 							totalLines: 0,
@@ -186,6 +191,8 @@ describe("openProject", () => {
 							projectPath: "/tmp/acepe",
 							files: [],
 							showExternalCliSessions: false,
+							icon: PROJECT_ICON_AUTO,
+							iconPath: null,
 							gitStatus: [],
 							totalFiles: 0,
 							totalLines: 0,

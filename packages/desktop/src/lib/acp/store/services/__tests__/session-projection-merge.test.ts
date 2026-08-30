@@ -1,9 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import {
+	PROJECT_ICON_AUTO,
 	ProjectId,
 	type RpcProjectedProject,
 	type RpcProjectedSession,
-	SessionId,
+	SessionId
 } from "@acepe/contracts";
 import type { SessionCold } from "../../types.js";
 import { isoToDate, mergeProjectionSessions } from "../session-projection-merge.js";
@@ -22,6 +23,8 @@ const fakeProject: RpcProjectedProject = {
 	color: "cyan",
 	showExternalCliSessions: false,
 	sortOrder: null,
+	icon: PROJECT_ICON_AUTO,
+	iconPath: null,
 	gitStatus: [],
 };
 
@@ -40,6 +43,8 @@ const diskFreeProject: RpcProjectedProject = {
 	color: "cyan",
 	showExternalCliSessions: false,
 	sortOrder: null,
+	icon: PROJECT_ICON_AUTO,
+	iconPath: null,
 	gitStatus: [],
 };
 

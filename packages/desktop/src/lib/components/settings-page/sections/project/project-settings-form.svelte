@@ -11,6 +11,7 @@ import { Button } from "$lib/components/ui/button/index.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
 import { Switch } from "$lib/components/ui/switch/index.js";
 import { backendClient } from "$lib/utils/backend-client.js";
+import ProjectIconPicker from "./project-icon-picker.svelte";
 import SettingRow from "../../setting-row.svelte";
 import SettingsSectionHeader from "../../settings-section-header.svelte";
 
@@ -20,9 +21,15 @@ interface Props {
 	projectName: string;
 }
 
+const PROJECT_ICON_AUTO_CHOICE = { kind: "auto" } as const;
+
 type Status = "loading" | "ready" | "error";
 
 let { projectManager, projectPath, projectName }: Props = $props();
+
+const project = $derived(
+	projectManager.projects.find((candidate) => candidate.path === projectPath) ?? null
+);
 
 let status = $state<Status>("loading");
 let hideExternalCliSessions = $state(false);
@@ -146,6 +153,21 @@ function shikiHighlight(code: string): string | null {
 			Could not load project settings.
 		</div>
 	{:else}
+		<SettingRow
+			label="Icon"
+			description="Shown on this project's badge. Pick one of the project's own images, or let Acepe find one."
+			stacked={true}
+		>
+			<ProjectIconPicker
+				{projectManager}
+				{projectPath}
+				{projectName}
+				projectColor={project?.color ?? "#6B7280"}
+				iconPath={project?.iconPath ?? null}
+				icon={project?.icon ?? PROJECT_ICON_AUTO_CHOICE}
+			/>
+		</SettingRow>
+
 		<SettingRow
 			label="Hide external CLI sessions"
 			description="When enabled, non-Acepe sessions discovered from Claude, Cursor, Codex, and OpenCode are hidden for this project."

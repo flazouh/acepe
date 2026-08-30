@@ -1,3 +1,5 @@
+import type { ProjectIcon } from "@acepe/contracts";
+
 /**
  * Shared types for the backend command client.
  */
@@ -74,6 +76,16 @@ export interface ProjectData {
 	 */
 	sort_order: number | null;
 	show_external_cli_sessions?: boolean;
+	/**
+	 * The icon choice the user made: detect one, this file, or none.
+	 */
+	icon?: ProjectIcon;
+	/**
+	 * The picture that choice resolves to right now, as an absolute path, or
+	 * null for the letter badge. The server pairs the choice with what is on
+	 * disk, so no reader here has to.
+	 */
+	icon_path?: string | null;
 }
 
 export interface ProjectAcepeConfig {

@@ -1,3 +1,4 @@
+import { PROJECT_ICON_AUTO } from "@acepe/contracts";
 /**
  * Shared rows for authored scenarios.
  *
@@ -22,6 +23,8 @@ export const qaProject: RpcProjectedProject = {
 	color: "cyan",
 	showExternalCliSessions: false,
 	sortOrder: null,
+	icon: PROJECT_ICON_AUTO,
+	iconPath: null,
 	gitStatus: [],
 }
 

@@ -2,12 +2,13 @@ import { afterEach, describe, expect, it } from "bun:test";
 import {
 	emptyRpcSessionSnapshot,
 	type OrchestrationCommand,
+	PROJECT_ICON_AUTO,
 	type ProjectColor,
 	ProjectId,
 	type RpcClient,
 	type RpcProjectedProject,
 	type RpcSessionSnapshot,
-	SessionId,
+	SessionId
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -20,6 +21,8 @@ const unusedIndex = {
 	projectPath: "/tmp/p",
 	files: [],
 	showExternalCliSessions: false,
+	icon: PROJECT_ICON_AUTO,
+	iconPath: null,
 	gitStatus: [],
 	totalFiles: 0,
 	totalLines: 0,
@@ -38,6 +41,8 @@ const projectedWithColor = (color: ProjectColor): RpcProjectedProject => ({
 	color,
 	showExternalCliSessions: false,
 	sortOrder: null,
+	icon: PROJECT_ICON_AUTO,
+	iconPath: null,
 	gitStatus: [],
 });
 
@@ -113,6 +118,10 @@ describe("projects rpc facade", () => {
 						color: "indigo",
 						// Straight off the projection: the facade never invents a rank.
 						sort_order: null,
+						// Same rule for the icon: the choice and the path the server
+						// resolved it to are carried, never re-derived here.
+						icon: { kind: "auto" },
+						icon_path: null,
 						// Carried through so the sidebar checkbox can show the stored
 						// value instead of guessing a default the server disagrees with.
 						show_external_cli_sessions: false,

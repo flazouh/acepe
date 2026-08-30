@@ -1,16 +1,17 @@
 import { describe, expect, it } from "bun:test";
 import {
 	CommandId,
-	EventId,
 	emptyRpcSessionSnapshot,
+	EventId,
 	MessageId,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
+	PROJECT_ICON_AUTO,
 	ProjectId,
 	type RpcClient,
 	type RpcDispatchResult,
 	type RpcSessionSnapshot,
-	SessionId,
+	SessionId
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -378,6 +379,8 @@ it("openLibrary reads projects without opening a session", () =>
 								color: "cyan" as const,
 								showExternalCliSessions: false,
 								sortOrder: null,
+								icon: PROJECT_ICON_AUTO,
+								iconPath: null,
 								gitStatus: null,
 							},
 						],
@@ -433,6 +436,8 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 				color: "cyan" as const,
 				showExternalCliSessions: false,
 				sortOrder: null,
+				icon: PROJECT_ICON_AUTO,
+				iconPath: null,
 				gitStatus: null,
 			});
 			const librarySnapshot: RpcSessionSnapshot = {
@@ -507,6 +512,8 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 				color: "cyan" as const,
 				showExternalCliSessions: false,
 				sortOrder: null,
+				icon: PROJECT_ICON_AUTO,
+				iconPath: null,
 				gitStatus: null,
 			});
 			const librarySnapshot: RpcSessionSnapshot = {

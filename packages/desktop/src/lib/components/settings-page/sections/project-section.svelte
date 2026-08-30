@@ -1,6 +1,7 @@
 <script lang="ts">
 import { ProjectLetterBadge } from "@acepe/ui";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
+import { convertFileSrc } from "$lib/utils/file-src.js";
 import { cn } from "$lib/utils.js";
 import ProjectSettingsForm from "./project/project-settings-form.svelte";
 
@@ -46,6 +47,7 @@ const activeProject = $derived(
 				>
 					<ProjectLetterBadge
 						name={project.name}
+						iconSrc={project.iconPath ? convertFileSrc(project.iconPath) : null}
 						label={projectManager.getProjectBadgeLabel(project.path) ?? null}
 						color={project.color}
 						size={20}

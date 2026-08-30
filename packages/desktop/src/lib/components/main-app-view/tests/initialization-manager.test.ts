@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import { ProjectId } from "@acepe/contracts";
+import {
+	PROJECT_ICON_AUTO,
+	ProjectId
+} from "@acepe/contracts";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -945,6 +948,8 @@ describe("InitializationManager", () => {
 					color: "cyan" as const,
 					showExternalCliSessions: false,
 					sortOrder: null,
+					icon: PROJECT_ICON_AUTO,
+					iconPath: null,
 					gitStatus: [],
 				},
 			];
@@ -984,6 +989,8 @@ describe("InitializationManager", () => {
 					color: "cyan" as const,
 					showExternalCliSessions: false,
 					sortOrder: null,
+					icon: PROJECT_ICON_AUTO,
+					iconPath: null,
 					gitStatus: [],
 				},
 			];
@@ -1026,6 +1033,8 @@ describe("InitializationManager", () => {
 					color: "cyan" as const,
 					showExternalCliSessions: false,
 					sortOrder: null,
+					icon: PROJECT_ICON_AUTO,
+					iconPath: null,
 					gitStatus: [],
 				},
 			];

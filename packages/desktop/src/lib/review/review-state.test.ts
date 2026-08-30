@@ -1,5 +1,8 @@
 import { describe, expect, it } from "bun:test";
-import { ProjectId } from "@acepe/contracts";
+import {
+	PROJECT_ICON_AUTO,
+	ProjectId
+} from "@acepe/contracts";
 
 import {
 	gitReviewFileIsReady,
@@ -186,6 +189,8 @@ describe("selectedProjectWorkspaceRoot", () => {
 					color: "cyan" as const,
 					showExternalCliSessions: false,
 					sortOrder: null,
+					icon: PROJECT_ICON_AUTO,
+					iconPath: null,
 					gitStatus: [],
 				},
 			],

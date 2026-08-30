@@ -1,4 +1,4 @@
-import type { RpcProjectedProject } from "@acepe/contracts";
+import type { ProjectIcon, RpcProjectedProject } from "@acepe/contracts";
 import { resolveProjectColor } from "@acepe/ui/colors";
 import { computeProjectBadgeLabels } from "@acepe/ui/project-letter-badge";
 import * as Effect from "effect/Effect";
@@ -18,6 +18,24 @@ export interface Project {
 	color: string;
 	sortOrder?: number;
 	showExternalCliSessions?: boolean;
+	/**
+	 * The picture this project shows, as an absolute path, or null for the
+	 * letter badge.
+	 *
+	 * Resolved by the server from the stored choice and what is on disk, so
+	 * nothing here pairs a custom pick with a detected one. Undefined means the
+	 * project came from a source that does not carry an icon yet, which reads
+	 * the same as null at the badge.
+	 */
+	iconPath?: string | null;
+	/**
+	 * The icon choice itself, so a picker can mark what is selected.
+	 *
+	 * Kept beside the resolved path rather than derived from it: "detect one"
+	 * and "no icon" both resolve to no picture on a project with no images,
+	 * and only the choice tells those two apart.
+	 */
+	icon?: ProjectIcon;
 	/**
 	 * The server-assigned orchestration projectId, when known. Only set for
 	 * projects sourced from the library/orchestration snapshot
@@ -133,6 +151,10 @@ export function computeMissingLibraryProjects(
 			// here would be a second author for a canonical field, and it reaches
 			// the hot cache and outlives a reload.
 			sortOrder: libraryProject.sortOrder ?? undefined,
+			// Same reason as the rank above: the server resolved this, so carry
+			// its answer instead of deriving one here.
+			iconPath: libraryProject.iconPath,
+			icon: libraryProject.icon,
 		});
 	}
 	return additions;
@@ -197,6 +219,7 @@ type ProjectClientPort = Pick<
 	| "importProject"
 	| "addProject"
 	| "updateProjectColor"
+	| "updateProjectIcon"
 	| "updateProjectShowExternalCliSessions"
 	| "updateProjectOrder"
 	| "removeProject"
@@ -610,6 +633,29 @@ export class ProjectManager {
 		);
 	}
 
+	/**
+	 * Set which icon a project shows.
+	 *
+	 * The local row keeps the resolved path the client already had until the
+	 * next snapshot arrives. Guessing one here from the choice would be a
+	 * second author for a value the server owns, and it would be wrong for a
+	 * pick whose file is missing.
+	 */
+	updateProjectIcon(path: string, icon: ProjectIcon): Effect.Effect<void, ProjectError> {
+		return this.client.updateProjectIcon(path, icon).pipe(
+			Effect.map((updated) => {
+				const existingIndex = this.projects.findIndex((project) => project.path === path);
+				if (existingIndex >= 0) {
+					this.projects = this.projects.map((project, index) =>
+						index === existingIndex ? { ...project, icon, iconPath: updated.iconPath } : project
+					);
+					this.projectStorageFresh = true;
+					this.writeCurrentProjectsToCache();
+				}
+			})
+		);
+	}
+
 	updateProjectShowExternalCliSessions(
 		path: string,
 		value: boolean
@@ -619,17 +665,7 @@ export class ProjectManager {
 				const existingIndex = this.projects.findIndex((project) => project.path === path);
 				if (existingIndex >= 0) {
 					this.projects = this.projects.map((project, index) =>
-						index === existingIndex
-							? {
-									path: project.path,
-									name: project.name,
-									lastOpened: project.lastOpened,
-									createdAt: project.createdAt,
-									color: project.color,
-									sortOrder: project.sortOrder,
-									showExternalCliSessions: value,
-								}
-							: project
+						index === existingIndex ? { ...project, showExternalCliSessions: value } : project
 					);
 					this.projectStorageFresh = true;
 					this.writeCurrentProjectsToCache();
