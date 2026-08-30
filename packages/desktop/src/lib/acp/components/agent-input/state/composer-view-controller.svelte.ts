@@ -21,6 +21,7 @@ import {
 	buildSlashPaletteSections,
 	ComposerMcpCatalogState,
 	deriveComposerInteractionState,
+	effectivePreconnectionCapabilityMode,
 	getEffectiveFilePickerProjectPath,
 	getToolbarConfigOptions,
 	hasToolbarCapabilityData,
@@ -179,8 +180,10 @@ export class ComposerViewController {
 		this.#deps.preconnectionCapabilitiesState.getCapabilities({
 			agentId: this.capabilitiesAgentId,
 			projectPath: this.filePickerProjectPath,
-			preconnectionCapabilityMode:
-				this.capabilitiesProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+			preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(
+				this.capabilitiesAgentId,
+				this.capabilitiesProviderMetadata
+			),
 		})
 	);
 
@@ -625,8 +628,10 @@ export class ComposerViewController {
 			isPreconnectionLoading: this.#deps.preconnectionCapabilitiesState.isLoading({
 				agentId: this.capabilitiesAgentId,
 				projectPath: this.filePickerProjectPath,
-				preconnectionCapabilityMode:
-					this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+				preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(
+					this.capabilitiesAgentId,
+					this.effectiveCapabilityProviderMetadata
+				),
 			}),
 			resolvableModelId: this.resolvableToolbarModelId,
 		})
@@ -681,8 +686,10 @@ export class ComposerViewController {
 					agentId: this.capabilitiesAgentId,
 					hasConnectedSession,
 					projectPath: this.filePickerProjectPath,
-					preconnectionCapabilityMode:
-						this.effectiveCapabilityProviderMetadata?.preconnectionCapabilityMode ?? "unsupported",
+					preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(
+						this.capabilitiesAgentId,
+						this.effectiveCapabilityProviderMetadata
+					),
 				})
 				.pipe(
 					Effect.mapError((error) => {

@@ -202,3 +202,28 @@ export const providerConfigOptions = (
 	providerId !== null && providerId !== undefined && CLAUDE_PROVIDER_IDS.has(providerId)
 		? CLAUDE_PROVIDER_CONFIG_OPTIONS
 		: []
+
+/**
+ * Whether an agent's model catalog can be asked for BEFORE any session
+ * exists, and at what scope. This is a contract fact for the same reason the
+ * modes above are: the composer's gate that decides "is a preconnection load
+ * worth firing" and the server handler that answers it must read the same
+ * answer, or the gate never fires and the answer is dead code (which is
+ * exactly how the picker went dark -- see agentCall.ts's
+ * AgentCallModelCatalogRequest).
+ *
+ * Claude is `startupGlobal`: its catalog is account-level (SDK initialize
+ * handshake), so one probe at startup serves every project. Everyone else is
+ * `unsupported` until their adapter grows a probe.
+ */
+export type ProviderPreconnectionCapabilityMode =
+	| "startupGlobal"
+	| "projectScoped"
+	| "unsupported"
+
+export const providerPreconnectionCapabilityMode = (
+	providerId: string | null | undefined
+): ProviderPreconnectionCapabilityMode =>
+	providerId !== null && providerId !== undefined && CLAUDE_PROVIDER_IDS.has(providerId)
+		? "startupGlobal"
+		: "unsupported"

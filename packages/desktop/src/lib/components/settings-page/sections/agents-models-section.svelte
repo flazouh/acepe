@@ -3,7 +3,10 @@ import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import * as Effect from "effect/Effect";
 import { toast } from "svelte-sonner";
-import { PreconnectionCapabilitiesState } from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
+import {
+	effectivePreconnectionCapabilityMode,
+	PreconnectionCapabilitiesState,
+} from "$lib/acp/components/agent-input/logic/preconnection-capabilities-state.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import AgentIcon from "$lib/acp/components/agent-icon.svelte";
 import * as preferencesStore from "$lib/acp/store/agent-model-preferences-store.svelte.js";
@@ -34,7 +37,7 @@ const capabilitySourceByAgentId = $derived.by(() => {
 		const preconnectionCapabilities = preconnectionCapabilitiesState.getCapabilities({
 			agentId: agent.id,
 			projectPath: null,
-			preconnectionCapabilityMode: providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+			preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(agent.id, providerMetadata),
 		});
 
 		resolutions.set(
@@ -80,8 +83,7 @@ $effect(() => {
 					agentId: agent.id,
 					hasConnectedSession: false,
 					projectPath: null,
-					preconnectionCapabilityMode:
-						providerMetadata?.preconnectionCapabilityMode ?? "unsupported",
+					preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(agent.id, providerMetadata),
 				})
 				.pipe(
 					Effect.catch((error) => {

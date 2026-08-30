@@ -1,3 +1,4 @@
+import type { SessionModelCatalog } from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -18,6 +19,7 @@ import {
 	AgentNotFoundError,
 	type InstalledAgent
 } from "./Services/AgentInstaller.ts"
+import { adapterError } from "./Layers/Claude/Provider.ts"
 import { makeFakeProviderAdapter } from "./Services/FakeProviderAdapter.ts"
 import {
 	type ProviderAdapter,
@@ -440,6 +442,86 @@ Vitest.describe("routeAgentCall agent.install", () => {
 					}
 				]
 			})
+		})
+	)
+})
+
+// ─── agent.model-catalog ───────────────────────────────────────────────────
+
+const PROBED_CATALOG: SessionModelCatalog = [
+	{ modelId: "claude-fable-5", name: "Fable 5", description: "Most capable" },
+	{ modelId: "claude-haiku-4-5", name: "Haiku 4.5", description: null }
+]
+
+const catalogEnv = (adapters: ReadonlyArray<ProviderAdapter>) =>
+	Layer.mergeAll(
+		ProviderRegistryLive.pipe(Layer.provide(ProviderAdapterRegistryLive(adapters))),
+		AgentInstallerUnsupportedPlatformLive("test-host"),
+		Layer.effect(
+			AgentAuthenticator,
+			Effect.map(Ref.make<ReadonlyArray<string>>([]), (calls) =>
+				AgentAuthenticator.of({
+					signIn: (agentId) => Ref.update(calls, (seen) => [...seen, `signIn:${agentId}`]),
+					cancel: () => Effect.succeed(false)
+				}))
+		)
+	)
+
+Vitest.describe("routeAgentCall agent.model-catalog", () => {
+	Vitest.it.effect("answers with the adapter's probed catalog", () =>
+		Effect.gen(function*() {
+			const probingClaude: ProviderAdapter = {
+				...fakeClaude,
+				modelCatalog: Effect.succeed(PROBED_CATALOG)
+			} as ProviderAdapter
+			const result = yield* routeAgentCall({
+				op: "agent.model-catalog",
+				agentId: "claude-code"
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(catalogEnv([probingClaude]))
+			)
+			Vitest.assert.strictEqual(result.op, "agent.model-catalog")
+			if (result.op === "agent.model-catalog") {
+				Vitest.assert.deepStrictEqual(
+					result.models.map((model) => model.modelId),
+					["claude-fable-5", "claude-haiku-4-5"]
+				)
+			}
+		})
+	)
+
+	Vitest.it.effect("fails typed when the adapter has no catalog probe", () =>
+		Effect.gen(function*() {
+			const outcome = yield* Effect.result(
+				routeAgentCall({ op: "agent.model-catalog", agentId: "codex" }).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(catalogEnv([fakeCodex]))
+				)
+			)
+			Vitest.assert.strictEqual(outcome._tag, "Failure")
+			if (outcome._tag === "Failure") {
+				Vitest.assert.strictEqual(outcome.failure._tag, "RpcAgentCallError")
+			}
+		})
+	)
+
+	Vitest.it.effect("fails typed when the probe itself fails", () =>
+		Effect.gen(function*() {
+			const failingClaude: ProviderAdapter = {
+				...fakeClaude,
+				modelCatalog: Effect.fail(adapterError("startSession", "probe died"))
+			} as ProviderAdapter
+			const outcome = yield* Effect.result(
+				routeAgentCall({ op: "agent.model-catalog", agentId: "claude-code" }).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(catalogEnv([failingClaude]))
+				)
+			)
+			Vitest.assert.strictEqual(outcome._tag, "Failure")
+			if (outcome._tag === "Failure") {
+				Vitest.assert.strictEqual(outcome.failure._tag, "RpcAgentCallError")
+			}
 		})
 	)
 })

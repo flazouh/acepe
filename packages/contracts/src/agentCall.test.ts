@@ -195,3 +195,53 @@ describe("AgentCallAgentInfo", () => {
 		expect(outcome._tag).toBe("Failure")
 	})
 })
+
+describe("agent.model-catalog", () => {
+	it("decodes the request with the agent it names", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallRequest)({
+				op: "agent.model-catalog",
+				agentId: "claude-code"
+			})
+		)
+		expect(decoded).toEqual({ op: "agent.model-catalog", agentId: "claude-code" })
+	})
+
+	it("rejects a request without an agentId", () => {
+		const outcome = Effect.runSyncExit(
+			Schema.decodeUnknownEffect(AgentCallRequest)({ op: "agent.model-catalog" })
+		)
+		expect(outcome._tag).toBe("Failure")
+	})
+
+	it("decodes a result carrying the provider's catalog", () => {
+		const decoded = Effect.runSync(
+			Schema.decodeUnknownEffect(AgentCallResult)({
+				op: "agent.model-catalog",
+				agentId: "claude-code",
+				models: [
+					{ modelId: "claude-fable-5", name: "Fable 5", description: "Most capable" },
+					{ modelId: "claude-haiku-4-5", name: "Haiku 4.5", description: null }
+				]
+			})
+		)
+		expect(decoded.op).toBe("agent.model-catalog")
+		if (decoded.op === "agent.model-catalog") {
+			expect(decoded.models.map((model) => model.modelId)).toEqual([
+				"claude-fable-5",
+				"claude-haiku-4-5"
+			])
+		}
+	})
+
+	it("rejects a result whose catalog entry has a blank model id", () => {
+		const outcome = Effect.runSyncExit(
+			Schema.decodeUnknownEffect(AgentCallResult)({
+				op: "agent.model-catalog",
+				agentId: "claude-code",
+				models: [{ modelId: " ", name: "Fable 5", description: null }]
+			})
+		)
+		expect(outcome._tag).toBe("Failure")
+	})
+})

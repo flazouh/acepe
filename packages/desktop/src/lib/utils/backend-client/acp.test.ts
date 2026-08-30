@@ -614,4 +614,64 @@ describe("acp backend client", () => {
 				expect(dispatched).toHaveLength(0);
 			})
 		));
+
+	// The New-chat model picker's preconnection feed: the agentCall
+	// agent.model-catalog op answers the provider's own catalog before any
+	// session exists. This replaced an unsupportedOnContract stub that made
+	// the pre-start picker permanently empty for deferred-creation providers.
+	it("listPreconnectionCapabilities resolves the agent's catalog over agentCall", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const requests: Array<Record<string, unknown>> = [];
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: (request) => {
+							requests.push(request as unknown as Record<string, unknown>);
+							return Effect.succeed({
+								op: "agent.model-catalog",
+								agentId: "claude-code",
+								models: [
+									{ modelId: "claude-fable-5", name: "Fable 5", description: "Most capable" },
+									{ modelId: "claude-haiku-4-5", name: "Haiku 4.5", description: null },
+								],
+							});
+						},
+					})
+				);
+				const result = yield* acp.listPreconnectionCapabilities("/tmp/p", "claude-code");
+				expect(requests).toEqual([{ op: "agent.model-catalog", agentId: "claude-code" }]);
+				expect(result.status).toBe("resolved");
+				expect(result.availableModels).toEqual([
+					{ modelId: "claude-fable-5", name: "Fable 5", description: "Most capable" },
+					{ modelId: "claude-haiku-4-5", name: "Haiku 4.5", description: null },
+				]);
+				expect(result.currentModelId).toBeNull();
+				expect(result.modelsDisplay).toEqual({ groups: [] });
+				expect(result.availableModes).toEqual([]);
+				expect(result.configOptions).toEqual([]);
+				expect(result.providerMetadata).toBeNull();
+			})
+		));
+
+	it("listPreconnectionCapabilities surfaces a typed failure when the agent has no catalog", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				setAppRpcClientForTest(
+					makeClient({
+						agentCall: () =>
+							Effect.fail(
+								new RpcAgentCallError({
+									op: "agent.model-catalog",
+									detail: "Agent 'codex' has no preconnection model catalog.",
+								})
+							),
+					})
+				);
+				const result = yield* Effect.result(
+					acp.listPreconnectionCapabilities("/tmp/p", "codex")
+				);
+				expect(Result.isFailure(result)).toBe(true);
+			})
+		));
 });
+

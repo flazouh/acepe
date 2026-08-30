@@ -481,8 +481,16 @@ export class SessionConnectionManager {
 						if (rawModels !== undefined) {
 							preferencesStore.updateModelsCache(options.agentId, availableModels);
 						}
-						preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-						preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+						// Absent is not empty: a deferred creation answers with no
+						// display/metadata because the provider has not connected
+						// yet, and deleting what an earlier session cached would
+						// blank the pre-start picker it feeds.
+						if (providerMetadata !== undefined) {
+							preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
+						}
+						if (modelsDisplay !== undefined) {
+							preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+						}
 						if (rawModes !== undefined) {
 							preferencesStore.updateModesCache(options.agentId, availableModes);
 						}
@@ -493,19 +501,57 @@ export class SessionConnectionManager {
 							sequenceId: result.sequenceId ?? null,
 							agentId: options.agentId,
 						});
-						return Effect.succeed({
-							kind: "pending" as const,
-							sessionId,
-							creationAttemptId: result.creationAttemptId ?? null,
-							projectPath: options.projectPath,
-							projectName: extractProjectName(options.projectPath),
-							projectColor: generateFallbackProjectColor(options.projectPath),
-							managed: true as const,
-							sequenceId: result.sequenceId ?? null,
-							agentId: options.agentId,
-							title: options.title ?? null,
-							worktreePath: options.worktreePath ?? null,
-						});
+						// newSession's wire command carries no model/mode field, so a
+						// pair picked in the pre-start composer is recorded through
+						// the canonical set commands instead. ProviderBridge keeps
+						// the last recorded value and re-applies it when the session
+						// lazily opens on the first prompt, so the choice survives
+						// even though no provider session exists yet. Degrade with a
+						// warning rather than failing creation -- the session is
+						// usable on the provider's default either way.
+						const recordInitialSelection = (
+							label: "model" | "mode",
+							apply: Effect.Effect<void, AppError> | null
+						): Effect.Effect<void, AppError> =>
+							apply === null
+								? Effect.succeed(undefined)
+								: apply.pipe(
+										Effect.catch((error) => {
+											logger.warn(
+												`Failed to record the initial ${label} for a deferred session`,
+												{
+													sessionId,
+													agentId: options.agentId,
+													error: error.message,
+												}
+											);
+											return Effect.succeed(undefined);
+										})
+									);
+						return recordInitialSelection(
+							"model",
+							options.initialModelId ? api.setModel(sessionId, options.initialModelId) : null
+						).pipe(
+							Effect.flatMap(() =>
+								recordInitialSelection(
+									"mode",
+									options.initialModeId ? api.setMode(sessionId, options.initialModeId) : null
+								)
+							),
+							Effect.map(() => ({
+								kind: "pending" as const,
+								sessionId,
+								creationAttemptId: result.creationAttemptId ?? null,
+								projectPath: options.projectPath,
+								projectName: extractProjectName(options.projectPath),
+								projectColor: generateFallbackProjectColor(options.projectPath),
+								managed: true as const,
+								sequenceId: result.sequenceId ?? null,
+								agentId: options.agentId,
+								title: options.title ?? null,
+								worktreePath: options.worktreePath ?? null,
+							}))
+						);
 					}
 					const now = new Date();
 					const modelState = getProviderAwareSessionModelState(result.models);
@@ -657,8 +703,13 @@ export class SessionConnectionManager {
 									if (rawModels !== undefined) {
 										preferencesStore.updateModelsCache(options.agentId, availableModels);
 									}
-									preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
-									preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+									// Absent is not empty -- see the deferred-creation branch above.
+									if (providerMetadata !== undefined) {
+										preferencesStore.updateProviderMetadataCache(options.agentId, providerMetadata);
+									}
+									if (modelsDisplay !== undefined) {
+										preferencesStore.updateModelsDisplayCache(options.agentId, modelsDisplay);
+									}
 									if (rawModes !== undefined) {
 										preferencesStore.updateModesCache(options.agentId, availableModes);
 									}
@@ -982,8 +1033,13 @@ export class SessionConnectionManager {
 		if (rawModels !== undefined) {
 			preferencesStore.updateModelsCache(effectiveAgentId, availableModels);
 		}
-		preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
-		preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay);
+		// Absent is not empty -- see the deferred-creation branch in createSession.
+		if (providerMetadata !== undefined) {
+			preferencesStore.updateProviderMetadataCache(effectiveAgentId, providerMetadata);
+		}
+		if (modelsDisplay !== undefined) {
+			preferencesStore.updateModelsDisplayCache(effectiveAgentId, modelsDisplay);
+		}
 		if (rawModes !== undefined) {
 			preferencesStore.updateModesCache(effectiveAgentId, availableModes);
 		}

@@ -1,10 +1,31 @@
+import { providerPreconnectionCapabilityMode } from "@acepe/contracts";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import { AgentError, AppError } from "$lib/acp/errors/app-error.js";
+import { updateModelsCache } from "$lib/acp/store/agent-model-preferences-store.svelte.js";
 import { createLogger } from "$lib/acp/utils/logger.js";
 import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import { backendClient } from "$lib/utils/backend-client.js";
+
+/**
+ * The gate's mode for an agent: the provider metadata's own answer when one
+ * exists, else the provider contract fact. The current backend attaches no
+ * providerMetadata to agents at all, so without the contract fallback the
+ * `?? "unsupported"` at every call site meant the preconnection catalog
+ * never loaded for anyone -- which is how the pre-start model picker went
+ * permanently dark (the tooltip said "loads once Claude Code connects", and
+ * nothing ever loaded it).
+ */
+export function effectivePreconnectionCapabilityMode(
+	agentId: string | null | undefined,
+	metadata:
+		| Pick<ProviderMetadataProjection, "preconnectionCapabilityMode">
+		| null
+		| undefined
+): ProviderMetadataProjection["preconnectionCapabilityMode"] {
+	return metadata?.preconnectionCapabilityMode ?? providerPreconnectionCapabilityMode(agentId);
+}
 
 interface EnsureLoadedInput {
 	agentId: string | null;
@@ -199,6 +220,22 @@ export class PreconnectionCapabilitiesState {
 		return wrapPending(pending).pipe(
 			Effect.map((capabilities) => {
 				capabilitiesByKey.set(cacheKey, capabilities);
+				// A probe answer must outlive this process: the per-agent model
+				// cache is what the NEXT app start's composer reads while the
+				// fresh probe is still in flight (capability-source's
+				// persistedCache branch). An answer with no models writes
+				// nothing -- an empty list must not shadow a cache a session
+				// already filled.
+				if (capabilities.availableModels.length > 0) {
+					updateModelsCache(
+						agentId,
+						capabilities.availableModels.map((model) => ({
+							id: model.modelId,
+							name: model.name,
+							description: model.description ?? undefined,
+						}))
+					);
+				}
 				inFlightByKey.delete(cacheKey);
 				loadingByKey.delete(cacheKey);
 				if (this.loadingCacheKey === cacheKey) {
@@ -255,8 +292,10 @@ export class PreconnectionCapabilitiesState {
 	): Effect.Effect<void, AppError> {
 		const startupGlobalAgents = agents.filter(
 			(agent) =>
-				(agent.providerMetadata ?? agent.provider_metadata)?.preconnectionCapabilityMode ===
-				"startupGlobal"
+				effectivePreconnectionCapabilityMode(
+					agent.id,
+					agent.providerMetadata ?? agent.provider_metadata
+				) === "startupGlobal"
 		);
 
 		if (startupGlobalAgents.length === 0) {
@@ -268,9 +307,10 @@ export class PreconnectionCapabilitiesState {
 				agentId: agent.id,
 				hasConnectedSession: false,
 				projectPath: null,
-				preconnectionCapabilityMode:
-					(agent.providerMetadata ?? agent.provider_metadata)?.preconnectionCapabilityMode ??
-					"unsupported",
+				preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(
+					agent.id,
+					agent.providerMetadata ?? agent.provider_metadata
+				),
 			})
 		);
 

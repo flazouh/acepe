@@ -72,7 +72,10 @@ export { shouldInterruptComposerStream } from "./logic/interrupt-shortcut.js";
 export { type PreparedMessage, prepareMessageForSend } from "./logic/message-preparation.js";
 export { resolveModeMenuAction, resolveSelectedModeMenuOptionId } from "./logic/mode-menu-state.js";
 export { createPendingUserEntry } from "./logic/pending-user-entry.js";
-export { PreconnectionCapabilitiesState } from "./logic/preconnection-capabilities-state.svelte.js";
+export {
+	effectivePreconnectionCapabilityMode,
+	PreconnectionCapabilitiesState,
+} from "./logic/preconnection-capabilities-state.svelte.js";
 export { PreconnectionRemoteCommandsState } from "./logic/preconnection-remote-commands-state.svelte.js";
 export { createSession, sendMessage } from "./logic/session-manager.js";
 export { loadSlashCommandWorkspaceMarkdown } from "./logic/slash-command-markdown-loader.js";

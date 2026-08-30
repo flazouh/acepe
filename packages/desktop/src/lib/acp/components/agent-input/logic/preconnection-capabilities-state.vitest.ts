@@ -5,9 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentError, type AppError } from "$lib/acp/errors/app-error.js";
 import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import {
+	effectivePreconnectionCapabilityMode,
 	PreconnectionCapabilitiesState,
 	resetForTesting,
 } from "./preconnection-capabilities-state.svelte.js";
+import * as agentModelPrefs from "$lib/acp/store/agent-model-preferences-store.svelte.js";
+
+vi.mock("$lib/acp/store/agent-model-preferences-store.svelte.js", () => ({
+	updateModelsCache: vi.fn(),
+}));
+
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -169,5 +176,69 @@ describe("PreconnectionCapabilitiesState", () => {
 				preconnectionCapabilityMode: "startupGlobal",
 			})
 		).toEqual(afterInstall);
+	});
+});
+
+describe("effectivePreconnectionCapabilityMode", () => {
+	// The current backend attaches no providerMetadata to agents, so the gate
+	// must fall back to the provider contract fact -- otherwise the Claude
+	// preconnection catalog never loads and the pre-start picker stays empty.
+	it("falls back to the contract fact when metadata is absent", () => {
+		expect(effectivePreconnectionCapabilityMode("claude-code", null)).toBe("startupGlobal");
+		expect(effectivePreconnectionCapabilityMode("claude-code", undefined)).toBe("startupGlobal");
+		expect(effectivePreconnectionCapabilityMode("codex", null)).toBe("unsupported");
+	});
+
+	it("prefers the metadata's own answer when present", () => {
+		expect(
+			effectivePreconnectionCapabilityMode("claude-code", {
+				preconnectionCapabilityMode: "projectScoped",
+			})
+		).toBe("projectScoped");
+	});
+});
+
+describe("resolved capability persistence", () => {
+	const fetchFn = vi.fn();
+
+	beforeEach(() => {
+		resetForTesting();
+		fetchFn.mockReset();
+		vi.mocked(agentModelPrefs.updateModelsCache).mockReset();
+	});
+
+	// A probe answer must outlive this process: writing it into the per-agent
+	// model cache gives the NEXT app start a picker before the probe returns.
+	it("writes resolved models into the per-agent cache", async () => {
+		fetchFn.mockReturnValue(Effect.succeed(makeResolvedCapabilities()));
+		const state = new PreconnectionCapabilitiesState(fetchFn);
+		const outcome = await runToResult(
+			state.ensureLoaded({
+				agentId: "claude-code",
+				hasConnectedSession: false,
+				projectPath: null,
+				preconnectionCapabilityMode: "startupGlobal",
+			})
+		);
+		expect(Result.isSuccess(outcome)).toBe(true);
+		expect(agentModelPrefs.updateModelsCache).toHaveBeenCalledWith("claude-code", [
+			{ id: "claude-sonnet-4-6", name: "Claude Sonnet 4.6", description: undefined },
+		]);
+	});
+
+	it("does not touch the cache when the answer has no models", async () => {
+		fetchFn.mockReturnValue(
+			Effect.succeed({ ...makeResolvedCapabilities(), availableModels: [] })
+		);
+		const state = new PreconnectionCapabilitiesState(fetchFn);
+		await runToResult(
+			state.ensureLoaded({
+				agentId: "claude-code",
+				hasConnectedSession: false,
+				projectPath: null,
+				preconnectionCapabilityMode: "startupGlobal",
+			})
+		);
+		expect(agentModelPrefs.updateModelsCache).not.toHaveBeenCalled();
 	});
 });

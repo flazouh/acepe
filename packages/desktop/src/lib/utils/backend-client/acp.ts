@@ -263,11 +263,40 @@ export const acp = {
 		AppError
 	> => unsupportedOnContract("acp.listPreconnectionCommands"),
 
-	listPreconnectionCapabilities: (
+	// The New-chat model picker's preconnection feed. Rides agentCall's
+	// agent.model-catalog op (packages/contracts/src/agentCall.ts): the
+	// server asks the provider adapter's own probe -- for Claude, the SDK's
+	// initialize handshake, no prompt and no billed turn -- so a thread that
+	// has not sent anything yet still has a catalog to offer. Only the model
+	// axis is answered here; modes and config options come from the provider
+	// contract facts the composer already falls back to
+	// (providerModes/providerConfigOptions), and providerMetadata stays null
+	// the same way it is for every other pre-session composer today. `cwd` is
+	// accepted but unused: the catalog is account-level, not project-level
+	// (contract fact: providerPreconnectionCapabilityMode = startupGlobal).
+	listPreconnectionCapabilities: Effect.fn("acp.listPreconnectionCapabilities")(function* (
 		_cwd: string,
-		_agentId: string
-	): Effect.Effect<ResolvedCapabilities, AppError> =>
-		unsupportedOnContract("acp.listPreconnectionCapabilities"),
+		agentId: string
+	) {
+		const response = yield* withRpcClient("acp.listPreconnectionCapabilities", (client) =>
+			client.agentCall({ op: "agent.model-catalog", agentId })
+		);
+		const result = yield* unwrapAgentCallResult("agent.model-catalog", response);
+		return {
+			status: "resolved",
+			availableModels: result.models.map((model) => ({
+				modelId: model.modelId,
+				name: model.name,
+				description: model.description,
+			})),
+			currentModelId: null,
+			modelsDisplay: { groups: [] },
+			providerMetadata: null,
+			availableModes: [],
+			currentModeId: null,
+			configOptions: [],
+		} satisfies ResolvedCapabilities;
+	}),
 
 	getComposerMcpCatalog: (
 		_cwd: string,

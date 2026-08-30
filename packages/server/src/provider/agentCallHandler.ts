@@ -4,10 +4,15 @@ import {
 	type AgentCallResult,
 	RpcAgentCallError
 } from "@acepe/contracts"
+import type { SessionModelCatalog } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
 import { AgentAuthenticator } from "./Services/AgentAuthenticator.ts"
 import { AgentInstaller } from "./Services/AgentInstaller.ts"
-import { decodeProviderId } from "./Services/ProviderAdapter.ts"
+import {
+	decodeProviderId,
+	type ProviderAdapter,
+	type ProviderAdapterError
+} from "./Services/ProviderAdapter.ts"
 import { ProviderRegistry } from "./Services/ProviderRegistry.ts"
 import { signInMethodForAgent } from "./signIn.ts"
 
@@ -55,6 +60,19 @@ const displayNameForAgent = (providerId: string): string =>
 
 const toRpcAgentCallError = (op: string) => (error: { readonly message: string }): RpcAgentCallError =>
 	new RpcAgentCallError({ op, detail: error.message })
+
+// Structural, exactly like ProviderBridge's supportsSetMode/supportsSetModel:
+// an adapter that can answer its catalog before any session exists exposes
+// `modelCatalog` (today only ClaudeAdapter -- the SDK's initialize handshake
+// carries the models, so the probe costs a subprocess start and no tokens).
+// One that cannot simply does not have the member, and the caller gets a
+// typed error rather than a fabricated empty catalog.
+type ModelCatalogAdapter = ProviderAdapter & {
+	readonly modelCatalog: Effect.Effect<SessionModelCatalog, ProviderAdapterError>
+}
+
+const supportsModelCatalog = (adapter: ProviderAdapter): adapter is ModelCatalogAdapter =>
+	"modelCatalog" in adapter
 
 const listAgents = Effect.fn("agentCall.listAgents")(function*() {
 	const registry = yield* ProviderRegistry
@@ -138,6 +156,29 @@ export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: Age
 				op: "agent.cancel-authentication",
 				agentId: request.agentId,
 				cancelled
+			} as const satisfies AgentCallResult
+		}
+		case "agent.model-catalog": {
+			const registry = yield* ProviderRegistry
+			const agentId = yield* decodeProviderId(request.agentId).pipe(
+				Effect.mapError(toRpcAgentCallError(request.op))
+			)
+			const adapter = yield* registry
+				.resolve(agentId)
+				.pipe(Effect.mapError(toRpcAgentCallError(request.op)))
+			if (!supportsModelCatalog(adapter)) {
+				return yield* new RpcAgentCallError({
+					op: request.op,
+					detail: `Agent '${request.agentId}' has no preconnection model catalog.`
+				})
+			}
+			const models = yield* adapter.modelCatalog.pipe(
+				Effect.mapError(toRpcAgentCallError(request.op))
+			)
+			return {
+				op: "agent.model-catalog",
+				agentId: request.agentId,
+				models
 			} as const satisfies AgentCallResult
 		}
 		case "agent.uninstall": {

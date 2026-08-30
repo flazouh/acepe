@@ -1,4 +1,9 @@
-import { MessageId, SessionId, type OrchestrationEvent } from "@acepe/contracts"
+import {
+	MessageId,
+	SessionId,
+	type OrchestrationEvent,
+	type SessionModelCatalog
+} from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import type { Done } from "effect/Cause"
@@ -12,6 +17,7 @@ import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Scope from "effect/Scope"
+import * as Semaphore from "effect/Semaphore"
 import * as Stream from "effect/Stream"
 import type {
 	CancelTurnRequest,
@@ -77,6 +83,14 @@ export type ClaudeAdapter = ProviderAdapter & {
 		readonly permissionId: string
 		readonly decision: ClaudePermissionDecision
 	}) => Effect.Effect<void, ProviderAdapterError>
+	// The catalog WITHOUT any session: a short-lived probe query is built,
+	// the SDK answers its initialize handshake (models included -- no prompt
+	// runs, nothing is billed), and the query closes. Cached for the process
+	// lifetime on success; a failed probe caches nothing so the next ask
+	// probes again. agentCallHandler detects this structurally (see
+	// supportsModelCatalog there), the same way ProviderBridge detects
+	// setMode/setModel.
+	readonly modelCatalog: Effect.Effect<SessionModelCatalog, ProviderAdapterError>
 	// Forcefully tears down every live session's query (SIGTERM-then-SIGKILL-
 	// equivalent — see makeClaudeAdapter's shutdown). ProviderBridge calls
 	// this structurally, the same way it calls respondToPermission, on every
@@ -237,6 +251,67 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		const event = yield* makeSessionModelsEvent(runtime, models)
 		yield* offerOutbound(runtime, event)
 	})
+
+	// A prompt stream that never yields and never ends: the probe query below
+	// needs the SDK in streaming-input mode (that is what makes the initialize
+	// handshake answer control requests), but must not send any user message.
+	// The iterator is simply abandoned when the query closes.
+	const silentPrompt = (): AsyncIterable<ClaudeUserPrompt> => ({
+		[Symbol.asyncIterator]: () => ({
+			// A bare pending Promise on purpose: this feeds the SDK's own
+			// AsyncIterable prompt contract, not an Effect, and it must stay
+			// pending forever -- resolving would send a message, rejecting
+			// would kill the probe.
+			// @effect-diagnostics-next-line newPromise:off
+			next: () => new Promise<IteratorResult<ClaudeUserPrompt>>(() => {})
+		})
+	})
+
+	// No tool can run on a query that is never prompted; the deny is a
+	// type-level obligation, not a reachable branch.
+	const probeCanUseTool = () =>
+		Promise.resolve({
+			behavior: "deny" as const,
+			message: "The model-catalog probe runs no tools."
+		})
+
+	const catalogCache = yield* Ref.make(Option.none<SessionModelCatalog>())
+	const catalogProbeGate = yield* Semaphore.make(1)
+
+	// See ClaudeAdapter.modelCatalog's doc. The semaphore serializes
+	// concurrent asks so a burst costs one probe; the cache write happens
+	// only on success, so a failed probe leaves the next ask free to try
+	// again (a `claude` installed a minute from now must be reachable
+	// without an app restart).
+	const modelCatalog = catalogProbeGate.withPermits(1)(
+		Effect.gen(function*() {
+			const cached = yield* Ref.get(catalogCache)
+			if (Option.isSome(cached)) {
+				return cached.value
+			}
+			const handle = yield* options.createQuery({
+				prompt: silentPrompt(),
+				cwd: process.cwd(),
+				canUseTool: probeCanUseTool,
+				resume: Option.none(),
+				permissionMode: DEFAULT_CLAUDE_MODE,
+				model: Option.none(),
+				envOverrides: {}
+			})
+			const catalog = yield* handle.supportedModels.pipe(
+				Effect.timeoutOrElse({
+					duration: MODEL_DISCOVERY_TIMEOUT,
+					orElse: () =>
+						Effect.fail(
+							adapterError("startSession", "Claude model catalog probe timed out")
+						)
+				}),
+				Effect.ensuring(handle.close)
+			)
+			yield* Ref.set(catalogCache, Option.some(catalog))
+			return catalog
+		})
+	).pipe(Effect.withSpan("ClaudeAdapter.modelCatalog"))
 
 	const watchdogLoop = makeWatchdogLoop(
 		watchdogPollInterval,
@@ -497,6 +572,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 		setMode,
 		setModel,
 		respondToPermission,
+		modelCatalog,
 		shutdown
 	} satisfies ClaudeAdapter
 })

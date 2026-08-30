@@ -16,6 +16,7 @@ import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
+import * as Result from "effect/Result"
 import * as Stream from "effect/Stream"
 import {
 	evolveProjectedPendingApprovals,
@@ -26,7 +27,7 @@ import { decodeSessionModelsFact } from "../SessionModelsFact.ts"
 import { makeClaudeAdapter, type ClaudeAdapterOptions } from "./Adapter.ts"
 import { decodeContractFact } from "./Codec.ts"
 import type { ClaudeQueryHandle, ClaudeQueryInput } from "./Process.ts"
-import { claudePresence, type ClaudeMode } from "./Provider.ts"
+import { adapterError, claudePresence, type ClaudeMode } from "./Provider.ts"
 import type { ClaudeCanUseTool, ClaudePermissionResult } from "./Wire.ts"
 
 const sessionId = SessionId.make("session-1")
@@ -1204,6 +1205,94 @@ Vitest.describe("ClaudeAdapter", () => {
 			)
 			const attempts = yield* waitUntil(Ref.get(sdk.attemptsRef), (a) => a.length >= 2)
 			Vitest.assert.deepStrictEqual(attempts[1]?.model, Option.some("claude-opus-5"))
+		})
+	)
+
+
+	// ─── preconnection model catalog ──────────────────────────────────────
+
+	// The probe must answer WITHOUT any session existing: it builds its own
+	// short-lived query, reads the SDK's initialize-handshake catalog, and
+	// closes that query. The composer's pre-start picker is fed from this.
+	Vitest.it.effect("modelCatalog answers from a probe query and closes it", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			const created = yield* Ref.make(0)
+			const closed = yield* Ref.make(0)
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: () =>
+					Ref.update(created, (count) => count + 1).pipe(
+						Effect.map(() => {
+							const handle = fakeHandle(inbound, interrupts)
+							return {
+								...handle,
+								close: Ref.update(closed, (count) => count + 1).pipe(
+									Effect.flatMap(() => handle.close)
+								)
+							}
+						})
+					)
+			})
+			const catalog = yield* adapter.modelCatalog
+			Vitest.assert.deepStrictEqual(
+				catalog.map((model) => model.modelId),
+				["claude-opus-5", "claude-sonnet-5"]
+			)
+			Vitest.assert.strictEqual(yield* Ref.get(created), 1)
+			Vitest.assert.strictEqual(yield* Ref.get(closed), 1)
+		})
+	)
+
+	Vitest.it.effect("modelCatalog serves the second call from cache without a new probe", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			const created = yield* Ref.make(0)
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: () =>
+					Ref.update(created, (count) => count + 1).pipe(
+						Effect.map(() => fakeHandle(inbound, interrupts))
+					)
+			})
+			yield* adapter.modelCatalog
+			const again = yield* adapter.modelCatalog
+			Vitest.assert.deepStrictEqual(
+				again.map((model) => model.modelId),
+				["claude-opus-5", "claude-sonnet-5"]
+			)
+			Vitest.assert.strictEqual(yield* Ref.get(created), 1)
+		})
+	)
+
+	// A probe that fails must not poison the cache: the next ask probes again.
+	Vitest.it.effect("modelCatalog retries after a failed probe", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			const created = yield* Ref.make(0)
+			const adapter = yield* makeClaudeAdapter({
+				presence: Effect.succeed(claudePresence(true, true)),
+				createQuery: () =>
+					Ref.updateAndGet(created, (count) => count + 1).pipe(
+						Effect.flatMap((attempt) =>
+							attempt === 1
+								? Effect.fail(
+									adapterError("startSession", "scripted probe failure")
+								)
+								: Effect.succeed(fakeHandle(inbound, interrupts))
+						)
+					)
+			})
+			const first = yield* Effect.result(adapter.modelCatalog)
+			Vitest.assert.isTrue(Result.isFailure(first))
+			const second = yield* adapter.modelCatalog
+			Vitest.assert.deepStrictEqual(
+				second.map((model) => model.modelId),
+				["claude-opus-5", "claude-sonnet-5"]
+			)
 		})
 	)
 

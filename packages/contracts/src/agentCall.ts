@@ -1,5 +1,7 @@
 import * as Schema from "effect/Schema"
 
+import { SessionModelCatalog } from "./sessionModels.ts"
+
 // The agentCall utility RPC (see rpc.ts). Same shape as the gitCall utility
 // RPC (gitCall.ts) -- a tagged-union request routed server-side onto a
 // switch on `op`, growing one union member at a time as new agent-
@@ -177,6 +179,29 @@ export const AgentCallCancelAuthenticationResult = Schema.Struct({
 export type AgentCallCancelAuthenticationResult =
 	typeof AgentCallCancelAuthenticationResult.Type
 
+// ─── preconnection model catalog ──────────────────────────────────────────
+
+// The models an agent could run, asked BEFORE any session exists. Claude
+// answers this from its SDK's initialize handshake (no prompt, no billed
+// turn), so the New-chat model picker has a catalog to offer on a thread
+// that has not sent anything yet. An agent whose adapter exposes no catalog
+// probe answers with a typed RpcAgentCallError, and the composer falls back
+// to whatever cache it holds. The entries reuse the session fact's own
+// SessionModelDescriptor shape (sessionModels.ts) so the preconnection
+// answer and the canonical session catalog cannot drift apart structurally.
+export const AgentCallModelCatalogRequest = Schema.Struct({
+	op: Schema.Literal("agent.model-catalog"),
+	agentId: Schema.String
+})
+export type AgentCallModelCatalogRequest = typeof AgentCallModelCatalogRequest.Type
+
+export const AgentCallModelCatalogResult = Schema.Struct({
+	op: Schema.Literal("agent.model-catalog"),
+	agentId: Schema.String,
+	models: SessionModelCatalog
+})
+export type AgentCallModelCatalogResult = typeof AgentCallModelCatalogResult.Type
+
 // ─── unions ───────────────────────────────────────────────────────────────
 
 export const AgentCallRequest = Schema.Union([
@@ -184,7 +209,8 @@ export const AgentCallRequest = Schema.Union([
 	AgentCallInstallAgentRequest,
 	AgentCallUninstallAgentRequest,
 	AgentCallAuthenticateRequest,
-	AgentCallCancelAuthenticationRequest
+	AgentCallCancelAuthenticationRequest,
+	AgentCallModelCatalogRequest
 ])
 export type AgentCallRequest = typeof AgentCallRequest.Type
 
@@ -193,6 +219,7 @@ export const AgentCallResult = Schema.Union([
 	AgentCallInstallAgentResult,
 	AgentCallUninstallAgentResult,
 	AgentCallAuthenticateResult,
-	AgentCallCancelAuthenticationResult
+	AgentCallCancelAuthenticationResult,
+	AgentCallModelCatalogResult
 ])
 export type AgentCallResult = typeof AgentCallResult.Type

@@ -718,7 +718,9 @@ describe("SessionConnectionManager.connectSession", () => {
 			undefined,
 			undefined
 		);
-		expect(updateProviderMetadataCache).toHaveBeenCalledWith("custom-agent", undefined);
+		// A reconnect that carried no metadata writes nothing -- absent is not
+		// empty, and a delete here would wipe what an earlier session cached.
+		expect(updateProviderMetadataCache).not.toHaveBeenCalled();
 		expect(getCachedProviderMetadata).not.toHaveBeenCalled();
 	});
 
@@ -859,7 +861,7 @@ describe("SessionConnectionManager.connectSession", () => {
 				usageMetrics: "contextWindowOnly",
 			},
 		});
-		expect(updateProviderMetadataCache).toHaveBeenCalledWith("claude-code", undefined);
+		expect(updateProviderMetadataCache).not.toHaveBeenCalled();
 		expect(updateModesCache).toHaveBeenCalledWith("claude-code", [
 			{ id: "build", name: "Build", description: undefined },
 		]);
@@ -2128,8 +2130,43 @@ describe("SessionConnectionManager.createSession", () => {
 			"claude-sonnet-4-6",
 			"plan"
 		);
-		expect(setMode).not.toHaveBeenCalled();
+		// newSession's wire command has no model/mode field (see backend-client
+		// acp.ts), so a deferred creation records the picked pair through the
+		// canonical set commands instead -- ProviderBridge replays them onto
+		// the adapter when the session lazily opens on the first prompt.
+		expect(setModel).toHaveBeenCalledWith("provider-requested-id", "claude-sonnet-4-6");
+		expect(setMode).toHaveBeenCalledWith("provider-requested-id", "plan");
+	});
+
+	it("records no model or mode for deferred creation when none was picked", async () => {
+		newSession.mockReturnValue(
+			Effect.succeed({
+				sessionId: "provider-requested-id",
+				creationAttemptId: "attempt-1",
+				deferredCreation: true,
+				availableCommands: [],
+			})
+		);
+		const manager = createManager({
+			stateReader,
+			stateWriter,
+			transientProjection,
+			capabilities,
+			entryManager,
+			connectionManager,
+		});
+
+		const result = await runToResult(
+			manager.createSession({ projectPath, agentId }, createMockEventHandler())
+		);
+		Result.getOrThrow(result);
+
 		expect(setModel).not.toHaveBeenCalled();
+		expect(setMode).not.toHaveBeenCalled();
+		// An answer that said nothing about display/metadata must not delete
+		// what an earlier session cached -- absent is not empty.
+		expect(updateModelsDisplayCache).not.toHaveBeenCalled();
+		expect(updateProviderMetadataCache).not.toHaveBeenCalled();
 	});
 
 	it("surfaces typed backend creation failures without adding a local session", async () => {
