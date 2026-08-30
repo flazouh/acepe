@@ -345,11 +345,10 @@ export function uninstallAgent(agentId: string): Effect.Effect<AgentInfo[], AppE
 
 /**
  * Run the agent's own sign-in on the backend and wait for it. Long-running:
- * it is waiting on a browser step. Succeeding means the login command exited
- * cleanly, not that the agent is now authenticated -- reconnect the session
- * and let the connection answer that.
+ * it is waiting on a browser step. Answers with the agent list re-read on the
+ * backend after the login command exited, the same way installAgent does.
  */
-export function authenticateAgent(agentId: string): Effect.Effect<void, AppError> {
+export function authenticateAgent(agentId: string): Effect.Effect<AgentInfo[], AppError> {
 	return backendClient.acp.authenticateAgent(agentId);
 }
 

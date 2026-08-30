@@ -139,18 +139,23 @@ export const AgentCallAuthenticateRequest = Schema.Struct({
 })
 export type AgentCallAuthenticateRequest = typeof AgentCallAuthenticateRequest.Type
 
-// Deliberately carries no "authenticated" answer of its own. Whether an agent
-// is authenticated is settled by starting a session with it: a login command
-// can exit 0 having written a credential store the adapter does not look in,
-// and the session start is where that shows. Reporting it here would need a
-// presence re-probe, and ProviderRegistry cannot give one -- every live
-// adapter computes its presence once, at layer construction, and hands back
-// that snapshot forever (see makeLiveClaudeAdapter and its four siblings).
-// A caller that has just signed in should reconnect the session and let the
-// connection answer, rather than trust a second-hand flag.
+// `agents` is the agent list re-read from ProviderRegistry after the login
+// command exited, the same answer agent.install carries back. Every adapter
+// probes the filesystem on each presence read now (see ExecutableProbe.ts's
+// bindPresence), so a credential store the login just wrote is in this
+// answer; before that, presence was a snapshot taken at layer construction
+// and this result had to carry nothing at all.
+//
+// It still reports no "authenticated" verdict of its own for the agent that
+// was signed in. Read that off the agent in `agents`. A login command can
+// also exit 0 having written a credential store its own adapter does not
+// look in, and starting a session is what settles that case, so a caller
+// that has just signed in should still reconnect and let the connection
+// answer.
 export const AgentCallAuthenticateResult = Schema.Struct({
 	op: Schema.Literal("agent.authenticate"),
-	agentId: Schema.String
+	agentId: Schema.String,
+	agents: Schema.Array(AgentCallAgentInfo)
 })
 export type AgentCallAuthenticateResult = typeof AgentCallAuthenticateResult.Type
 

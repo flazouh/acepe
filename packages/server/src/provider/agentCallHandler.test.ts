@@ -153,6 +153,25 @@ const refBackedAdapter = (
 	)
 })
 
+// The same shape for the fact a login changes. Presence reads the ref every
+// time the handler asks, which is what a live adapter does now that its
+// probe runs on each read rather than once at layer construction.
+const authRefBackedAdapter = (
+	providerId: ProviderId,
+	authenticatedRef: Ref.Ref<boolean>
+): ProviderAdapter => ({
+	...makeFakeProviderAdapter({
+		providerId,
+		capabilities: ProviderCapabilities.make({ enabled: [] }),
+		installed: true,
+		authenticated: false,
+		updates: []
+	}),
+	presence: Ref.get(authenticatedRef).pipe(
+		Effect.map((authenticated) => ({ providerId, installed: true, authenticated }))
+	)
+})
+
 const fakeInstallerLayer = (installedRef: Ref.Ref<boolean>) =>
 	Layer.succeed(
 		AgentInstaller,
@@ -224,22 +243,48 @@ Vitest.describe("routeAgentCall agent.authenticate", () => {
 				Effect.provide(authEnv(calls))
 			)
 			Vitest.assert.deepStrictEqual(yield* Ref.get(calls), ["signIn:codex"])
-			Vitest.assert.deepStrictEqual(result, { op: "agent.authenticate", agentId: "codex" })
+			Vitest.assert.strictEqual(result.op, "agent.authenticate")
+			if (result.op === "agent.authenticate") {
+				Vitest.assert.strictEqual(result.agentId, "codex")
+			}
 		})
 	)
 
-	// The result claims nothing about whether the agent is now authenticated,
-	// and that is deliberate -- see the result type in
-	// packages/contracts/src/agentCall.ts. A caller reconnects and lets the
-	// session answer.
-	Vitest.it.effect("answers with no authenticated flag of its own", () =>
+	// The point of carrying an agent list here at all: the list is read AFTER
+	// the login command exited, so a credential the login just wrote is in
+	// the answer that reaches the caller. While every adapter cached its
+	// presence at layer construction this result had to carry nothing.
+	Vitest.it.effect("answers with the agent list read after the login finished", () =>
 		Effect.gen(function*() {
 			const calls = yield* Ref.make<ReadonlyArray<string>>([])
+			const authenticated = yield* Ref.make(false)
+			const env = Layer.mergeAll(
+				registryWith(authRefBackedAdapter(CODEX_ID, authenticated)),
+				AgentInstallerUnsupportedPlatformLive("test-host"),
+				Layer.succeed(
+					AgentAuthenticator,
+					AgentAuthenticator.of({
+						// What a real login does: it writes the credential store the
+						// adapter's presence probe reads.
+						signIn: (agentId) =>
+							Ref.update(calls, (seen) => [...seen, `signIn:${agentId}`]).pipe(
+								Effect.andThen(Ref.set(authenticated, true))
+							),
+						cancel: () => Effect.succeed(false)
+					})
+				)
+			)
 			const result = yield* routeAgentCall({ op: "agent.authenticate", agentId: "codex" }).pipe(
 				// @effect-diagnostics-next-line strictEffectProvide:off
-				Effect.provide(authEnv(calls))
+				Effect.provide(env)
 			)
-			Vitest.assert.deepStrictEqual(Object.keys(result).toSorted(), ["agentId", "op"])
+			Vitest.assert.strictEqual(result.op, "agent.authenticate")
+			if (result.op === "agent.authenticate") {
+				Vitest.assert.deepStrictEqual(
+					result.agents.map((agent) => agent.id),
+					["codex"]
+				)
+			}
 		})
 	)
 

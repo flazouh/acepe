@@ -34,6 +34,8 @@ import { signInMethodForAgent } from "./signIn.ts"
 // same reason install is: the orchestration `agent.authenticate` command is
 // an echo that records "signed in" without a credential having been
 // exchanged, and authenticatedness is answered by ProviderRegistry presence.
+// authenticate answers with the re-read list too, which it could not do
+// while every adapter cached its presence from layer construction.
 //
 // Display names are a presentation label, not canonical data: they
 // follow the same per-provider-id literal precedent as
@@ -114,14 +116,16 @@ export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: Age
 			// which stops the child this call is waiting on and makes this
 			// call fail with the cancelled message.
 			//
-			// Succeeding means the login command exited cleanly. It does not
-			// claim the agent is now authenticated -- see the result type in
-			// packages/contracts/src/agentCall.ts for why this lane cannot
-			// answer that and who can.
+			// Succeeding means the login command exited cleanly. The agent list
+			// below is re-read from ProviderRegistry afterwards, so a
+			// credential store the login just wrote is already in it -- see
+			// the result type in packages/contracts/src/agentCall.ts.
 			yield* authenticator.signIn(agentId).pipe(Effect.mapError(toRpcAgentCallError(request.op)))
+			const agents = yield* listAgents()
 			return {
 				op: "agent.authenticate",
-				agentId: request.agentId
+				agentId: request.agentId,
+				agents
 			} as const satisfies AgentCallResult
 		}
 		case "agent.cancel-authentication": {

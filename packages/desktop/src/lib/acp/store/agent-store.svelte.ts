@@ -140,16 +140,18 @@ export class AgentStore {
 	/**
 	 * Run the agent's own sign-in on the backend and wait for it.
 	 *
-	 * Succeeding means the login command exited cleanly. Whether the agent is
-	 * now authenticated is settled by the next session connection, not here,
-	 * so this store keeps no authenticated-set of its own.
+	 * The agent list comes back from the same call, re-read backend-side after
+	 * the login command exited, so this store never infers authenticatedness
+	 * and never keeps an authenticated-set of its own -- it only holds what
+	 * the backend last answered.
 	 */
 	authenticateAgent(agentId: string): Effect.Effect<void, AppError> {
 		return Effect.suspend(() => {
 			logger.info("Signing agent in", { agentId });
 			return api.authenticateAgent(agentId);
 		}).pipe(
-			Effect.map(() => {
+			Effect.map((agents) => {
+				this.agents = agents.map(toAgent);
 				logger.info("Agent sign-in command finished", { agentId });
 			}),
 			Effect.mapError((error) => {

@@ -220,7 +220,11 @@ export const acp = {
 		// dropped rather than fabricated.
 		_launchToken?: string,
 		_initialModelId?: string,
-		_initialModeId?: string
+		_initialModeId?: string,
+		// A session Acepe opens to do a job of its own, which the session
+		// library never lists -- see SessionCreateCommand.ephemeral. Omitted by
+		// every caller that wants a normal thread.
+		options?: { readonly ephemeral?: boolean }
 	) {
 		const workspaceRoot = yield* decodeTrimmed("acp.newSession", cwd);
 		const projectId = yield* resolveOrCreateProject(workspaceRoot);
@@ -240,6 +244,7 @@ export const acp = {
 				projectId,
 				title,
 				...(providerId === undefined ? {} : { providerId }),
+				...(options?.ephemeral === true ? { ephemeral: true } : {}),
 			})
 		);
 		const result: ResumeSessionResult = {
@@ -560,10 +565,12 @@ export const acp = {
 	// waits for it. The call is long-running by nature: it is waiting on the
 	// person finishing the login in their browser.
 	//
-	// Succeeding means the login command exited cleanly. It is not a claim
-	// that the agent is now authenticated -- see the result type in
-	// packages/contracts/src/agentCall.ts for why nothing can claim that
-	// here. Reconnect the session afterwards and let the connection answer.
+	// The agent list comes back from the same call, re-read backend-side from
+	// ProviderRegistry after the login command exited, so a credential store
+	// the login just wrote is already reflected in it. Succeeding is still
+	// not a verdict that this agent is authenticated -- read that off the
+	// returned agent, and reconnect the session to settle the case where the
+	// adapter looks somewhere the login did not write.
 	//
 	// An agent whose login the server cannot drive fails here with the
 	// command to run instead. Read that from listAgents' `sign_in` before
@@ -572,7 +579,8 @@ export const acp = {
 		const response = yield* withRpcClient("acp.authenticateAgent", (client) =>
 			client.agentCall({ op: "agent.authenticate", agentId })
 		);
-		yield* unwrapAgentCallResult("agent.authenticate", response);
+		const result = yield* unwrapAgentCallResult("agent.authenticate", response);
+		return result.agents.map(toAgentInfo);
 	}),
 
 	// Stops the login command agent.authenticate is waiting on, which makes

@@ -476,12 +476,26 @@ describe("acp backend client", () => {
 					makeClient({
 						agentCall: (request) => {
 							requests.push(request as unknown as Record<string, unknown>);
-							return Effect.succeed({ op: "agent.authenticate", agentId: "codex" });
+							return Effect.succeed({
+								op: "agent.authenticate",
+								agentId: "codex",
+								agents: [
+									{
+										id: "codex",
+										name: "Codex",
+										availabilityKind: { kind: "installable", installed: true },
+										signIn: { kind: "browser" },
+									},
+								],
+							});
 						},
 					})
 				);
-				yield* acp.authenticateAgent("codex");
+				// The agent list comes back from the sign-in call itself, read
+				// on the backend after the login command exited.
+				const agents = yield* acp.authenticateAgent("codex");
 				expect(requests).toEqual([{ op: "agent.authenticate", agentId: "codex" }]);
+				expect(agents.map((agent) => agent.id)).toEqual(["codex"]);
 			})
 		));
 
