@@ -73,14 +73,14 @@ describe("session-title-policy", () => {
 		expect(normalizeTitleForDisplay("\\ncan you clone t3code\\n")).toBe("can you clone t3code");
 	});
 
-	it("formatSessionTitleForDisplay title-cases a stored title", () => {
+	it("formatSessionTitleForDisplay sentence-cases a stored title", () => {
 		expect(formatSessionTitleForDisplay("fix kanban title drift", null)).toBe(
-			"Fix Kanban Title Drift"
+			"Fix kanban title drift"
 		);
 	});
 
 	it("formatSessionTitleForDisplay falls back to project conversation title", () => {
-		expect(formatSessionTitleForDisplay("", "acepe")).toBe("Conversation In Acepe");
+		expect(formatSessionTitleForDisplay("", "acepe")).toBe("Conversation in acepe");
 	});
 
 	it("formatSessionTitleForDisplay returns untitled fallback when no title or project exists", () => {

@@ -93,16 +93,29 @@ describe("PlanStore", () => {
 			expect(store.getPlan("session-1")?.title).toBe("Complete Plan");
 		});
 
-		it("ignores events without content", () => {
+		it("ignores events that carry no content and no plan signal", () => {
 			const store = new PlanStore();
 
-			// Event with no content should be ignored
+			store.updateFromEvent("session-1", {
+				steps: [],
+				streaming: false,
+			});
+
+			expect(store.getPlan("session-1")).toBeUndefined();
+		});
+
+		it("opens an empty plan shell when a streaming signal arrives before content", () => {
+			const store = new PlanStore();
+
+			// `streaming: true` is itself a plan signal, so the store creates the
+			// shell the UI renders while it waits for the first content chunk.
 			store.updateFromEvent("session-1", {
 				steps: [],
 				streaming: true,
 			});
 
-			expect(store.getPlan("session-1")).toBeUndefined();
+			expect(store.getPlan("session-1")?.content).toBe("");
+			expect(store.isStreaming("session-1")).toBe(true);
 		});
 
 		it("accumulates content updates", () => {
