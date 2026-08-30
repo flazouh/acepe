@@ -19,7 +19,11 @@ const withTempDir = <A, E>(
 		const path = yield* Path.Path
 		const dir = yield* fs.makeTempDirectoryScoped()
 		return yield* body(dir, fs, path)
-	}).pipe(Effect.scoped, Effect.provide(Platform))
+	}).pipe(
+		Effect.scoped,
+		// @effect-diagnostics-next-line strictEffectProvide:off
+		Effect.provide(Platform)
+	)
 
 Vitest.describe("imageMediaType", () => {
 	Vitest.it("names the type each extension serves", () => {

@@ -1,5 +1,7 @@
+// @effect-diagnostics-next-line nodeBuiltinImport:off
 import * as NodeFs from "node:fs";
 import * as NodeOs from "node:os";
+// @effect-diagnostics-next-line nodeBuiltinImport:off
 import * as NodePath from "node:path";
 import { PROJECT_ICON_AUTO, PROJECT_ICON_NONE } from "@acepe/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

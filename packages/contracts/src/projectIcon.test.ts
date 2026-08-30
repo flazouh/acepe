@@ -15,9 +15,9 @@ const decodePath = Schema.decodeUnknownEffect(ProjectIconRelativePath);
 const decodeIcon = Schema.decodeUnknownEffect(ProjectIcon);
 
 const accepts =
-	(schema: (input: unknown) => Effect.Effect<unknown, unknown>) =>
+	(schema: (input: unknown) => Effect.Effect<unknown, Schema.SchemaError>) =>
 	(input: unknown) =>
-		Exit.isSuccess(Effect.runSyncExit(schema(input)));
+		schema(input).pipe(Effect.runSyncExit, Exit.isSuccess);
 
 const pathAccepts = accepts(decodePath);
 const iconAccepts = accepts(decodeIcon);

@@ -35,8 +35,8 @@ describe("SettingsSidebar", () => {
 		expect(navButtons).toHaveLength(SETTINGS_SECTIONS.length);
 
 		for (const button of navButtons) {
-			expect(button.className).toContain("gap-1.5");
-			expect(button.className).toContain("text-[13px]");
+			expect(button.className).toContain("gap-2");
+			expect(button.className).toContain("text-[12.5px]");
 		}
 
 		const activeButton = view.getByRole("button", { name: "General" });

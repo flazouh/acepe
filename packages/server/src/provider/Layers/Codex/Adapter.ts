@@ -418,16 +418,15 @@ export const makeLiveCodexAdapter = Effect.fn("makeLiveCodexAdapter")(function*(
 	const config = Option.getOrElse(options.config, defaultCodexNativeConfigState)
 	// Resolved per session, not once at construction, so a managed install that
 	// lands after the layer was built is the binary a new session launches.
-	const spawn = yield* bindProbe(
-		resolveCodexSpawnConfig(options.cacheDir).pipe(
-			Effect.map((resolved) => ({
-				command: Option.getOrElse(options.command, () => resolved.command),
-				args: Option.getOrElse(options.args, () => resolved.args) as ReadonlyArray<string>
-			})),
-			Effect.catch((error) =>
-				adapterError("startSession", `Could not resolve the Codex binary: ${error.message}`)
-			)
-		)
+	const spawn = yield* resolveCodexSpawnConfig(options.cacheDir).pipe(
+		Effect.map((resolved) => ({
+			command: Option.getOrElse(options.command, () => resolved.command),
+			args: Option.getOrElse(options.args, () => resolved.args) as ReadonlyArray<string>
+		})),
+		Effect.catch((error) =>
+			adapterError("startSession", `Could not resolve the Codex binary: ${error.message}`)
+		),
+		bindProbe
 	)
 	return yield* makeCodexAdapter({
 		// The command the session resolved, not one this closure remembered.

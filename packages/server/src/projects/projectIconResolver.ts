@@ -1,4 +1,6 @@
+// @effect-diagnostics-next-line nodeBuiltinImport:off
 import * as NodeFs from "node:fs";
+// @effect-diagnostics-next-line nodeBuiltinImport:off
 import * as NodePath from "node:path";
 import type { ProjectIcon } from "@acepe/contracts";
 

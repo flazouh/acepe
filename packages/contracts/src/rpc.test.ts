@@ -213,6 +213,8 @@ const unusedInvalidateProjectIndex: RpcTransport["invalidateProjectIndex"] = (
 ) => Effect.void;
 const unusedReadTextFile: RpcTransport["readTextFile"] = (_request) =>
 	Effect.succeed("");
+const unusedReadImageDataUrl: RpcTransport["readImageDataUrl"] = (_request) =>
+	Effect.succeed("data:image/png;base64,");
 const unusedWriteTextFile: RpcTransport["writeTextFile"] = (_request) =>
 	Effect.void;
 const unusedGetDefaultShell: RpcTransport["getDefaultShell"] = () =>
@@ -622,6 +624,7 @@ const failingAfter = (
 	getProjectIndex: unusedGetProjectIndex,
 	invalidateProjectIndex: unusedInvalidateProjectIndex,
 	readTextFile: unusedReadTextFile,
+	readImageDataUrl: unusedReadImageDataUrl,
 	writeTextFile: unusedWriteTextFile,
 	getDefaultShell: unusedGetDefaultShell,
 	gitCall: unusedGitCall,
@@ -683,6 +686,7 @@ describe("makeResumingRpcClient", () => {
 			getProjectIndex: unusedGetProjectIndex,
 			invalidateProjectIndex: unusedInvalidateProjectIndex,
 			readTextFile: unusedReadTextFile,
+			readImageDataUrl: unusedReadImageDataUrl,
 			writeTextFile: unusedWriteTextFile,
 			getDefaultShell: unusedGetDefaultShell,
 			gitCall: unusedGitCall,
@@ -711,6 +715,7 @@ describe("makeResumingRpcClient", () => {
 			getProjectIndex: unusedGetProjectIndex,
 			invalidateProjectIndex: unusedInvalidateProjectIndex,
 			readTextFile: unusedReadTextFile,
+			readImageDataUrl: unusedReadImageDataUrl,
 			writeTextFile: unusedWriteTextFile,
 			getDefaultShell: unusedGetDefaultShell,
 			gitCall: unusedGitCall,
