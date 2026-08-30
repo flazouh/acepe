@@ -36,7 +36,7 @@ import type {
 	SetModeRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
-import { bindPresence } from "../ExecutableProbe.ts"
+import { bindPresence, bindProbe } from "../ExecutableProbe.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
 import {
@@ -253,15 +253,22 @@ export const makeCursorAdapter = Effect.fn("makeCursorAdapter")(function*(
 export const makeLiveCursorAdapter = Effect.fn("makeLiveCursorAdapter")(function*() {
 	const fs = yield* FileSystem.FileSystem
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-	const binary = yield* probeCursorBinary()
 	return yield* makeCursorAdapter({
-		// The probe, not its answer -- see ExecutableProbe.ts's bindPresence.
+		// The probe, not its answer -- see ExecutableProbe.ts's bindProbe.
 		presence: yield* bindPresence(probeCursorPresence()),
-		resolveLaunch: Option.match(binary, {
-			onNone: (): Effect.Effect<CursorLaunchConfig, ProviderAdapterError> =>
-				Effect.fail(missingCursorBinaryError()),
-			onSome: (command) => Effect.succeed(cursorLaunchConfig(command))
-		}),
+		// Resolved per session, not once at construction: an agent installed
+		// after the layer was built must be launchable without a restart.
+		resolveLaunch: yield* bindProbe(
+			probeCursorBinary().pipe(
+				Effect.flatMap(
+					Option.match({
+						onNone: (): Effect.Effect<CursorLaunchConfig, ProviderAdapterError> =>
+							Effect.fail(missingCursorBinaryError()),
+						onSome: (command) => Effect.succeed(cursorLaunchConfig(command))
+					})
+				)
+			)
+		),
 		connect: (input) =>
 			liveConnect({
 				session: input,

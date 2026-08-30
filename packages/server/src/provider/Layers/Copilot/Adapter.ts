@@ -27,7 +27,7 @@ import {
 	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
-import { bindPresence } from "../ExecutableProbe.ts"
+import { bindPresence, bindProbe } from "../ExecutableProbe.ts"
 import type { Json } from "../Json.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
@@ -305,23 +305,29 @@ export const makeLiveCopilotAdapter = Effect.fn("makeLiveCopilotAdapter")(functi
 	// The adapter outlives any one session, so the spawned CLI belongs to the
 	// layer's scope, not to the scope of the session that first started it.
 	const layerScope = yield* Effect.scope
-	const binary = yield* probeCopilotBinary()
+	// Resolved per session, not once at construction: an agent installed after
+	// the layer was built must be launchable without a restart.
+	const resolveBinary = yield* bindProbe(probeCopilotBinary())
 	return yield* makeCopilotAdapter({
-		// The probe, not its answer -- see ExecutableProbe.ts's bindPresence.
+		// The probe, not its answer -- see ExecutableProbe.ts's bindProbe.
 		presence: yield* bindPresence(probeCopilotPresence()),
 		createTransport: (input) =>
-			Option.match(binary, {
-				onNone: (): Effect.Effect<CopilotAcpHandle, ProviderAdapterError> =>
-					Effect.fail(missingCopilotBinaryError()),
-				onSome: (command) =>
-					liveCreateTransport({
-						cwd: input.cwd,
-						envOverrides: input.envOverrides,
-						launch: copilotLaunchConfig(command),
-						spawner,
-						scope: layerScope
+			resolveBinary.pipe(
+				Effect.flatMap(
+					Option.match({
+						onNone: (): Effect.Effect<CopilotAcpHandle, ProviderAdapterError> =>
+							Effect.fail(missingCopilotBinaryError()),
+						onSome: (command) =>
+							liveCreateTransport({
+								cwd: input.cwd,
+								envOverrides: input.envOverrides,
+								launch: copilotLaunchConfig(command),
+								spawner,
+								scope: layerScope
+							})
 					})
-			})
+				)
+			)
 	})
 })
 

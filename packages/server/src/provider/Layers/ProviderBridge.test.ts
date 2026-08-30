@@ -1471,10 +1471,10 @@ Vitest.describe("ProviderBridge", () => {
 			const requests = yield* Ref.make<ReadonlyArray<CodexRequest>>(Arr.empty())
 			const adapter = yield* makeCodexAdapter({
 				presence: Effect.succeed(codexPresence(true, true)),
-				spawn: {
+				spawn: Effect.succeed({
 					command: CODEX_PLACEHOLDER_COMMAND,
 					args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
-				},
+				}),
 				config: defaultCodexNativeConfigState(),
 				createAppServer: () => Effect.succeed(fakeCodexAppServer(inbound, requests))
 			})
@@ -1576,10 +1576,10 @@ Vitest.describe("ProviderBridge", () => {
 				const requests = yield* Ref.make<ReadonlyArray<CodexRequest>>(Arr.empty())
 				const adapter = yield* makeCodexAdapter({
 					presence: Effect.succeed(codexPresence(true, true)),
-					spawn: {
+					spawn: Effect.succeed({
 						command: CODEX_PLACEHOLDER_COMMAND,
 						args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
-					},
+					}),
 					config: defaultCodexNativeConfigState(),
 					createAppServer: () => Effect.succeed(fakeCodexAppServer(inbound, requests))
 				})

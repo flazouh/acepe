@@ -20,7 +20,7 @@ import {
 	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
-import { bindPresence } from "../ExecutableProbe.ts"
+import { bindPresence, bindProbe } from "../ExecutableProbe.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import {
 	type OpenCodePermissionReply,
@@ -243,8 +243,13 @@ export const makeOpenCodeAdapter = Effect.fn("makeOpenCodeAdapter")(function*(
 
 export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(function*() {
 	const presence = yield* bindPresence(probeOpenCodePresence())
-	const binary = yield* probeOpenCodeBinary()
-	const command = Option.getOrElse(binary, () => OPENCODE_PLACEHOLDER_BINARY)
+	// Resolved per session, not once at construction: an agent installed after
+	// the layer was built must be launchable without a restart.
+	const resolveCommand = yield* bindProbe(
+		probeOpenCodeBinary().pipe(
+			Effect.map(Option.getOrElse(() => OPENCODE_PLACEHOLDER_BINARY))
+		)
+	)
 	const http = yield* HttpClient.HttpClient
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 	const path = yield* Path.Path
@@ -270,17 +275,21 @@ export const makeLiveOpenCodeAdapter = Effect.fn("makeLiveOpenCodeAdapter")(func
 		// The probe, not its answer -- see ExecutableProbe.ts's bindPresence.
 		presence,
 		createTransport: (input) =>
-			liveCreateTransport({
-				workspaceRoot: input.workspaceRoot,
-				command,
-				args: openCodeServeArgs([]),
-				// OpenCode deliberately runs on an ALLOW-LISTED environment
-				// (extendEnv is false in liveCreateTransport), so the merge
-				// has to happen here or the agent's own configured variables
-				// would be the thing the isolation drops.
-				env: mergeAgentEnv(env, input.envOverrides),
-				http,
-				spawner
-			})
+			resolveCommand.pipe(
+				Effect.flatMap((command) =>
+					liveCreateTransport({
+						workspaceRoot: input.workspaceRoot,
+						command,
+						args: openCodeServeArgs([]),
+						// OpenCode deliberately runs on an ALLOW-LISTED environment
+						// (extendEnv is false in liveCreateTransport), so the merge
+						// has to happen here or the agent's own configured variables
+						// would be the thing the isolation drops.
+						env: mergeAgentEnv(env, input.envOverrides),
+						http,
+						spawner
+					})
+				)
+			)
 	})
 })

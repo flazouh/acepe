@@ -23,7 +23,7 @@ import type {
 	SetModelRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
-import { bindPresence } from "../ExecutableProbe.ts"
+import { bindPresence, bindProbe } from "../ExecutableProbe.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { deferredOpenFact, type ClaudePermissionDecision } from "./Facts.ts"
 import { emptyClaudeStreamState } from "./Map.ts"
@@ -502,15 +502,24 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 })
 
 export const makeLiveClaudeAdapter = Effect.fn("makeLiveClaudeAdapter")(function*() {
-	const executablePath = yield* resolveClaudeExecutablePath()
+	// Resolved per query, not once at construction. Reading PATH while the layer
+	// was being built meant a `claude` installed afterwards was reported as
+	// present by the agent list and still could not be launched: the session
+	// died on the executable this closure had already remembered as absent.
+	const resolveExecutable = yield* bindProbe(resolveClaudeExecutablePath())
 	return yield* makeClaudeAdapter({
-		createQuery: makeLiveCreateQuery({
-			pathToClaudeCodeExecutable: executablePath,
-			mcpServers: CLAUDE_SESSION_MCP_SERVERS
-		}),
+		createQuery: (input) =>
+			resolveExecutable.pipe(
+				Effect.flatMap((pathToClaudeCodeExecutable) =>
+					makeLiveCreateQuery({
+						pathToClaudeCodeExecutable,
+						mcpServers: CLAUDE_SESSION_MCP_SERVERS
+					})(input)
+				)
+			),
 		// The probe, not its answer: a `claude` that appears on PATH after
 		// this layer was built has to change what the agent list says without
-		// the app restarting. See ExecutableProbe.ts's bindPresence.
+		// the app restarting. See ExecutableProbe.ts's bindProbe.
 		presence: yield* bindPresence(probeClaudePresence())
 	})
 })

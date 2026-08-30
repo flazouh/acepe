@@ -26,7 +26,7 @@ import {
 	type SetModeRequest,
 	type StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
-import { bindPresence } from "../ExecutableProbe.ts"
+import { bindPresence, bindProbe } from "../ExecutableProbe.ts"
 import type { Json } from "../Json.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
@@ -106,10 +106,12 @@ export type CodexAdapterOptions = {
 		input: CodexAppServerInput
 	) => Effect.Effect<CodexAppServerHandle, ProviderAdapterError>
 	readonly presence: Effect.Effect<ProviderPresence>
-	readonly spawn: {
-		readonly command: string
-		readonly args: ReadonlyArray<string>
-	}
+	// An Effect, not a value: resolving the binary once at construction launched
+	// the placeholder the adapter saw then, however the disk had changed since.
+	readonly spawn: Effect.Effect<
+		{ readonly command: string; readonly args: ReadonlyArray<string> },
+		ProviderAdapterError
+	>
 	readonly config: CodexNativeConfigState
 }
 
@@ -128,10 +130,11 @@ export const makeCodexAdapter = Effect.fn("makeCodexAdapter")(function*(
 				`Codex session '${request.sessionId}' is already open.`
 			)
 		}
+		const spawn = yield* options.spawn
 		const server = yield* options.createAppServer({
 			cwd: request.workspaceRoot,
-			command: options.spawn.command,
-			args: options.spawn.args,
+			command: spawn.command,
+			args: spawn.args,
 			envOverrides: request.envOverrides
 		})
 		yield* server.request({
@@ -412,26 +415,34 @@ export const makeLiveCodexAdapter = Effect.fn("makeLiveCodexAdapter")(function*(
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
 	const layerScope = yield* Effect.scope
 	const presence = yield* probeCodexPresence(options.cacheDir).pipe(bindPresence)
-	const resolved = yield* resolveCodexSpawnConfig(options.cacheDir)
-	const command = Option.getOrElse(options.command, () => resolved.command)
-	const args = Option.getOrElse(options.args, () => resolved.args)
 	const config = Option.getOrElse(options.config, defaultCodexNativeConfigState)
+	// Resolved per session, not once at construction, so a managed install that
+	// lands after the layer was built is the binary a new session launches.
+	const spawn = yield* bindProbe(
+		resolveCodexSpawnConfig(options.cacheDir).pipe(
+			Effect.map((resolved) => ({
+				command: Option.getOrElse(options.command, () => resolved.command),
+				args: Option.getOrElse(options.args, () => resolved.args) as ReadonlyArray<string>
+			})),
+			Effect.catch((error) =>
+				adapterError("startSession", `Could not resolve the Codex binary: ${error.message}`)
+			)
+		)
+	)
 	return yield* makeCodexAdapter({
+		// The command the session resolved, not one this closure remembered.
 		createAppServer: (input) =>
 			liveCreateAppServer(spawner, layerScope, {
 				cwd: input.cwd,
-				command,
-				args,
+				command: input.command,
+				args: input.args,
 				envOverrides: input.envOverrides
 			}),
 		// The probe, not its answer: a managed install that lands in the cache
 		// directory after this layer was built has to change what the agent
 		// list says without the app restarting.
 		presence,
-		spawn: {
-			command,
-			args
-		},
+		spawn,
 		config
 	})
 })

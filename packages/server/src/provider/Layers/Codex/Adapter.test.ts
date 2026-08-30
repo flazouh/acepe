@@ -96,10 +96,10 @@ const makeTestAdapter = Effect.fn("makeTestAdapter")(function*(
 ) {
 	return yield* makeCodexAdapter({
 		presence: Effect.succeed(codexPresence(true, true)),
-		spawn: {
+		spawn: Effect.succeed({
 			command: CODEX_PLACEHOLDER_COMMAND,
 			args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
-		},
+		}),
 		config: defaultCodexNativeConfigState(),
 		createAppServer: () => Effect.succeed(fakeHandle(inbound, requests, replies))
 	})

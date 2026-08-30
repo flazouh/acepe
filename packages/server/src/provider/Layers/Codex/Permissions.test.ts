@@ -122,10 +122,10 @@ const makeTestAdapter = Effect.fn("makeTestAdapter")(function*(
 ) {
 	return yield* makeCodexAdapter({
 		presence: Effect.succeed(codexPresence(true, true)),
-		spawn: {
+		spawn: Effect.succeed({
 			command: CODEX_PLACEHOLDER_COMMAND,
 			args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
-		},
+		}),
 		config: defaultCodexNativeConfigState(),
 		createAppServer: () => Effect.succeed(fakeHandle(inbound, requests, replies))
 	})
@@ -335,10 +335,10 @@ Vitest.describe("CodexAdapter permissions", () => {
 			const rejections = yield* Ref.make(1)
 			const adapter = yield* makeCodexAdapter({
 				presence: Effect.succeed(codexPresence(true, true)),
-				spawn: {
+				spawn: Effect.succeed({
 					command: CODEX_PLACEHOLDER_COMMAND,
 					args: Arr.fromIterable(CODEX_APP_SERVER_ARGS)
-				},
+				}),
 				config: defaultCodexNativeConfigState(),
 				createAppServer: () =>
 					Effect.succeed(rejectingFirstReplyHandle(inbound, requests, replies, rejections))

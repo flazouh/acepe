@@ -114,17 +114,21 @@ export const homeRelativeFileExists = Effect.fn("homeRelativeFileExists")(functi
 })
 
 /**
- * Turns a presence probe into the `presence` member of a ProviderAdapter.
+ * Binds the filesystem services a probe needs and hands back the probe itself,
+ * still unrun.
  *
- * The returned Effect carries no requirements, which is what
- * ProviderAdapter.presence asks for, and it still runs the probe every time
- * it is evaluated. The services are bound, not the answer — that distinction
- * is the whole fix. `Effect.succeed(yield* probe)` is what made a managed
- * install report "not installed" until the app was restarted.
+ * The services are bound, the answer is not. `Effect.succeed(yield* probe)`
+ * reads the disk once while the layer is being built and returns that value
+ * forever, which is what made a managed install report "not installed" and a
+ * finished login report "not authenticated" until the app was restarted.
+ *
+ * The same distinction decides where an agent's binary is found. An adapter
+ * that resolves its executable at construction launches the placeholder it saw
+ * then, however the disk has changed since.
  */
-export const bindPresence = (
-	probe: Effect.Effect<ProviderPresence, never, FileSystem.FileSystem | Path.Path>
-): Effect.Effect<Effect.Effect<ProviderPresence>, never, FileSystem.FileSystem | Path.Path> =>
+export const bindProbe = <A, E>(
+	probe: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>
+): Effect.Effect<Effect.Effect<A, E>, never, FileSystem.FileSystem | Path.Path> =>
 	Effect.all([FileSystem.FileSystem, Path.Path]).pipe(
 		Effect.map(([fs, path]) =>
 			probe.pipe(
@@ -133,3 +137,15 @@ export const bindPresence = (
 			)
 		)
 	)
+
+/**
+ * Turns a presence probe into the `presence` member of a ProviderAdapter.
+ *
+ * The returned Effect carries no requirements, which is what
+ * ProviderAdapter.presence asks for, and it still runs the probe every time it
+ * is evaluated.
+ */
+export const bindPresence = (
+	probe: Effect.Effect<ProviderPresence, never, FileSystem.FileSystem | Path.Path>
+): Effect.Effect<Effect.Effect<ProviderPresence>, never, FileSystem.FileSystem | Path.Path> =>
+	bindProbe(probe)
