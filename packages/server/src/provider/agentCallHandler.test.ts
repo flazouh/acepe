@@ -4,9 +4,15 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import { routeAgentCall } from "./agentCallHandler.ts"
+import { signInMethodForAgent } from "./signIn.ts"
 import { ProviderAdapterRegistryLive } from "./Layers/ProviderAdapterRegistry.ts"
 import { AgentInstallerUnsupportedPlatformLive } from "./Layers/AgentInstaller.ts"
 import { ProviderRegistryLive } from "./Layers/ProviderRegistry.ts"
+import {
+	AgentAuthenticator,
+	AgentSignInCancelledError,
+	AgentSignInRejectedError
+} from "./Services/AgentAuthenticator.ts"
 import {
 	AgentInstaller,
 	AgentNotFoundError,
@@ -47,11 +53,40 @@ const fakeUnknownProvider = makeFakeProviderAdapter({
 // every caller carries it -- agent.list included. The unsupported-platform
 // installer stands in here: it never touches the network and never writes a
 // managed install directory.
+// Records what the handler asked of the authenticator, so a test can tell
+// "the handler reached the sign-in path" from "the handler answered by
+// itself". `outcome` decides what that sign-in does.
+const fakeAuthenticatorLayer = (
+	calls: Ref.Ref<ReadonlyArray<string>>,
+	outcome: Effect.Effect<void, AgentSignInRejectedError | AgentSignInCancelledError> =
+		Effect.void,
+	cancelAnswer = true
+) =>
+	Layer.succeed(
+		AgentAuthenticator,
+		AgentAuthenticator.of({
+			signIn: (agentId) =>
+				Ref.update(calls, (seen) => [...seen, `signIn:${agentId}`]).pipe(Effect.andThen(outcome)),
+			cancel: (agentId) =>
+				Ref.update(calls, (seen) => [...seen, `cancel:${agentId}`]).pipe(
+					Effect.as(cancelAnswer)
+				)
+		})
+	)
+
 const TestLive = Layer.mergeAll(
 	ProviderRegistryLive.pipe(
 		Layer.provide(ProviderAdapterRegistryLive([fakeClaude, fakeCodex, fakeUnknownProvider]))
 	),
-	AgentInstallerUnsupportedPlatformLive("test-host")
+	AgentInstallerUnsupportedPlatformLive("test-host"),
+	Layer.effect(
+		AgentAuthenticator,
+		Effect.map(Ref.make<ReadonlyArray<string>>([]), (calls) =>
+			AgentAuthenticator.of({
+				signIn: (agentId) => Ref.update(calls, (seen) => [...seen, `signIn:${agentId}`]),
+				cancel: () => Effect.succeed(false)
+			}))
+	)
 )
 
 Vitest.layer(TestLive)("routeAgentCall", (it) => {
@@ -64,17 +99,23 @@ Vitest.layer(TestLive)("routeAgentCall", (it) => {
 					{
 						id: "claude-code",
 						name: "Claude Code",
-						availabilityKind: { kind: "installable", installed: true }
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" }
 					},
 					{
 						id: "codex",
 						name: "Codex",
-						availabilityKind: { kind: "installable", installed: false }
+						availabilityKind: { kind: "installable", installed: false },
+						signIn: { kind: "browser" }
 					},
 					{
 						id: "something-new",
 						name: "something-new",
-						availabilityKind: { kind: "installable", installed: true }
+						availabilityKind: { kind: "installable", installed: true },
+						// An agent the sign-in table does not know reports manual
+						// with the copy the server owns, never a browser method
+						// nothing can run.
+						signIn: signInMethodForAgent("something-new")
 					}
 				]
 			})
@@ -144,8 +185,167 @@ const registryWith = (adapter: ProviderAdapter) =>
 const installEnv = (installedRef: Ref.Ref<boolean>) =>
 	Layer.mergeAll(
 		registryWith(refBackedAdapter(CODEX_ID, installedRef)),
-		fakeInstallerLayer(installedRef)
+		fakeInstallerLayer(installedRef),
+		Layer.effect(
+			AgentAuthenticator,
+			Effect.map(Ref.make<ReadonlyArray<string>>([]), (calls) =>
+				AgentAuthenticator.of({
+					signIn: (agentId) => Ref.update(calls, (seen) => [...seen, `signIn:${agentId}`]),
+					cancel: () => Effect.succeed(false)
+				}))
+		)
 	)
+
+// An adapter whose authenticated flag follows a Ref, the way a real one's
+// follows its credential store. It is what makes the assertion below
+// meaningful: agent.authenticate has to re-read presence after the login
+// ran, not assert an outcome from the exit code.
+const authAdapter = (
+	providerId: ProviderId,
+	authenticatedRef: Ref.Ref<boolean>
+): ProviderAdapter => ({
+	...makeFakeProviderAdapter({
+		providerId,
+		capabilities: ProviderCapabilities.make({ enabled: [] }),
+		installed: true,
+		authenticated: false,
+		updates: []
+	}),
+	presence: Ref.get(authenticatedRef).pipe(
+		Effect.map((authenticated) => ({ providerId, installed: true, authenticated }))
+	)
+})
+
+const authEnv = (
+	authenticatedRef: Ref.Ref<boolean>,
+	calls: Ref.Ref<ReadonlyArray<string>>,
+	outcome?: Effect.Effect<void, AgentSignInRejectedError | AgentSignInCancelledError>,
+	cancelAnswer?: boolean
+) =>
+	Layer.mergeAll(
+		registryWith(authAdapter(CODEX_ID, authenticatedRef)),
+		AgentInstallerUnsupportedPlatformLive("test-host"),
+		fakeAuthenticatorLayer(calls, outcome ?? Effect.void, cancelAnswer ?? true)
+	)
+
+Vitest.describe("routeAgentCall agent.authenticate", () => {
+	Vitest.it.effect("reaches the provider's sign-in path and re-reads presence afterwards", () =>
+		Effect.gen(function*() {
+			const authenticatedRef = yield* Ref.make(false)
+			const calls = yield* Ref.make<ReadonlyArray<string>>([])
+			// The fake sign-in writes the credential fact, which is what a real
+			// login command does to the store the presence probe reads.
+			const result = yield* routeAgentCall({ op: "agent.authenticate", agentId: "codex" }).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(authEnv(authenticatedRef, calls, Ref.set(authenticatedRef, true)))
+			)
+			Vitest.assert.deepStrictEqual(yield* Ref.get(calls), ["signIn:codex"])
+			Vitest.assert.deepStrictEqual(result, {
+				op: "agent.authenticate",
+				agentId: "codex",
+				authenticated: true,
+				agents: [
+					{
+						id: "codex",
+						name: "Codex",
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" }
+					}
+				]
+			})
+		})
+	)
+
+	Vitest.it.effect("answers a login that did not sign anybody in with authenticated false", () =>
+		Effect.gen(function*() {
+			const authenticatedRef = yield* Ref.make(false)
+			const calls = yield* Ref.make<ReadonlyArray<string>>([])
+			const result = yield* routeAgentCall({ op: "agent.authenticate", agentId: "codex" }).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(authEnv(authenticatedRef, calls))
+			)
+			Vitest.assert.deepStrictEqual(result, {
+				op: "agent.authenticate",
+				agentId: "codex",
+				authenticated: false,
+				agents: [
+					{
+						id: "codex",
+						name: "Codex",
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" }
+					}
+				]
+			})
+		})
+	)
+
+	Vitest.it.effect("carries the sign-in's own reason, not the name of a missing call", () =>
+		Effect.gen(function*() {
+			const authenticatedRef = yield* Ref.make(false)
+			const calls = yield* Ref.make<ReadonlyArray<string>>([])
+			const outcome = Effect.fail(
+				new AgentSignInRejectedError({ agentId: CODEX_ID, exitCode: 7 })
+			)
+			const result = yield* Effect.result(
+				routeAgentCall({ op: "agent.authenticate", agentId: "codex" }).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(authEnv(authenticatedRef, calls, outcome))
+				)
+			)
+			Vitest.assert.strictEqual(result._tag, "Failure")
+			if (result._tag === "Failure") {
+				Vitest.assert.strictEqual(result.failure._tag, "RpcAgentCallError")
+				Vitest.assert.strictEqual(result.failure.message.includes("code 7"), true)
+				Vitest.assert.strictEqual(
+					result.failure.message.includes("unsupported"),
+					false
+				)
+			}
+		})
+	)
+})
+
+Vitest.describe("routeAgentCall agent.cancel-authentication", () => {
+	Vitest.it.effect("stops the sign-in that is running and says it did", () =>
+		Effect.gen(function*() {
+			const authenticatedRef = yield* Ref.make(false)
+			const calls = yield* Ref.make<ReadonlyArray<string>>([])
+			const result = yield* routeAgentCall({
+				op: "agent.cancel-authentication",
+				agentId: "codex"
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(authEnv(authenticatedRef, calls))
+			)
+			Vitest.assert.deepStrictEqual(yield* Ref.get(calls), ["cancel:codex"])
+			Vitest.assert.deepStrictEqual(result, {
+				op: "agent.cancel-authentication",
+				agentId: "codex",
+				cancelled: true
+			})
+		})
+	)
+
+	Vitest.it.effect("says so when there was no sign-in to stop", () =>
+		Effect.gen(function*() {
+			const authenticatedRef = yield* Ref.make(false)
+			const calls = yield* Ref.make<ReadonlyArray<string>>([])
+			const result = yield* routeAgentCall({
+				op: "agent.cancel-authentication",
+				agentId: "codex"
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(authEnv(authenticatedRef, calls, undefined, false))
+			)
+			Vitest.assert.deepStrictEqual(result, {
+				op: "agent.cancel-authentication",
+				agentId: "codex",
+				cancelled: false
+			})
+		})
+	)
+})
 
 Vitest.describe("routeAgentCall agent.install", () => {
 	Vitest.it.effect("runs the installer and answers with the agent list read back afterwards", () =>
@@ -161,7 +361,8 @@ Vitest.describe("routeAgentCall agent.install", () => {
 					{
 						id: "codex",
 						name: "Codex",
-						availabilityKind: { kind: "installable", installed: false }
+						availabilityKind: { kind: "installable", installed: false },
+						signIn: { kind: "browser" }
 					}
 				]
 			})
@@ -177,7 +378,8 @@ Vitest.describe("routeAgentCall agent.install", () => {
 					{
 						id: "codex",
 						name: "Codex",
-						availabilityKind: { kind: "installable", installed: true }
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" }
 					}
 				]
 			})
@@ -231,7 +433,8 @@ Vitest.describe("routeAgentCall agent.install", () => {
 					{
 						id: "codex",
 						name: "Codex",
-						availabilityKind: { kind: "installable", installed: false }
+						availabilityKind: { kind: "installable", installed: false },
+						signIn: { kind: "browser" }
 					}
 				]
 			})

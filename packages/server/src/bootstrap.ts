@@ -57,6 +57,7 @@ import { ProjectionTerminal } from "./persistence/Services/ProjectionTerminal.ts
 import { ProjectionSessionReviewState } from "./persistence/Services/ProjectionSessionReviewState.ts"
 import { HardcodedProviderLive } from "./provider/HardcodedProvider.ts"
 import { platformKeyFromHost } from "./provider/agentJson.ts"
+import { AgentAuthenticatorLive } from "./provider/Layers/AgentAuthenticator.ts"
 import {
 	AgentInstallerLive,
 	AgentInstallerUnsupportedPlatformLive,
@@ -398,6 +399,11 @@ export const makeAcepeLive = (input: AcepeLiveInput) => {
 		Layer.provideMerge(providerUsage),
 		Layer.provideMerge(providerRegistry),
 		Layer.provideMerge(agentInstaller),
+		// Runs the agent's own login command for the agentCall RPC's
+		// agent.authenticate op. It needs nothing but a spawner: the token
+		// each login writes goes into that CLI's own credential store, and
+		// Acepe keeps no store of its own for one.
+		Layer.provideMerge(AgentAuthenticatorLive.pipe(Layer.provide(bunPlatform))),
 		Layer.provideMerge(bunPlatform)
 	)
 	const providerBridge = ProviderBridgeLive.pipe(Layer.provideMerge(providerAdapters))

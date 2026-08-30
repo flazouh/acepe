@@ -29,10 +29,35 @@ import * as Schema from "effect/Schema"
 // need a streaming RPC and a progress-reporting installer, which is not
 // what this slice buys.
 //
-// registerCustomAgent/authenticate* stay unsupportedOnContract in the
-// facade -- see backend-client/acp.ts's header comment -- until they get a
-// real backend; each becomes a new request/result union member here,
-// exactly like gitCall.ts's ops did one sub-domain at a time.
+// SIGN-IN. agent.authenticate/agent.cancel-authentication joined this lane
+// for the same reason install did. The orchestration `agent.authenticate`
+// command is an echo too -- acpDecide.ts emits an AgentAuthenticated event
+// straight from the command payload, so dispatching it records "this agent
+// is signed in" without a single credential having been exchanged, and
+// nothing reads authenticatedness from the event store. Authenticatedness is
+// answered by ProviderRegistry presence, so the operation that changes it
+// belongs on the lane that reads it.
+//
+// What actually signs an agent in is that agent's own CLI: `claude auth
+// login`, `codex login`, `copilot login`, `cursor-agent login`. Each opens
+// the operator's browser, completes an OAuth round trip and writes a token
+// into its own credential store. Acepe spawns the command and waits for it
+// to exit; no token is ever read, logged, held or forwarded by Acepe. The
+// call is long-running by nature, which is what the request/response lane
+// buys from the RPC transport's no-give-up behaviour, and cancel kills the
+// child that call is waiting on.
+//
+// Not every agent has such a command. OpenCode's `opencode auth login` is an
+// interactive terminal picker that asks for a provider and then an API key on
+// stdin -- there is nothing Acepe can run on the operator's behalf without
+// collecting their secret, which it must not do. Those agents report a
+// `manual` sign-in method carrying the exact command to run, and the caller
+// renders that instead of a control that cannot work.
+//
+// registerCustomAgent stays unsupportedOnContract in the facade -- see
+// backend-client/acp.ts's header comment -- until it gets a real backend;
+// it becomes a new request/result union member here, exactly like
+// gitCall.ts's ops did one sub-domain at a time.
 
 export const AgentCallAvailabilityKind = Schema.Struct({
 	kind: Schema.Literal("installable"),
@@ -40,10 +65,25 @@ export const AgentCallAvailabilityKind = Schema.Struct({
 })
 export type AgentCallAvailabilityKind = typeof AgentCallAvailabilityKind.Type
 
+// How this agent can be signed in, decided by the server from what the
+// agent's own CLI offers. `browser` means agent.authenticate runs a real
+// login command for it; `manual` means it has none Acepe can drive and
+// `instructions` says what the operator should run instead. A caller renders
+// a sign-in control only for `browser`.
+export const AgentCallSignInMethod = Schema.Union([
+	Schema.Struct({ kind: Schema.Literal("browser") }),
+	Schema.Struct({
+		kind: Schema.Literal("manual"),
+		instructions: Schema.String
+	})
+])
+export type AgentCallSignInMethod = typeof AgentCallSignInMethod.Type
+
 export const AgentCallAgentInfo = Schema.Struct({
 	id: Schema.String,
 	name: Schema.String,
-	availabilityKind: AgentCallAvailabilityKind
+	availabilityKind: AgentCallAvailabilityKind,
+	signIn: AgentCallSignInMethod
 })
 export type AgentCallAgentInfo = typeof AgentCallAgentInfo.Type
 
@@ -91,18 +131,61 @@ export const AgentCallUninstallAgentResult = Schema.Struct({
 })
 export type AgentCallUninstallAgentResult = typeof AgentCallUninstallAgentResult.Type
 
+// ─── sign-in ──────────────────────────────────────────────────────────────
+
+export const AgentCallAuthenticateRequest = Schema.Struct({
+	op: Schema.Literal("agent.authenticate"),
+	agentId: Schema.String
+})
+export type AgentCallAuthenticateRequest = typeof AgentCallAuthenticateRequest.Type
+
+// `authenticated` is re-probed off ProviderRegistry after the login command
+// exited, not asserted from the exit code: a login can exit 0 having written
+// nothing the adapter will find, and presence is the fact a session start
+// reads. `agents` carries the whole re-read list for the same reason
+// install's does.
+export const AgentCallAuthenticateResult = Schema.Struct({
+	op: Schema.Literal("agent.authenticate"),
+	agentId: Schema.String,
+	authenticated: Schema.Boolean,
+	agents: Schema.Array(AgentCallAgentInfo)
+})
+export type AgentCallAuthenticateResult = typeof AgentCallAuthenticateResult.Type
+
+export const AgentCallCancelAuthenticationRequest = Schema.Struct({
+	op: Schema.Literal("agent.cancel-authentication"),
+	agentId: Schema.String
+})
+export type AgentCallCancelAuthenticationRequest =
+	typeof AgentCallCancelAuthenticationRequest.Type
+
+// `cancelled` is false when no sign-in was running for that agent, so a
+// caller can tell "I stopped it" from "there was nothing to stop" instead of
+// reading a success that means neither.
+export const AgentCallCancelAuthenticationResult = Schema.Struct({
+	op: Schema.Literal("agent.cancel-authentication"),
+	agentId: Schema.String,
+	cancelled: Schema.Boolean
+})
+export type AgentCallCancelAuthenticationResult =
+	typeof AgentCallCancelAuthenticationResult.Type
+
 // ─── unions ───────────────────────────────────────────────────────────────
 
 export const AgentCallRequest = Schema.Union([
 	AgentCallListAgentsRequest,
 	AgentCallInstallAgentRequest,
-	AgentCallUninstallAgentRequest
+	AgentCallUninstallAgentRequest,
+	AgentCallAuthenticateRequest,
+	AgentCallCancelAuthenticationRequest
 ])
 export type AgentCallRequest = typeof AgentCallRequest.Type
 
 export const AgentCallResult = Schema.Union([
 	AgentCallListAgentsResult,
 	AgentCallInstallAgentResult,
-	AgentCallUninstallAgentResult
+	AgentCallUninstallAgentResult,
+	AgentCallAuthenticateResult,
+	AgentCallCancelAuthenticationResult
 ])
 export type AgentCallResult = typeof AgentCallResult.Type

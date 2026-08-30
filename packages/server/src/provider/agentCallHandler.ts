@@ -5,9 +5,11 @@ import {
 	RpcAgentCallError
 } from "@acepe/contracts"
 import * as Effect from "effect/Effect"
+import { AgentAuthenticator } from "./Services/AgentAuthenticator.ts"
 import { AgentInstaller } from "./Services/AgentInstaller.ts"
-import { decodeProviderId } from "./Services/ProviderAdapter.ts"
+import { decodeProviderId, type ProviderId } from "./Services/ProviderAdapter.ts"
 import { ProviderRegistry } from "./Services/ProviderRegistry.ts"
+import { signInMethodForAgent } from "./signIn.ts"
 
 // Routes the agentCall utility RPC's tagged-union request onto the
 // server's ProviderRegistry (packages/server/src/provider/Services/
@@ -25,6 +27,13 @@ import { ProviderRegistry } from "./Services/ProviderRegistry.ts"
 // and no caller has to keep a client-side installed-set. See
 // packages/contracts/src/agentCall.ts for why this lane carries install
 // rather than the orchestration `agent.install` command.
+//
+// authenticate and cancel-authentication run AgentAuthenticator (packages/
+// server/src/provider/Layers/AgentAuthenticator.ts), which spawns the
+// agent's own login command and waits for it. They are on this lane for the
+// same reason install is: the orchestration `agent.authenticate` command is
+// an echo that records "signed in" without a credential having been
+// exchanged, and authenticatedness is answered by ProviderRegistry presence.
 //
 // Display names are a presentation label, not canonical data: they
 // follow the same per-provider-id literal precedent as
@@ -56,9 +65,24 @@ const listAgents = Effect.fn("agentCall.listAgents")(function*() {
 		availabilityKind: {
 			kind: "installable" as const,
 			installed: presence.installed
-		}
+		},
+		// Server-decided, from what the agent's own CLI offers -- see
+		// provider/signIn.ts. A caller renders a sign-in control from this
+		// rather than deciding for itself which agents have one.
+		signIn: signInMethodForAgent(presence.providerId)
 	}))
 	return agents
+})
+
+// Whether ProviderRegistry now considers this agent authenticated. Read from
+// presence after the login command exited, never asserted from its exit
+// code: presence is the fact a session start reads, and a login can exit 0
+// having written a credential store the adapter does not look in.
+const isAuthenticated = Effect.fn("agentCall.isAuthenticated")(function*(agentId: ProviderId) {
+	const registry = yield* ProviderRegistry
+	const presences = yield* registry.list
+	const found = presences.find((presence) => presence.providerId === agentId)
+	return found?.authenticated ?? false
 })
 
 export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: AgentCallRequest) {
@@ -89,6 +113,37 @@ export const routeAgentCall = Effect.fn("routeAgentCall")(function*(request: Age
 				agentId: request.agentId,
 				version: outcome.agent.version,
 				agents
+			} as const satisfies AgentCallResult
+		}
+		case "agent.authenticate": {
+			const authenticator = yield* AgentAuthenticator
+			const agentId = yield* decodeProviderId(request.agentId).pipe(
+				Effect.mapError(toRpcAgentCallError(request.op))
+			)
+			// Long-running: it is waiting on the person finishing the login
+			// in their browser. Cancelling is agent.cancel-authentication,
+			// which stops the child this call is waiting on and makes this
+			// call fail with the cancelled message.
+			yield* authenticator.signIn(agentId).pipe(Effect.mapError(toRpcAgentCallError(request.op)))
+			const authenticated = yield* isAuthenticated(agentId)
+			const agents = yield* listAgents()
+			return {
+				op: "agent.authenticate",
+				agentId: request.agentId,
+				authenticated,
+				agents
+			} as const satisfies AgentCallResult
+		}
+		case "agent.cancel-authentication": {
+			const authenticator = yield* AgentAuthenticator
+			const agentId = yield* decodeProviderId(request.agentId).pipe(
+				Effect.mapError(toRpcAgentCallError(request.op))
+			)
+			const cancelled = yield* authenticator.cancel(agentId)
+			return {
+				op: "agent.cancel-authentication",
+				agentId: request.agentId,
+				cancelled
 			} as const satisfies AgentCallResult
 		}
 		case "agent.uninstall": {

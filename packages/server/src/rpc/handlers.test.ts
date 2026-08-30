@@ -55,6 +55,7 @@ import { ProjectionStateLive } from "../persistence/Layers/ProjectionState.ts"
 import { McpCatalogLive } from "../mcp/Layers/McpCatalog.ts"
 import { ProviderAdapterRegistryLive } from "../provider/Layers/ProviderAdapterRegistry.ts"
 import { ProviderRegistryLive } from "../provider/Layers/ProviderRegistry.ts"
+import { AgentAuthenticatorLive } from "../provider/Layers/AgentAuthenticator.ts"
 import { AgentInstallerUnsupportedPlatformLive } from "../provider/Layers/AgentInstaller.ts"
 import { makeFakeProviderAdapter } from "../provider/Services/FakeProviderAdapter.ts"
 import { ProviderCapabilities, ProviderId } from "../provider/Services/ProviderAdapter.ts"
@@ -218,9 +219,18 @@ const ProviderRegistryTestLive = ProviderRegistryLive.pipe(
 // exercises the real agentCall route and the real RpcAgentCallError shape.
 const AgentInstallerTestLive = AgentInstallerUnsupportedPlatformLive("test-host")
 
+// The real authenticator, not a stub: the two sign-in tests below take
+// paths that spawn nothing (an agent whose sign-in it refuses to drive, and
+// a cancel with nothing running), so it can be the real one and still never
+// run a login command.
+const AgentAuthenticatorTestLive = AgentAuthenticatorLive.pipe(
+	Layer.provide(FileIndexPlatform)
+)
+
 const TestLive = RpcHandlersLive.pipe(
 	Layer.provideMerge(ProviderRegistryTestLive),
 	Layer.provideMerge(AgentInstallerTestLive),
+	Layer.provideMerge(AgentAuthenticatorTestLive),
 	Layer.provideMerge(ProjectionSnapshotQueryLive),
 	Layer.provideMerge(EngineAndStore),
 	Layer.provideMerge(FileIndexServiceLive),
@@ -443,7 +453,8 @@ Vitest.layer(isolatedRpc())("agentCall agent.list", (it) => {
 					{
 						id: "claude-code",
 						name: "Claude Code",
-						availabilityKind: { kind: "installable", installed: true }
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" }
 					}
 				]
 			})
@@ -481,9 +492,46 @@ Vitest.layer(isolatedRpc())("agentCall agent.install", (it) => {
 					{
 						id: "claude-code",
 						name: "Claude Code",
-						availabilityKind: { kind: "installable", installed: true }
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" }
 					}
 				]
+			})
+		})
+	)
+})
+
+// The sign-in ops over the real RPC boundary, with the real
+// AgentAuthenticator behind them. Neither case here spawns a login command:
+// one asks for an agent whose sign-in Acepe refuses to drive, the other
+// cancels a sign-in that is not running. That is deliberate -- a test must
+// not run the operator's real `claude auth login`.
+Vitest.layer(isolatedRpc())("agentCall sign-in", (it) => {
+	it.effect("refuses an agent it cannot sign in, naming the command to run instead", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const error = yield* Effect.flip(
+				client.agentCall({ op: "agent.authenticate", agentId: "opencode" })
+			)
+			Vitest.assert.strictEqual(error._tag, "RpcAgentCallError")
+			Vitest.assert.strictEqual(error.message.includes("opencode auth login"), true)
+			// The regression this whole lane exists for: the sign-in control
+			// used to answer with the name of a call that had no backend.
+			Vitest.assert.strictEqual(error.message.includes("unsupported"), false)
+		})
+	)
+
+	it.effect("answers a cancel with whether there was a sign-in to stop", () =>
+		Effect.gen(function*() {
+			const client = yield* RpcTest.makeClient(AcepeRpc)
+			const result = yield* client.agentCall({
+				op: "agent.cancel-authentication",
+				agentId: "claude-code"
+			})
+			Vitest.assert.deepStrictEqual(result, {
+				op: "agent.cancel-authentication",
+				agentId: "claude-code",
+				cancelled: false
 			})
 		})
 	)
