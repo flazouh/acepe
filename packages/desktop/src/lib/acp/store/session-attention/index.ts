@@ -15,7 +15,6 @@ export {
 	deriveQueueSessionState,
 	type ProjectBadgeLabelLookup,
 	type ProjectColorLookup,
-	type ProjectIconSrcLookup,
 	type QueueSessionSnapshot,
 	type QueueSessionStateInput,
 } from "./utils.js";

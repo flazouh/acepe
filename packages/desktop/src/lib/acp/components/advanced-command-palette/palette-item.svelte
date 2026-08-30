@@ -80,7 +80,6 @@ const labelSegments = $derived.by(() => {
 			name={item.metadata.projectName}
 			label={item.metadata.projectBadgeLabel ?? null}
 			color={item.metadata.projectColor}
-			iconSrc={item.metadata.projectIconSrc}
 			size={18}
 		/>
 	{:else if isFileItem}

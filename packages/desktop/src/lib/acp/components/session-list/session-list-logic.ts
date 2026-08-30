@@ -8,7 +8,6 @@ import { extractProjectName } from "../../utils/path-utils.js";
 
 import {
 	createProjectColorMap,
-	createProjectIconSrcMap,
 	createProjectNameMap,
 	generateFallbackProjectColor,
 } from "../../utils/project-utils.js";
@@ -19,7 +18,7 @@ import type {
 	TodoProgressInfo,
 } from "./session-list-types.js";
 
-export { createProjectColorMap, createProjectIconSrcMap, createProjectNameMap };
+export { createProjectColorMap, createProjectNameMap };
 
 import type { ToolCall } from "../../types/tool-call.js";
 import { computeStatsFromCheckpoints } from "../../utils/checkpoint-diff-utils.js";
@@ -46,7 +45,6 @@ export function createLoadingSessionGroups(projects: readonly Project[]): Sessio
 			projectName: project.name,
 			projectBadgeLabel: projectBadgeLabelByPath.get(project.path) ?? null,
 			projectColor: project.color,
-			projectIconSrc: project.iconPath ?? null,
 			sessions: [],
 		}));
 }
@@ -105,7 +103,6 @@ export function createDisplayItems(
 	sessions: readonly SessionWithEntries[],
 	projectNameMap: Map<string, string>,
 	projectColorMap: Map<string, string>,
-	projectIconSrcMap: Map<string, string | null>,
 	openSessionIds: Set<string>,
 	getCheckpoints?: (sessionId: string) => readonly Checkpoint[]
 ): SessionListItem[] {
@@ -114,7 +111,6 @@ export function createDisplayItems(
 			projectNameMap.get(session.projectPath) || extractProjectName(session.projectPath);
 		const projectColor =
 			projectColorMap.get(session.projectPath) ?? generateFallbackProjectColor(session.projectPath);
-		const projectIconSrc = projectIconSrcMap.get(session.projectPath) ?? null;
 
 		// Streaming indicator from session flag (no entry scan needed)
 		const activity: SessionActivityInfo | null = session.isStreaming
@@ -134,7 +130,6 @@ export function createDisplayItems(
 			projectPath: session.projectPath,
 			projectName,
 			projectColor,
-			projectIconSrc,
 			agentId: session.agentId,
 			sourcePath: session.sourcePath,
 			createdAt: session.createdAt,
@@ -356,7 +351,6 @@ export function createSessionGroups(
 				projectName: project.name,
 				projectBadgeLabel: projectBadgeLabelByPath.get(project.path) ?? null,
 				projectColor: project.color,
-				projectIconSrc: project.iconPath ?? null,
 				sessions: [],
 			});
 		}
@@ -370,7 +364,6 @@ export function createSessionGroups(
 				projectName: item.projectName,
 				projectBadgeLabel: projectBadgeLabelByPath.get(item.projectPath) ?? null,
 				projectColor: item.projectColor,
-				projectIconSrc: item.projectIconSrc ?? null,
 				sessions: [],
 			};
 			groupMap.set(item.projectPath, group);

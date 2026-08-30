@@ -103,7 +103,6 @@ function handleKeydown(event: KeyboardEvent): void {
 					name={card.projectName}
 					label={card.projectBadgeLabel ?? null}
 					color={card.projectColor}
-					iconSrc={card.projectIconSrc}
 					size={14}
 					sequenceId={card.sequenceId}
 					class="shrink-0"

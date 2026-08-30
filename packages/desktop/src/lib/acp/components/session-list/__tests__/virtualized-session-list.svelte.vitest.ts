@@ -25,7 +25,6 @@ function createSessionItem(overrides?: Partial<SessionListItem>): SessionListIte
 		projectPath: "/repo",
 		projectName: "repo",
 		projectColor: "#22c55e",
-		projectIconSrc: null,
 		agentId: "codex",
 		createdAt,
 		updatedAt,

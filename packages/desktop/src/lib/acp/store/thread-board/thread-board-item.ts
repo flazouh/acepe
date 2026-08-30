@@ -19,7 +19,6 @@ export interface ThreadBoardSource {
 	readonly projectName: string;
 	readonly projectBadgeLabel: string | null;
 	readonly projectColor: string;
-	readonly projectIconSrc: string | null;
 	readonly title: string | null;
 	readonly lastActivityAt: number;
 	readonly currentModeId: string | null;
@@ -50,7 +49,6 @@ export interface ThreadBoardItem {
 	readonly projectName: string;
 	readonly projectBadgeLabel: string | null;
 	readonly projectColor: string;
-	readonly projectIconSrc: string | null;
 	readonly title: string | null;
 	readonly lastActivityAt: number;
 	readonly currentModeId: string | null;

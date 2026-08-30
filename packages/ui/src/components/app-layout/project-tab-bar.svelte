@@ -9,7 +9,6 @@
 		readonly path: string;
 		readonly name: string;
 		readonly color: string;
-		readonly iconSrc?: string | null;
 		readonly badgeLabel?: string | null;
 		readonly sessionCount?: number;
 		/**
@@ -66,7 +65,6 @@
 							name={project.name}
 							label={project.badgeLabel ?? labelByPath.get(project.path) ?? null}
 							color={project.color}
-							iconSrc={project.iconSrc ?? null}
 							size={14}
 							class="shrink-0"
 						/>

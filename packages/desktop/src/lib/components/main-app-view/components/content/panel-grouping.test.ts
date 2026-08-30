@@ -58,14 +58,12 @@ describe("groupAllPanelsByProject", () => {
 					name: "Project A",
 					color: "#123456",
 					createdAt: new Date(),
-					iconPath: "/tmp/project-a/icon.png",
 				},
 			])
 		);
 
 		expect(groups).toHaveLength(1);
 		expect(groups[0].projectPath).toBe("/tmp/project-a");
-		expect(groups[0].projectIconSrc).toBe("/tmp/project-a/icon.png");
 		expect(groups[0].agentPanels).toHaveLength(1);
 		expect(groups[0].filePanels).toHaveLength(1);
 		expect(groups[0].terminalPanels).toHaveLength(1);
@@ -102,7 +100,6 @@ describe("groupAllPanelsByProject", () => {
 					name: "Project A",
 					color: "#123456",
 					createdAt: new Date(),
-					iconPath: null,
 				},
 			])
 		);
@@ -143,7 +140,6 @@ describe("groupAllPanelsByProject", () => {
 					name: "Project A",
 					color: "#123456",
 					createdAt: new Date(),
-					iconPath: null,
 				},
 			])
 		);
@@ -184,13 +180,11 @@ describe("groupAllPanelsByProject", () => {
 					name: "Project A",
 					color: "#123456",
 					createdAt: new Date(),
-					iconPath: "/tmp/project-a/icon.png",
 				},
 			])
 		);
 
 		expect(groups).toHaveLength(1);
-		expect(groups[0]?.projectIconSrc).toBe("/tmp/project-a/icon.png");
 		expect(groups[0]?.terminalPanels).toHaveLength(2);
 		expect(groups[0]?.terminalPanels[0]?.id).toBe("group-a");
 		expect(groups[0]?.terminalPanels[1]?.id).toBe("group-b");
@@ -203,7 +197,6 @@ describe("sortProjectGroupsForMultiLayout", () => {
 			projectPath,
 			projectName,
 			projectColor: "#123456",
-			projectIconSrc: null,
 			agentPanels: [],
 			filePanels: [],
 			reviewPanels: [],
@@ -329,13 +322,11 @@ describe("groupWorkspacePanelsByProject", () => {
 					name: "Project A",
 					color: "#123456",
 					createdAt: new Date(),
-					iconPath: "/tmp/project-a/icon.png",
 				},
 			])
 		);
 
 		expect(groups).toHaveLength(1);
-		expect(groups[0]?.projectIconSrc).toBe("/tmp/project-a/icon.png");
 		expect(groups[0]?.agentPanels).toHaveLength(1);
 		expect(groups[0]?.filePanels).toHaveLength(1);
 		expect(groups[0]?.terminalPanels).toHaveLength(1);

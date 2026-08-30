@@ -10,7 +10,6 @@
 		projectName?: string;
 		projectBadgeLabel?: string | null;
 		projectColor?: string;
-		projectIconSrc?: string | null;
 		expanded?: boolean;
 		class?: string;
 		trailing?: Snippet;
@@ -21,7 +20,6 @@
 		projectName,
 		projectBadgeLabel = null,
 		projectColor,
-		projectIconSrc = null,
 		expanded = false,
 		class: className = "",
 		trailing,
@@ -31,7 +29,6 @@
 	const displayName = $derived(projectName ? projectName : "Unknown Project");
 	const fallbackColor = TAG_COLORS.length > 0 ? TAG_COLORS[0] : "#FF5D5A";
 	const resolvedColor = $derived(projectColor ? projectColor : fallbackColor);
-	const resolvedIconSrc = $derived(projectIconSrc);
 	const badgeSizePx = 16;
 </script>
 
@@ -57,7 +54,6 @@
 				name={displayName}
 				label={projectBadgeLabel}
 				color={resolvedColor}
-				iconSrc={resolvedIconSrc}
 				size={badgeSizePx}
 			/>
 		</span>

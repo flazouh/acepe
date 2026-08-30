@@ -19,7 +19,6 @@ export interface UnifiedWorkspacePanelGroup<
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;
-	readonly projectIconSrc: string | null;
 	readonly agentPanels: readonly TAgent[];
 	readonly filePanels: readonly FilePanel[];
 	readonly reviewPanels: readonly ReviewPanel[];
@@ -37,7 +36,6 @@ export interface AgentPanelGroup<T extends { sessionProjectPath: string | null }
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;
-	readonly projectIconSrc: string | null;
 	readonly panels: readonly T[];
 }
 
@@ -50,7 +48,6 @@ export interface ProjectPanelGroup<
 	readonly projectPath: string;
 	readonly projectName: string;
 	readonly projectColor: string;
-	readonly projectIconSrc: string | null;
 	readonly agentPanels: readonly TAgent[];
 	readonly filePanels: readonly FilePanel[];
 	readonly reviewPanels: readonly ReviewPanel[];
@@ -83,12 +80,11 @@ export function groupPanelsByProject<T extends { sessionProjectPath: string | nu
 
 	return groupOrder.map((key) => {
 		const groupPanels = groupMap.get(key)!;
-		const { name, color, iconSrc } = resolveProject(key, projectLookup);
+		const { name, color } = resolveProject(key, projectLookup);
 		return {
 			projectPath: key,
 			projectName: name,
 			projectColor: color,
-			projectIconSrc: iconSrc,
 			panels: groupPanels,
 		};
 	});
@@ -98,12 +94,11 @@ export function groupPanelsByProject<T extends { sessionProjectPath: string | nu
 function resolveProject(
 	projectPath: string,
 	projectLookup: ProjectLookup
-): { name: string; color: string; iconSrc: string | null } {
+): { name: string; color: string } {
 	const project = projectPath ? (projectLookup(projectPath) ?? null) : null;
 	return {
 		name: project?.name ?? projectPath.split("/").pop() ?? "Unknown",
 		color: project?.color ?? "#4AD0FF",
-		iconSrc: project?.iconPath ?? null,
 	};
 }
 
@@ -116,12 +111,11 @@ function ensureGroup<TAgent extends { sessionProjectPath: string | null }>(
 ): ProjectPanelGroup<TAgent> {
 	let group = groupMap.get(key);
 	if (!group) {
-		const { name, color, iconSrc } = resolveProject(key, projectLookup);
+		const { name, color } = resolveProject(key, projectLookup);
 		group = {
 			projectPath: key,
 			projectName: name,
 			projectColor: color,
-			projectIconSrc: iconSrc,
 			agentPanels: [],
 			filePanels: [],
 			reviewPanels: [],
@@ -289,12 +283,11 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath ?? "";
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projectLookup);
+			const { name, color } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,
 				projectColor: color,
-				projectIconSrc: iconSrc,
 				agentPanels: [],
 				filePanels: [],
 				reviewPanels: [],
@@ -314,12 +307,11 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath;
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projectLookup);
+			const { name, color } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,
 				projectColor: color,
-				projectIconSrc: iconSrc,
 				agentPanels: [],
 				filePanels: [],
 				reviewPanels: [],
@@ -360,12 +352,11 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath;
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projectLookup);
+			const { name, color } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,
 				projectColor: color,
-				projectIconSrc: iconSrc,
 				agentPanels: [],
 				filePanels: [],
 				reviewPanels: [],
@@ -383,12 +374,11 @@ export function groupWorkspacePanelsByProject<
 		const key = panel.projectPath;
 		let group = groupMap.get(key);
 		if (!group) {
-			const { name, color, iconSrc } = resolveProject(key, projectLookup);
+			const { name, color } = resolveProject(key, projectLookup);
 			group = {
 				projectPath: key,
 				projectName: name,
 				projectColor: color,
-				projectIconSrc: iconSrc,
 				agentPanels: [],
 				filePanels: [],
 				reviewPanels: [],

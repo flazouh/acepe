@@ -22,7 +22,6 @@ interface Props {
 	projectName: string;
 	projectColor: string | undefined;
 	projectBadgeLabel?: string | null;
-	projectIconSrc?: string | null;
 	content: string | null;
 	gitStatus: { status: string; insertions: number; deletions: number } | null;
 	compact?: boolean;
@@ -43,7 +42,6 @@ let {
 	projectName,
 	projectColor,
 	projectBadgeLabel = null,
-	projectIconSrc = null,
 	content,
 	gitStatus,
 	compact = false,
@@ -90,7 +88,6 @@ function handleEditorModeChange(modeId: string) {
 	{projectName}
 	{projectBadgeLabel}
 	projectColor={effectiveColor}
-	{projectIconSrc}
 	{compact}
 	{hideProjectBadge}
 	insertions={gitStatus?.insertions}

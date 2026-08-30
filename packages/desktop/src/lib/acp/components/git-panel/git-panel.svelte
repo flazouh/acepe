@@ -96,7 +96,6 @@ interface Props {
 	projectName: string;
 	projectColor: string | undefined;
 	projectBadgeLabel?: string | null;
-	projectIconSrc?: string | null;
 	width: number;
 	initialTarget?: GitPanelInitialTarget;
 	voiceSessionId?: string | null;
@@ -117,7 +116,6 @@ let {
 	projectName,
 	projectColor,
 	projectBadgeLabel = null,
-	projectIconSrc = null,
 	width,
 	initialTarget,
 	voiceSessionId = null,
@@ -875,7 +873,6 @@ async function handleOpenPr(prNumber: number) {
 						name={projectName}
 						label={projectBadgeLabel}
 						color={effectiveColor}
-						iconSrc={projectIconSrc}
 						size={28}
 						fontSize={15}
 						class="!rounded-none !rounded-tl-lg"

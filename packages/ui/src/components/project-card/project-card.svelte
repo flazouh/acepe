@@ -11,8 +11,6 @@
 		projectName: string;
 		/** Resolved hex color for the project */
 		projectColor: string;
-		/** Optional project icon source */
-		projectIconSrc?: string | null;
 		/** Disambiguating badge label (e.g. "Ac"). Falls back to the first letter. */
 		projectBadgeLabel?: string | null;
 		/**
@@ -32,7 +30,6 @@
 			name: string;
 			color: string;
 			path: string;
-			iconSrc?: string | null;
 			badgeLabel?: string | null;
 			/**
 			 * Stable project identity, when the caller has one. Two projects can
@@ -51,7 +48,6 @@
 	let {
 		projectName,
 		projectColor,
-		projectIconSrc = null,
 		projectBadgeLabel = null,
 		variant = "inline",
 		badgeSize,
@@ -89,7 +85,6 @@
 							name={project.name}
 							label={project.badgeLabel ?? focusedBadgeLabelByPath.get(project.path) ?? null}
 							color={project.color}
-							iconSrc={project.iconSrc ?? null}
 							size={resolvedBadgeSize}
 						/>
 					</button>
@@ -102,7 +97,6 @@
 					name={projectName}
 					label={projectBadgeLabel}
 					color={projectColor}
-					iconSrc={projectIconSrc}
 					size={resolvedBadgeSize}
 				/>
 			</div>
@@ -121,7 +115,6 @@
 				name={projectName}
 				label={projectBadgeLabel}
 				color={projectColor}
-				iconSrc={projectIconSrc}
 				size={resolvedBadgeSize}
 			/>
 		</div>

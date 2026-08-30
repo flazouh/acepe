@@ -1469,7 +1469,6 @@ export class PanelStore {
 			filePath,
 			projectName: options.projectName ?? null,
 			projectColor: options.projectColor ?? null,
-			projectIconSrc: options.projectIconSrc ?? null,
 			title: options.title ?? null,
 			targetLine: options.targetLine ?? null,
 			targetColumn: options.targetColumn ?? null,

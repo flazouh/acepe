@@ -230,7 +230,6 @@ function getGitDiffStats(filePanel: FilePanelType): { added: number; removed: nu
 				projectName={activeFileProject?.name ?? "Unknown"}
 				projectColor={activeFileProject?.color}
 				projectBadgeLabel={badgeLabelByPath.get(activeFilePanel.projectPath) ?? null}
-				projectIconSrc={activeFileProject?.iconPath ?? null}
 				width={activeFilePanel.width}
 				initialGitStatus={activeFilePanelGitStatus}
 				isFullscreenEmbedded={true}

@@ -51,7 +51,6 @@ export interface AgentPanelHeaderProps {
 	readonly projectPath: string | null;
 	readonly projectName: string;
 	readonly projectColor: string;
-	readonly projectIconSrc?: string | null;
 	readonly sequenceId?: number | null;
 	readonly linkedPr?: SessionLinkedPr | null;
 	readonly prLinkMode?: SessionPrLinkMode | null;

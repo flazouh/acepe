@@ -1391,13 +1391,8 @@ const projectColorLookup = (projectPath: string) => {
 	const project = projectManager.getProject(projectPath);
 	return project?.color ?? null;
 };
-const projectIconSrcLookup = (projectPath: string) => {
-	const project = projectManager.getProject(projectPath);
-	return project?.iconPath ?? null;
-};
 urgencyTabsStore.setProjectColorLookup(projectColorLookup);
 tabBarStore.setProjectColorLookup(projectColorLookup);
-tabBarStore.setProjectIconSrcLookup(projectIconSrcLookup);
 
 // Set up project creation date lookup for tab bar group ordering
 const projectCreatedAtLookup = (projectPath: string) => {
@@ -1636,11 +1631,6 @@ function getProjectDialogName(dialog: ProjectFileSystemDialogState): string {
 function getProjectDialogColor(dialog: ProjectFileSystemDialogState): string | undefined {
 	const project = projectManager.getProject(dialog.projectPath);
 	return dialog.projectColor ?? project?.color;
-}
-
-function getProjectDialogIconSrc(dialog: ProjectFileSystemDialogState): string | null {
-	const project = projectManager.getProject(dialog.projectPath);
-	return dialog.projectIconSrc ?? project?.iconPath ?? null;
 }
 
 function buildProjectDialogOpenFileOptions(
@@ -2162,7 +2152,6 @@ onDestroy(() => {
 				projectPath={dialogTarget.projectPath}
 				projectName={getProjectDialogName(dialogTarget)}
 				projectColor={getProjectDialogColor(dialogTarget)}
-				projectIconSrc={getProjectDialogIconSrc(dialogTarget)}
 				title={dialogTarget.title}
 				initialFilePath={dialogTarget.filePath}
 				recentProjects={projectManager.projects}

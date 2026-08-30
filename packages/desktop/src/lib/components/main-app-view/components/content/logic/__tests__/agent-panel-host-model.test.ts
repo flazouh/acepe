@@ -41,7 +41,6 @@ function createProject(path = "/repo"): Project {
 		name: "Repo",
 		createdAt: new Date(0),
 		color: "#123456",
-		iconPath: null,
 	};
 }
 

@@ -38,7 +38,6 @@ function canReuseProjectGroup(
 		cached !== undefined &&
 		cached.projectName === next.projectName &&
 		cached.projectColor === next.projectColor &&
-		cached.projectIconSrc === next.projectIconSrc &&
 		agentArraysMatch(cached.agentPanels, next.agentPanels) &&
 		arraysMatchById(cached.filePanels, next.filePanels) &&
 		arraysMatchById(cached.reviewPanels, next.reviewPanels) &&

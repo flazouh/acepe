@@ -36,7 +36,6 @@ let {
 	projectPath: _projectPath,
 	projectName,
 	projectColor,
-	projectIconSrc,
 	sequenceId,
 	linkedPr = null,
 	prLinkMode: _prLinkMode = "automatic",
@@ -505,7 +504,6 @@ function createDiagnosticsMenuSection(): HeaderMenuSection | null {
 		{pendingProjectSelection}
 		projectName={hideProjectBadge ? undefined : projectName}
 		projectColor={hideProjectBadge ? undefined : projectColor}
-		projectIconSrc={hideProjectBadge ? undefined : projectIconSrc}
 		sequenceId={hideProjectBadge ? undefined : sequenceId}
 		{onClose}
 		onToggleFullscreen={undefined}

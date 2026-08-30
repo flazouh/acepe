@@ -23,7 +23,6 @@
 		projectName: string;
 		projectColor: string;
 		projectBadgeLabel?: string | null;
-		projectIconSrc?: string | null;
 		compact?: boolean;
 		hideProjectBadge?: boolean;
 		insertions?: number;
@@ -47,7 +46,6 @@
 		projectName,
 		projectColor,
 		projectBadgeLabel = null,
-		projectIconSrc = null,
 		compact = false,
 		hideProjectBadge = false,
 		insertions,
@@ -83,7 +81,6 @@
 							name={projectName}
 							label={projectBadgeLabel}
 							color={projectColor}
-							iconSrc={projectIconSrc}
 							size={28}
 							fontSize={15}
 							class="!rounded-none !rounded-tl-lg"

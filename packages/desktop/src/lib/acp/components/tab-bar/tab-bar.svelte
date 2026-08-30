@@ -56,7 +56,6 @@ function tabToAppTab(tab: TabBarTab): AppTab {
 		projectName: tab.projectName ?? undefined,
 		projectBadgeLabel: tab.projectPath ? (badgeLabelByPath?.get(tab.projectPath) ?? null) : null,
 		projectColor: tab.projectColor ?? undefined,
-		projectIconSrc: tab.projectIconSrc,
 		sequenceId: tab.sequenceId,
 		agentIconSrc: resolveProviderIcon(tab.agentId),
 		mode,

@@ -474,7 +474,6 @@ async function handleProjectContextMove(projectPath: string, offset: -1 | 1): Pr
 			projectColor={group.projectColor}
 			projectName={group.projectName}
 			projectBadgeLabel={group.projectBadgeLabel}
-			projectIconSrc={group.projectIconSrc}
 			expanded={isExpanded}
 			class="group min-w-0 flex-1 cursor-pointer transition-colors"
 		>

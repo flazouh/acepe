@@ -140,14 +140,12 @@ function createProjectManager(): ProjectManager {
 			name: "Alpha",
 			createdAt: new Date(0),
 			color: "#111111",
-			iconPath: null,
 		},
 		{
 			path: "/projects/beta",
 			name: "Beta",
 			createdAt: new Date(0),
 			color: "#222222",
-			iconPath: null,
 		},
 	];
 	return projectManager;

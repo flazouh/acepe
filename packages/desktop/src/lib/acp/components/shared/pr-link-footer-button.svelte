@@ -113,7 +113,6 @@ function mapProjectForPicker(value: Project | null): SessionPrLinkPickerProject 
 		name: value.name,
 		badgeLabel: projectBadgeLabel,
 		color: value.color,
-		iconPath: value.iconPath ?? null,
 	};
 }
 

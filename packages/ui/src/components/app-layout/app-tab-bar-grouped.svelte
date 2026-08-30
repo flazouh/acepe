@@ -8,7 +8,6 @@
 			projectName: string;
 			projectBadgeLabel?: string | null;
 			projectColor: string;
-			projectIconSrc?: string | null;
 			tabs: readonly TTab[];
 		}[];
 		tabRenderer: Snippet<[TTab]>;
@@ -23,7 +22,6 @@
 			projectName={group.projectName}
 			projectBadgeLabel={group.projectBadgeLabel ?? null}
 			projectColor={group.projectColor}
-			projectIconSrc={group.projectIconSrc}
 			variant="inline"
 		>
 			{#each group.tabs as tab}

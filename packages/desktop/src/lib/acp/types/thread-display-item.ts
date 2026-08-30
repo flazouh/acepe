@@ -72,10 +72,6 @@ export type SessionDisplayItem = {
 	 * Optional project color (hex value) for displaying a colored dot.
 	 */
 	projectColor?: string;
-	/**
-	 * Optional project icon src (asset URL) for displaying a project icon.
-	 */
-	projectIconSrc?: string | null;
 
 	/**
 	 * Activity information for streaming sessions.

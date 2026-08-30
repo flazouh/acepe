@@ -8,8 +8,8 @@ describe("panels container project tabs", () => {
 	it("builds project tabs with session counts from groups", () => {
 		const tabs = buildPanelsContainerProjectTabs({
 			projects: [
-				{ name: "App", color: "#111111", path: "/app", iconSrc: null },
-				{ name: "Api", color: "#222222", path: "/api", iconSrc: "/api.svg" },
+				{ name: "App", color: "#111111", path: "/app" },
+				{ name: "Api", color: "#222222", path: "/api" },
 			],
 			groups: [
 				{ projectPath: "/app", agentPanels: [{ id: "a" }, { id: "b" }] },
@@ -22,7 +22,6 @@ describe("panels container project tabs", () => {
 				name: "App",
 				color: "#111111",
 				path: "/app",
-				iconSrc: null,
 				badgeLabel: null,
 				sessionCount: 2,
 			},
@@ -30,7 +29,6 @@ describe("panels container project tabs", () => {
 				name: "Api",
 				color: "#222222",
 				path: "/api",
-				iconSrc: "/api.svg",
 				badgeLabel: null,
 				sessionCount: 0,
 			},
@@ -40,8 +38,8 @@ describe("panels container project tabs", () => {
 	it("uses the project badge label lookup when provided", () => {
 		const tabs = buildPanelsContainerProjectTabs({
 			projects: [
-				{ name: "Acepe", color: "#111111", path: "/acepe", iconSrc: null },
-				{ name: "Articles", color: "#222222", path: "/articles", iconSrc: null },
+				{ name: "Acepe", color: "#111111", path: "/acepe" },
+				{ name: "Articles", color: "#222222", path: "/articles" },
 			],
 			groups: [],
 			getProjectBadgeLabel: (projectPath) => {

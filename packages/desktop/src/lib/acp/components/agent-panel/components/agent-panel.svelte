@@ -648,7 +648,6 @@ $effect(() => {
 const projectColor = $derived.by(() => {
 	return project ? getProjectColor(project) : (TAG_COLORS[0] ?? "#FF5D5A");
 });
-const projectIconSrc = $derived(project?.iconPath ?? null);
 
 const displayProjectName = $derived.by(() => {
 	return effectiveProjectName ?? "Project";
@@ -1660,7 +1659,6 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 				projectPath={sessionController.sessionProjectPath}
 				projectName={displayProjectName}
 				{projectColor}
-				{projectIconSrc}
 				linkedPr={sessionController.sessionMetadata?.linkedPr ?? null}
 				prLinkMode={sessionController.sessionMetadata?.prLinkMode ?? "automatic"}
 				onClose={onClose}

@@ -84,7 +84,6 @@ export interface BuildQueueSessionSnapshotInput {
  * Returns the project color for a given path, or null if not found.
  */
 export type ProjectColorLookup = (projectPath: string) => string | null;
-export type ProjectIconSrcLookup = (projectPath: string) => string | null;
 export type ProjectBadgeLabelLookup = (projectPath: string) => string | null;
 
 export interface QueueSessionStateInput {
@@ -187,14 +186,12 @@ export function buildQueueItem(
 	pendingPlanApproval: PlanApprovalInteraction | null,
 	pendingPermission: PermissionRequest | null,
 	getProjectColor?: ProjectColorLookup,
-	getProjectIconSrc?: ProjectIconSrcLookup,
 	pendingComputerPermission: ComputerPermissionInteraction | null = null,
 	getProjectBadgeLabel?: ProjectBadgeLabelLookup
 ): QueueItem {
 	const pendingText = pendingQuestionText ?? null;
 	const projectColor =
 		getProjectColor?.(session.projectPath) ?? generateFallbackProjectColor(session.projectPath);
-	const projectIconSrc = getProjectIconSrc?.(session.projectPath) ?? null;
 	const projectBadgeLabel = getProjectBadgeLabel?.(session.projectPath) ?? null;
 
 	const diffStats = computeSessionDiffStats(session);
@@ -208,7 +205,6 @@ export function buildQueueItem(
 		projectName: extractProjectName(session.projectPath),
 		projectBadgeLabel,
 		projectColor,
-		projectIconSrc,
 		title: session.title,
 		urgency,
 		pendingText,

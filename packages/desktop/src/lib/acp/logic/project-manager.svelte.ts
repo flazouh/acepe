@@ -17,13 +17,6 @@ export interface Project {
 	createdAt: Date;
 	color: string;
 	sortOrder?: number;
-	/**
-	 * A per-project image for the badge, in place of its letter. Nothing sets
-	 * one today: a project icon has no home on the server, so the menu items
-	 * that used to pick and clear one were removed. The badge falls back to the
-	 * letter whenever this is absent, which is always.
-	 */
-	iconPath?: string | null;
 	showExternalCliSessions?: boolean;
 	/**
 	 * The server-assigned orchestration projectId, when known. Only set for
@@ -140,7 +133,6 @@ export function computeMissingLibraryProjects(
 			// here would be a second author for a canonical field, and it reaches
 			// the hot cache and outlives a reload.
 			sortOrder: libraryProject.sortOrder ?? undefined,
-			iconPath: null,
 		});
 	}
 	return additions;
@@ -587,7 +579,6 @@ export class ProjectManager {
 			color: resolveProjectColor(color),
 			lastOpened: new SvelteDate(),
 			createdAt: new SvelteDate(),
-			iconPath: null,
 		};
 
 		this.projects = [optimisticProject, ...this.projects];

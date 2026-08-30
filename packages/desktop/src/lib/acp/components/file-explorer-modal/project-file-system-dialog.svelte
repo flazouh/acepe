@@ -32,7 +32,6 @@ interface Props {
 	projectPath: string;
 	projectName: string;
 	projectColor?: string;
-	projectIconSrc?: string | null;
 	title?: string | null;
 	initialFilePath?: string | null;
 	/** Projects available in the top-left picker (omit to hide the picker). */
@@ -47,7 +46,6 @@ let {
 	projectPath,
 	projectName,
 	projectColor = Colors.red,
-	projectIconSrc = null,
 	title = null,
 	initialFilePath = null,
 	recentProjects = [],

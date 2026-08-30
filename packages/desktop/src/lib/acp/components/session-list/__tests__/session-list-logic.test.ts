@@ -47,7 +47,6 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
-			new Map([["/repo", null]]),
 			new Set<string>(),
 			() => []
 		);
@@ -79,7 +78,6 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
-			new Map([["/repo", null]]),
 			new Set<string>(),
 			() => []
 		);
@@ -108,14 +106,7 @@ describe("createDisplayItems", () => {
 			},
 		];
 
-		const items = createDisplayItems(
-			sessions,
-			new Map(),
-			new Map(),
-			new Map(),
-			new Set<string>(),
-			() => []
-		);
+		const items = createDisplayItems(sessions, new Map(), new Map(), new Set<string>(), () => []);
 
 		expect(items).toHaveLength(1);
 		expect(items[0]?.projectName).toBe(extractProjectName(projectPath));
@@ -158,7 +149,6 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
-			new Map([["/repo", null]]),
 			new Set(["open-session"]),
 			() => []
 		);
@@ -200,7 +190,6 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
-			new Map([["/repo", null]]),
 			new Set<string>(),
 			() => []
 		);
@@ -243,7 +232,6 @@ describe("createDisplayItems", () => {
 			sessions,
 			new Map([["/repo", "repo"]]),
 			new Map(),
-			new Map([["/repo", null]]),
 			new Set<string>(),
 			() => [
 				{
@@ -280,7 +268,6 @@ describe("createSessionGroups", () => {
 			projectPath,
 			projectName,
 			projectColor: undefined,
-			projectIconSrc: null,
 			agentId: "claude-code",
 			createdAt,
 			updatedAt: createdAt,
@@ -303,7 +290,6 @@ describe("createSessionGroups", () => {
 			createdAt: new Date(createdAt),
 			color: "#000000",
 			sortOrder,
-			iconPath: null,
 		};
 	}
 
@@ -452,7 +438,6 @@ describe("buildSessionRows", () => {
 				projectPath: "/path/1",
 				projectName: "project1",
 				projectColor: undefined,
-				projectIconSrc: null,
 				agentId: "claude-code",
 				createdAt: new Date("2024-01-02T00:00:00.000Z"),
 				updatedAt: new Date("2024-01-02T00:00:00.000Z"),
@@ -467,7 +452,6 @@ describe("buildSessionRows", () => {
 				projectPath: "/path/1",
 				projectName: "project1",
 				projectColor: undefined,
-				projectIconSrc: null,
 				agentId: "claude-code",
 				createdAt: new Date("2024-01-01T00:00:00.000Z"),
 				updatedAt: new Date("2024-01-01T00:00:00.000Z"),
@@ -497,7 +481,6 @@ describe("getSidebarSessions", () => {
 				projectPath: "/path/1",
 				projectName: "project1",
 				projectColor: undefined,
-				projectIconSrc: null,
 				agentId: "claude-code",
 				createdAt: new Date(),
 				updatedAt: new Date(),
@@ -512,7 +495,6 @@ describe("getSidebarSessions", () => {
 				projectPath: "/path/1",
 				projectName: "project1",
 				projectColor: undefined,
-				projectIconSrc: null,
 				agentId: "claude-code",
 				createdAt: new Date(),
 				updatedAt: new Date(),

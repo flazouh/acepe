@@ -109,7 +109,6 @@ const openSessionIds = $derived.by(() => {
 
 // ✅ Derived - all computations using pure logic functions
 const projectColorMap = $derived(logic.createProjectColorMap(recentProjects));
-const projectIconSrcMap = $derived(logic.createProjectIconSrcMap(recentProjects));
 const projectNameMap = $derived(logic.createProjectNameMap(recentProjects));
 const projectCreatedAtMap = $derived(new Map(recentProjects.map((p) => [p.path, p.createdAt])));
 const projectSortOrderMap = $derived(
@@ -133,7 +132,6 @@ const displayItems = $derived(
 		projectSessions,
 		projectNameMap,
 		projectColorMap,
-		projectIconSrcMap,
 		openSessionIds,
 		(sessionId) => checkpointStore.getCheckpoints(sessionId)
 	)

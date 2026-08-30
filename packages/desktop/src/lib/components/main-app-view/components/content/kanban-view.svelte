@@ -169,10 +169,6 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 				const projectColor = projectColorsByPath.get(projectPath);
 				return projectColor ? projectColor : null;
 			},
-			(projectPath) => {
-				const project = projectManager.getProject(projectPath);
-				return project ? (project.iconPath ?? null) : null;
-			},
 			presentation.pendingComputerPermission,
 			(projectPath) => projectManager.getProjectBadgeLabel(projectPath) ?? null
 		);
@@ -186,7 +182,6 @@ const threadBoardSources = $derived.by((): readonly ThreadBoardSource[] => {
 			projectName: queueItem.projectName,
 			projectBadgeLabel: queueItem.projectBadgeLabel,
 			projectColor: queueItem.projectColor,
-			projectIconSrc: queueItem.projectIconSrc,
 			title: queueItem.title,
 			lastActivityAt: queueItem.lastActivityAt,
 			currentModeId: queueItem.currentModeId,

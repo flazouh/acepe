@@ -23,7 +23,6 @@ function makeSceneCard(id: string): KanbanSceneCardData {
 		isAutoMode: false,
 		projectName: "acepe",
 		projectColor: "#9858FF",
-		projectIconSrc: null,
 		activityText: null,
 		isStreaming: false,
 		modeId: null,

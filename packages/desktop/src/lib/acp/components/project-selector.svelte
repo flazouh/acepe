@@ -130,7 +130,6 @@ function handleOpenChange(open: boolean) {
 					name={selectedProject.name}
 					label={effectiveLabelByPath.get(selectedProject.path) ?? null}
 					{color}
-					iconSrc={selectedProject.iconPath ?? null}
 					size={BUTTON_CHIP_ICON_SIZE_PX}
 				/>
 				{#if showLabel}
@@ -163,7 +162,6 @@ function handleOpenChange(open: boolean) {
 							name={project.name}
 							label={effectiveLabelByPath.get(project.path) ?? null}
 							{color}
-							iconSrc={project.iconPath ?? null}
 							size={14}
 						/>
 					{/snippet}
@@ -182,7 +180,6 @@ function handleOpenChange(open: boolean) {
 							name={project.name}
 							label={effectiveLabelByPath.get(project.path) ?? null}
 							{color}
-							iconSrc={project.iconPath ?? null}
 							size={14}
 						/>
 					{/snippet}

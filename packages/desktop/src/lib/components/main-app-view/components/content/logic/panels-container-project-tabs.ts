@@ -9,7 +9,6 @@ export interface PanelsContainerProjectTab {
 	readonly name: string;
 	readonly color: string;
 	readonly path: string;
-	readonly iconSrc: string | null;
 	readonly badgeLabel: string | null;
 	readonly sessionCount: number;
 }
@@ -25,7 +24,6 @@ export function buildPanelsContainerProjectTabs(input: {
 			name: project.name,
 			color: project.color,
 			path: project.path,
-			iconSrc: project.iconSrc,
 			badgeLabel: input.getProjectBadgeLabel?.(project.path) ?? null,
 			sessionCount: group ? group.agentPanels.length : 0,
 		};

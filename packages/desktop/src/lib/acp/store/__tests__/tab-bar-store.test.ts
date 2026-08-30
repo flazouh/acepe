@@ -99,7 +99,6 @@ function makeInput(overrides: PanelToTabTestInput = {}): PanelToTabInput {
 		isUnseen: false,
 		projectName: null,
 		projectColor: null,
-		projectIconSrc: null,
 		projectPath: null,
 		sequenceId: null,
 		...overrides,

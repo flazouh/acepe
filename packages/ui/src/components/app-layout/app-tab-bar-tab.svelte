@@ -78,7 +78,6 @@
 								name={tab.projectName}
 								label={tab.projectBadgeLabel ?? null}
 								color={tab.projectColor}
-								iconSrc={tab.projectIconSrc}
 								sequenceId={tab.sequenceId}
 								size={14}
 								class="shrink-0"

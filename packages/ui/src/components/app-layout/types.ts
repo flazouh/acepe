@@ -22,7 +22,6 @@ export interface AppTab {
 	projectName?: string;
 	projectBadgeLabel?: string | null;
 	projectColor?: string;
-	projectIconSrc?: string | null;
 	/** Per-project session sequence number, rendered inside the project badge. */
 	sequenceId?: number | null;
 	agentIconSrc?: string;
@@ -62,6 +61,5 @@ export interface AppTabGroup {
 	projectName: string;
 	projectBadgeLabel?: string | null;
 	projectColor: string;
-	projectIconSrc?: string | null;
 	tabs: AppTab[];
 }

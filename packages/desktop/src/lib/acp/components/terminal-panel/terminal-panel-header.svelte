@@ -27,7 +27,6 @@ interface Props {
 	projectName: string;
 	projectColor: string | undefined;
 	projectBadgeLabel?: string | null;
-	projectIconSrc?: string | null;
 	shell: string | null;
 	hideProjectBadge?: boolean;
 	onClose: () => void;
@@ -49,7 +48,6 @@ let {
 	projectName,
 	projectColor,
 	projectBadgeLabel = null,
-	projectIconSrc = null,
 	shell,
 	hideProjectBadge = false,
 	onClose,
@@ -139,7 +137,6 @@ function handleFullscreenToggle() {
 					name={projectName}
 					label={projectBadgeLabel}
 					color={effectiveColor}
-					iconSrc={projectIconSrc}
 					size={28}
 					fontSize={15}
 					class="!rounded-none !rounded-tl-lg"

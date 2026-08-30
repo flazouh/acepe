@@ -25,7 +25,6 @@ function toThreadBoardItem(source: ThreadBoardSource, status: ThreadBoardStatus)
 		projectName: source.projectName,
 		projectBadgeLabel: source.projectBadgeLabel,
 		projectColor: source.projectColor,
-		projectIconSrc: source.projectIconSrc,
 		title: source.title,
 		lastActivityAt: source.lastActivityAt,
 		currentModeId: source.currentModeId,

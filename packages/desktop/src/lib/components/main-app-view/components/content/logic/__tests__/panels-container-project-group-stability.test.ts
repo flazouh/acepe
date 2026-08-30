@@ -17,7 +17,6 @@ function group(
 		projectPath,
 		projectName: projectPath.split("/").pop() ?? "Unknown",
 		projectColor: "#4AD0FF",
-		projectIconSrc: null,
 		agentPanels: [],
 		filePanels: [],
 		reviewPanels: [],

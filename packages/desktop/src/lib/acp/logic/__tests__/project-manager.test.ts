@@ -183,7 +183,6 @@ describe("computeMissingLibraryProjects", () => {
 				// Unranked. The projection owns the rank and hands out none until
 				// someone moves a project, so the merge must not invent one.
 				sortOrder: undefined,
-				iconPath: null,
 			},
 		]);
 	});

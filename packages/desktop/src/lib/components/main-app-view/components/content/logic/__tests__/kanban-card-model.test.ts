@@ -38,7 +38,6 @@ function makeThreadBoardItem(overrides: Partial<ThreadBoardItem> = {}): ThreadBo
 		projectName: "acepe",
 		projectBadgeLabel: "Ac",
 		projectColor: "#9858FF",
-		projectIconSrc: null,
 		title: "Build file badge",
 		lastActivityAt: 100,
 		currentModeId: "build",
@@ -89,7 +88,6 @@ function makeProject(overrides: Partial<Project> = {}): Project {
 		path: "/repo",
 		name: "acepe",
 		color: "#9858FF",
-		iconPath: "/repo/icon.png",
 		...overrides,
 	} as Project;
 }

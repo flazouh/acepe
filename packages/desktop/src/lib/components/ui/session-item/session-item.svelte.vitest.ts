@@ -161,7 +161,6 @@ function createSession(overrides?: Partial<SessionDisplayItem>): SessionDisplayI
 		isConnected: false,
 		isStreaming: false,
 		projectColor: "#22c55e",
-		projectIconSrc: null,
 		activity: null,
 		insertions: 0,
 		deletions: 0,

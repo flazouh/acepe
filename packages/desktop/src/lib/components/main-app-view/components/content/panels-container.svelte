@@ -262,7 +262,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					projectName={project ? project.name : "Unknown"}
 					projectColor={project?.color}
 					projectBadgeLabel={projectManager.getProjectBadgeLabel(filePanel.projectPath) ?? null}
-					projectIconSrc={project?.iconPath ?? null}
 					width={filePanel.width}
 					isFullscreenEmbedded={true}
 					hideProjectBadge={true}
@@ -292,7 +291,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 					projectName={project ? project.name : "Unknown"}
 					projectColor={project ? project.color : "#4AD0FF"}
 					projectBadgeLabel={projectManager.getProjectBadgeLabel(terminalGroup.projectPath) ?? null}
-					projectIconSrc={project?.iconPath ?? null}
 					panelStore={terminalTabsPanelStore}
 				/>
 			{:else if fullscreenTopLevelPanel.kind === "browser"}
@@ -332,7 +330,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 							projectName={project ? project.name : "Unknown"}
 							projectColor={project?.color}
 							projectBadgeLabel={projectManager.getProjectBadgeLabel(group.projectPath) ?? null}
-							projectIconSrc={project?.iconPath ?? null}
 							onSelectFilePanel={(panelId) => panelStore.setActiveTopLevelFilePanel(group.projectPath, panelId)}
 							onCloseFilePanel={(panelId) => panelStore.closeFilePanel(panelId)}
 							onResizeFilePanel={(panelId, delta) => panelStore.resizeFilePanel(panelId, delta)}
@@ -363,7 +360,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 								projectName={group.projectName}
 								projectColor={group.projectColor}
 								projectBadgeLabel={projectManager.getProjectBadgeLabel(group.projectPath) ?? null}
-								projectIconSrc={projectManager.getProject(group.projectPath)?.iconPath ?? null}
 								panelStore={terminalTabsPanelStore}
 							/>
 						{/each}
@@ -416,7 +412,6 @@ const terminalTabsPanelStore = $derived.by(() => ({
 						<MultiProjectGroupLabel
 							projectName={group.projectName}
 							projectColor={group.projectColor}
-							projectIconSrc={group.projectIconSrc}
 							label={projectManager.getProjectBadgeLabel(group.projectPath) ?? null}
 						/>
 						{@render nonAgentPanels()}

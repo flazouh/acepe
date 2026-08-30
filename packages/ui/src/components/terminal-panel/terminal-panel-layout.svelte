@@ -15,7 +15,6 @@
 		projectName: string;
 		projectColor: string;
 		projectBadgeLabel?: string | null;
-		projectIconSrc?: string | null;
 		shell: string | null;
 		hideProjectBadge?: boolean;
 		loading: boolean;
@@ -29,7 +28,6 @@
 		projectName,
 		projectColor,
 		projectBadgeLabel = null,
-		projectIconSrc = null,
 		shell,
 		hideProjectBadge = false,
 		loading,
@@ -54,7 +52,6 @@
 							name={projectName}
 							label={projectBadgeLabel}
 							color={projectColor}
-							iconSrc={projectIconSrc}
 							size={28}
 							fontSize={15}
 							class="!rounded-none !rounded-tl-lg"

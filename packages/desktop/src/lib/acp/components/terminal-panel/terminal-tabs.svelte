@@ -27,7 +27,6 @@ interface Props {
 	projectName: string;
 	projectColor: string;
 	projectBadgeLabel?: string | null;
-	projectIconSrc?: string | null;
 	panelStore: TerminalTabsPanelStore;
 }
 
@@ -38,7 +37,6 @@ let {
 	projectName,
 	projectColor,
 	projectBadgeLabel = null,
-	projectIconSrc = null,
 	panelStore,
 }: Props = $props();
 
@@ -93,7 +91,6 @@ function handleMoveTabToNewPanel(tabId: string) {
 				{projectName}
 				{projectColor}
 				{projectBadgeLabel}
-				{projectIconSrc}
 				width={group.width}
 				shell={selectedTerminal.shell}
 				hideProjectBadge={true}

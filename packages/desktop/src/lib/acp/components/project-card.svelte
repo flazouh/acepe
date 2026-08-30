@@ -65,7 +65,6 @@ function handleCardClick() {
 					name={data.project.name}
 					{label}
 					{color}
-					iconSrc={data.project.iconPath ?? null}
 					size={18}
 				/>
 			</div>

@@ -749,7 +749,6 @@ function handleNextQuestion() {
 						<ProjectLetterBadge
 							name={session.projectName}
 							color={session.projectColor}
-							iconSrc={session.projectIconSrc}
 							size={SESSION_PROJECT_BADGE_SIZE}
 							sequenceId={session.sequenceId}
 							showLetter={false}

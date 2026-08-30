@@ -29,8 +29,8 @@ const panelsWithState = [
 ];
 
 const allGroups = [
-	{ projectPath: "/a", projectName: "A", projectColor: "#a", projectIconSrc: null },
-	{ projectPath: "/b", projectName: "B", projectColor: "#b", projectIconSrc: null },
+	{ projectPath: "/a", projectName: "A", projectColor: "#a" },
+	{ projectPath: "/b", projectName: "B", projectColor: "#b" },
 ];
 
 describe("getViewModeState", () => {

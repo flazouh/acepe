@@ -318,7 +318,6 @@ const codeKanbanCard: KanbanSceneCardData = {
 	isAutoMode: false,
 	projectName: "Acepe",
 	projectColor: "#6B7CFF",
-	projectIconSrc: null,
 	activityText: null,
 	isStreaming: false,
 	modeId: null,

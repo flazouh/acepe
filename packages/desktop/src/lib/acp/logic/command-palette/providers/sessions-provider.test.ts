@@ -30,7 +30,6 @@ describe("SessionsProvider", () => {
 								name: "Acepe",
 								createdAt: new Date("2026-07-01T00:00:00Z"),
 								color: "cyan",
-								iconPath: null,
 							}
 						: undefined,
 				getProjectBadgeLabel: (projectPath: string) =>

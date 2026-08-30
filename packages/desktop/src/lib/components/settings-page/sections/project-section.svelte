@@ -48,7 +48,6 @@ const activeProject = $derived(
 						name={project.name}
 						label={projectManager.getProjectBadgeLabel(project.path) ?? null}
 						color={project.color}
-						iconSrc={project.iconPath}
 						size={20}
 						fontSize={11}
 						class="shrink-0"

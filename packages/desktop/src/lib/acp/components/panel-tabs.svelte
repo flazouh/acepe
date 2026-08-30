@@ -43,17 +43,15 @@ function getProjectForSession(projectPath: string | null): Project | null {
 function getProjectInfo(panel: PanelTabInfo): {
 	name: string;
 	color: string;
-	iconSrc: string | null;
 } {
 	const project = getProjectForSession(panel.sessionProjectPath);
 	if (project) {
 		return {
 			name: project.name,
 			color: getProjectColor(project),
-			iconSrc: project.iconPath ?? null,
 		};
 	}
-	return { name: "?", color: "var(--orange-500, #f97316)", iconSrc: null };
+	return { name: "?", color: "var(--orange-500, #f97316)" };
 }
 </script>
 
@@ -80,7 +78,6 @@ function getProjectInfo(panel: PanelTabInfo): {
 								? (labelByPath.get(panel.sessionProjectPath) ?? null)
 								: null}
 							color={projectInfo.color}
-							iconSrc={projectInfo.iconSrc}
 						/>
 
 						<!-- Agent icon -->

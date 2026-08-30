@@ -24,7 +24,6 @@ export interface SessionPrLinkPickerProject {
 	readonly name: string;
 	readonly badgeLabel?: string | null;
 	readonly color: string;
-	readonly iconPath: string | null;
 }
 
 export interface SessionPrLinkPickerRepoContext {
