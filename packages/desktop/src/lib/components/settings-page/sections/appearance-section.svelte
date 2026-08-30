@@ -2,7 +2,7 @@
 import { HugeiconsIcon, Selector } from "@acepe/ui";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { LoadingIcon } from "@acepe/ui";
-import { ThemeToggle } from "$lib/components/theme/index.js";
+import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { uiThemeFamilies } from "@acepe/ui/themes";
 import { uiThemeFamilyStore } from "$lib/stores/ui-theme-family-store.svelte.js";
 import { fontSizeSettingsStore } from "$lib/stores/font-size-settings-store.svelte.js";
@@ -18,6 +18,26 @@ const selectedColorOption = $derived(
 
 function handleColorChange(value: string): void {
 	void loadingIndicatorSettingsStore.setColor(value);
+}
+
+/**
+ * "System" is a real answer here, not a third colour: it follows the OS. Its
+ * icon is the machine rather than a sun or a moon for that reason.
+ */
+const THEME_OPTIONS = [
+	{ id: "light", label: "Light", icon: "sun" },
+	{ id: "dark", label: "Dark", icon: "moon" },
+	{ id: "system", label: "System", icon: "laptop" },
+] as const;
+
+const themeState = useTheme();
+
+const selectedThemeOption = $derived(
+	THEME_OPTIONS.find((option) => option.id === themeState.theme) ?? THEME_OPTIONS[2]
+);
+
+function handleThemeChange(value: string): void {
+	themeState.setTheme(value as (typeof THEME_OPTIONS)[number]["id"]);
 }
 
 const selectedFamily = $derived(
@@ -97,7 +117,28 @@ const codeBounds = fontSizeSettingsStore.codeBounds;
 			label={"Theme"}
 			description="Use light, dark, or match your system."
 		>
-			<ThemeToggle />
+			<Selector align="start" variant="outline" triggerSize="pill" class="w-[220px]">
+				{#snippet renderButton()}
+					<span class="flex min-w-0 flex-1 items-center gap-1.5">
+						<HugeiconsIcon name={selectedThemeOption.icon} class="size-3.5 shrink-0" />
+						<span class="truncate">{selectedThemeOption.label}</span>
+					</span>
+				{/snippet}
+
+				<DropdownMenu.RadioGroup
+					value={themeState.theme}
+					onValueChange={handleThemeChange}
+				>
+					{#each THEME_OPTIONS as option (option.id)}
+						<DropdownMenu.RadioItem value={option.id}>
+							<span class="flex items-center gap-2">
+								<HugeiconsIcon name={option.icon} class="size-4 shrink-0" />
+								<span>{option.label}</span>
+							</span>
+						</DropdownMenu.RadioItem>
+					{/each}
+				</DropdownMenu.RadioGroup>
+			</Selector>
 		</SettingRow>
 		<SettingRow
 			label={"Palette"}
