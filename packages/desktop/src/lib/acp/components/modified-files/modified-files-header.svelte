@@ -193,16 +193,23 @@ const promptEditorState = $derived.by(() =>
 
 const diffTotals = $derived.by(() => getModifiedFilesDiffTotals(modifiedFilesState));
 
+/**
+ * The session id, but only once its persisted review progress has loaded.
+ * Every reader of review state needs both facts, so carry them as one value
+ * instead of repeating the pair of guards at each call site.
+ */
+const loadedSessionId = $derived(
+	sessionId && sessionReviewStateStore.isLoaded(sessionId) ? sessionId : null
+);
+
 const reviewStatusByFilePath = $derived.by(
 	(): ReadonlyMap<string, FileReviewStatus | undefined> => {
 		if (!modifiedFilesState) return new Map<string, FileReviewStatus | undefined>();
-		if (!sessionId) return new Map<string, FileReviewStatus | undefined>();
-		if (!sessionReviewStateStore.isLoaded(sessionId))
-			return new Map<string, FileReviewStatus | undefined>();
+		if (!loadedSessionId) return new Map<string, FileReviewStatus | undefined>();
 
 		return getReviewStatusByFilePath(
 			modifiedFilesState.files,
-			sessionReviewStateStore.getState(sessionId)
+			sessionReviewStateStore.getState(loadedSessionId)
 		);
 	}
 );
@@ -210,28 +217,27 @@ const reviewedFileCount = $derived.by(() => {
 	return countReviewedFiles(modifiedFilesState, reviewStatusByFilePath);
 });
 
-const isReviewComplete = $derived.by(() => {
-	return isModifiedFilesReviewComplete(modifiedFilesState, reviewedFileCount);
-});
+const isReviewComplete = $derived(
+	isModifiedFilesReviewComplete(modifiedFilesState, reviewedFileCount)
+);
 
 const isKeepAllApplied = $derived.by(() => {
 	if (!modifiedFilesState) return false;
-	if (!sessionId) return false;
-	if (!sessionReviewStateStore.isLoaded(sessionId)) return false;
+	if (!loadedSessionId) return false;
 
 	return hasKeepAllBeenApplied(
 		modifiedFilesState.files,
-		sessionReviewStateStore.getState(sessionId)
+		sessionReviewStateStore.getState(loadedSessionId)
 	);
 });
 
-const canKeepAll = $derived.by(() => {
-	return canKeepAllFiles({
-		sessionId: sessionId ?? null,
-		isSessionReviewLoaded: sessionId ? sessionReviewStateStore.isLoaded(sessionId) : false,
+const canKeepAll = $derived(
+	canKeepAllFiles({
+		sessionId: loadedSessionId,
+		isSessionReviewLoaded: loadedSessionId !== null,
 		isKeepAllApplied,
-	});
-});
+	})
+);
 
 const trailingControlsModel = $derived<AgentPanelModifiedFilesTrailingModel>({
 	reviewLabel: "Review",
@@ -272,13 +278,12 @@ function handleCreatePrClick(): void {
 }
 
 function handleKeepAllClick(): void {
-	if (!sessionId) return;
+	if (!loadedSessionId) return;
 	if (!modifiedFilesState) return;
-	if (!sessionReviewStateStore.isLoaded(sessionId)) return;
 
 	for (const reviewEntry of buildKeepAllReviewEntries(modifiedFilesState.files)) {
 		sessionReviewStateStore.upsertFileProgress(
-			sessionId,
+			loadedSessionId,
 			reviewEntry.revisionKey,
 			reviewEntry.progress
 		);
