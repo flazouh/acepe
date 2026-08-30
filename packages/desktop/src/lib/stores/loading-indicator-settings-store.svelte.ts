@@ -2,8 +2,8 @@ import {
 	DEFAULT_LOADING_ICON_COLOR_ID,
 	isLoadingIconColorId,
 	LOADING_ICON_COLOR_OPTIONS,
-	loadingIconPreference,
 	type LoadingIconColorId,
+	loadingIconPreference,
 	normalizeLoadingIconColorId,
 } from "@acepe/ui/icons";
 import * as Effect from "effect/Effect";
