@@ -36,6 +36,8 @@ const SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND = {
 	// reports around a dozen, and the largest catalog in the five providers is
 	// OpenCode's multiplexed one, which runs to a few hundred.
 	sessionModels: 128_000,
+	// A session id and one timestamp.
+	sessionArchive: 8_000,
 	telemetry: 16_000,
 	plan: 128_000,
 	viewportBufferPush: 512_000,

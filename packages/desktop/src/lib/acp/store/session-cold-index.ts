@@ -353,9 +353,13 @@ export function sessionColdWithMutableUpdates(
 					? updates.sessionLifecycleState
 					: session.sessionLifecycleState,
 			parentId: updates.parentId !== undefined ? updates.parentId : session.parentId,
-			// Canonical, never a mutable local update: only the library
-			// projection sets it (see mergeProjectionSessions).
-			archivedAt: session.archivedAt,
+			// Canonical, and now live: the SessionArchived / SessionUnarchived
+			// events reach the store through the sessionArchive envelope and
+			// write this field. The library projection still carries it (see
+			// mergeProjectionSessions), which is what makes the state survive a
+			// restart. Both write the server's own fact, so there is one
+			// authority here, not two.
+			archivedAt: "archivedAt" in updates ? (updates.archivedAt ?? null) : session.archivedAt,
 			prNumber: "prNumber" in updates ? updates.prNumber : session.prNumber,
 			prState: "prState" in updates ? updates.prState : session.prState,
 			prLinkMode: "prLinkMode" in updates ? updates.prLinkMode : session.prLinkMode,

@@ -55,6 +55,15 @@ export type EnvelopePatch =
 			attemptId: string;
 	  }
 	| {
+			/**
+			 * The canonical archive state of a session's cold row. Null is the
+			 * unarchived shape, the same one the library projection produces.
+			 */
+			kind: "setSessionArchivedAt";
+			sessionId: string;
+			archivedAt: Date | null;
+	  }
+	| {
 			kind: "setUsageTelemetry";
 			sessionId: string;
 			telemetry: SessionUsageTelemetry;

@@ -347,6 +347,10 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 		},
 		updateTransientProjection: (sessionId, updates) =>
 			transientProjectionStore.updateTransientProjection(sessionId, updates),
+		setSessionArchivedAt: (sessionId, archivedAt) =>
+			// `touchUpdatedAt: false`: archiving is not activity in the session,
+			// and the sidebar orders rows by updatedAt.
+			listState.updateSession(sessionId, { archivedAt }, { touchUpdatedAt: false }),
 		updateUsageTelemetry: (sessionId, telemetry) =>
 			input.updateUsageTelemetry(sessionId, telemetry),
 		applyViewportBufferPush: (push) => viewport.applyBufferPush(push),

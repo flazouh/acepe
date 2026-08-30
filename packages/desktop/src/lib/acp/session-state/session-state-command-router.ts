@@ -73,6 +73,13 @@ export type SessionStateCommand =
 			revision: SessionGraphRevision;
 	  }
 	| {
+			// Archived-ness is a SessionCold field, not graph state, so this
+			// command carries no revision: the server owns `archived_at` and
+			// the event that reports it is the only writer.
+			kind: "applySessionArchive";
+			archivedAtMs: number | null;
+	  }
+	| {
 			kind: "applyTelemetry";
 			telemetry: UsageTelemetryData;
 			revision: SessionGraphRevision;
@@ -372,6 +379,13 @@ export function routeSessionStateEnvelope(
 					kind: "applySessionModels",
 					availableModels: envelope.payload.availableModels,
 					revision: envelope.payload.revision,
+				},
+			];
+		case "sessionArchive":
+			return [
+				{
+					kind: "applySessionArchive",
+					archivedAtMs: envelope.payload.archivedAtMs,
 				},
 			];
 		case "telemetry":

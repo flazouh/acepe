@@ -345,6 +345,12 @@ export class OrchestrationCanonicalBridge {
 				);
 			case "SessionMetaUpdated":
 				return Effect.succeed(this.onSessionMetaUpdated(event.payload.sessionId, event.metadata));
+			case "SessionArchived":
+				return Effect.succeed(
+					this.onSessionArchiveChanged(event.payload.sessionId, event.occurredAt)
+				);
+			case "SessionUnarchived":
+				return Effect.succeed(this.onSessionArchiveChanged(event.payload.sessionId, null));
 			case "TurnUsageObserved":
 				return Effect.succeed(this.onTurnUsageObserved(event.payload));
 			default:
@@ -991,6 +997,40 @@ export class OrchestrationCanonicalBridge {
 		return [toSessionStateAcpEnvelope(envelope)];
 	}
 
+	/**
+	 * Archived-ness, live.
+	 *
+	 * The server owns `archived_at` and commits SessionArchived /
+	 * SessionUnarchived when it changes. Without this the fact only reached the
+	 * app through the library snapshot, so the two components that dispatch the
+	 * command had to fetch that whole snapshot back to move one boolean, and any
+	 * other client archiving the same session left this one showing a row the
+	 * backend had already stopped running.
+	 *
+	 * The envelope spends no revision. `archivedAt` lives on the SessionCold row
+	 * the session list holds, not on the session graph, so advancing the graph
+	 * revision here would make session-state-query-service.ts read a frontier
+	 * that moved with nothing to apply. The header carries the session's current
+	 * revision, which the ingress frontier check accepts as not-older.
+	 *
+	 * `SessionUnarchived` carries no timestamp to clear to, so it passes null
+	 * and the row's `archivedAt` goes back to null -- the same shape the library
+	 * projection produces for a session that was never archived.
+	 */
+	private onSessionArchiveChanged(
+		sessionId: string,
+		archivedAt: string | null
+	): AcpEventEnvelope[] {
+		const state = this.stateFor(sessionId);
+		const envelope: SessionStateEnvelope = {
+			sessionId,
+			graphRevision: state.revision.graphRevision,
+			lastEventSeq: state.revision.lastEventSeq,
+			payload: { kind: "sessionArchive", archivedAtMs: archivedAtMsFrom(archivedAt) },
+		};
+		return [toSessionStateAcpEnvelope(envelope)];
+	}
+
 	// AC-269: routes a real usage reading onto the EXISTING "telemetry"
 	// envelope kind / applyTelemetry command / setUsageTelemetry patch chain
 	// (reduce-command.ts's reduceApplyTelemetry -> canonical-usage-telemetry.ts's
@@ -1148,6 +1188,23 @@ export class OrchestrationCanonicalBridge {
 }
 
 let acpEnvelopeSeq = 0;
+
+/**
+ * The instant an archive took effect, in ms.
+ *
+ * Null stays null: that is an unarchive, and the row goes back to the shape a
+ * session that was never archived has. An archive whose `occurredAt` will not
+ * parse falls back to now rather than to null -- the session IS archived, and
+ * reporting a slightly wrong instant is better than reporting a row the backend
+ * has stopped running as still live.
+ */
+function archivedAtMsFrom(archivedAt: string | null): number | null {
+	if (archivedAt === null) {
+		return null;
+	}
+	const parsed = Date.parse(archivedAt);
+	return Number.isNaN(parsed) ? Date.now() : parsed;
+}
 
 function toSessionStateAcpEnvelope(envelope: SessionStateEnvelope): AcpEventEnvelope {
 	acpEnvelopeSeq += 1;

@@ -292,14 +292,14 @@ function handleCopyTranscriptJson(sessionId: string) {
 	});
 }
 
-// Archiving dispatches the canonical command and then re-reads the library
-// projection, so the row leaves the list because `archivedAt` is set on the
-// backend -- not because the client hid it. The same read is what makes the
-// session stay gone after a restart.
+// Archiving dispatches the canonical command and stops there. The server
+// commits SessionArchived, that event rides the orchestration stream into the
+// store, and the row leaves this list because `archivedAt` is set on the
+// backend -- not because the client hid it. The library projection carries the
+// same field on the next start, which is what makes the session stay gone.
 async function handleArchiveSession(session: SessionDisplayItem) {
 	await Effect.runPromise(
 		backendClient.acp.archiveSession(session.id).pipe(
-			Effect.flatMap(() => sessionStore.loading.scanSessionProjections()),
 			Effect.match({
 				onSuccess: () => {
 					toast.success("Session archived");

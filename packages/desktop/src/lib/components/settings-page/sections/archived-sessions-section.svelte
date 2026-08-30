@@ -45,12 +45,12 @@ function handleView(sessionId: string) {
 	panelStore.openSession(sessionId, DEFAULT_PANEL_WIDTH);
 }
 
-// Unarchive dispatches the canonical command, then re-reads the projection so
-// the row comes back with archivedAt cleared.
+// Unarchive dispatches the canonical command and stops there. SessionUnarchived
+// reaches the store on the orchestration stream and clears `archivedAt`, so the
+// row leaves this list and returns to the sidebar.
 function handleUnarchive(session: { id: string; projectPath: string; agentId: string }) {
 	void Effect.runPromise(
 		backendClient.acp.unarchiveSession(session.id).pipe(
-			Effect.flatMap(() => sessionStore.loading.scanSessionProjections()),
 			Effect.match({
 				onSuccess: () => {
 					toast.success("Session unarchived");

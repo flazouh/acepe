@@ -112,6 +112,8 @@ export function reduceCommand(
 			return reduceApplySessionModel(snapshot, command);
 		case "applySessionModels":
 			return reduceApplySessionModels(snapshot, command);
+		case "applySessionArchive":
+			return reduceApplySessionArchive(snapshot, command);
 		case "applyTelemetry":
 			return reduceApplyTelemetry(snapshot, command, nowMs);
 		case "applyPlan":
@@ -268,6 +270,38 @@ function reduceApplySessionModels(
 		revision: command.revision,
 		fold: (previous) => capabilitiesWithSessionModels(previous, command.availableModels),
 	});
+}
+
+/**
+ * Archived-ness onto the session's cold row.
+ *
+ * The row is the only place this fact lives on the client, and the library
+ * projection writes the same field on a restart, so a live event and a fresh
+ * snapshot agree by construction. A session the list does not hold has no row
+ * to write, and a value that already matches costs no patch -- the sidebar
+ * rebuilds its derived list from the sessions array on every write.
+ */
+function reduceApplySessionArchive(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applySessionArchive" }>
+): readonly EnvelopePatch[] {
+	const sessionCold = snapshot.sessionCold;
+	if (sessionCold === undefined) {
+		return [];
+	}
+
+	const previousArchivedAtMs = sessionCold.archivedAt?.getTime() ?? null;
+	if (previousArchivedAtMs === command.archivedAtMs) {
+		return [];
+	}
+
+	return [
+		{
+			kind: "setSessionArchivedAt",
+			sessionId: snapshot.sessionId,
+			archivedAt: command.archivedAtMs === null ? null : new Date(command.archivedAtMs),
+		},
+	];
 }
 
 function reduceApplyTelemetry(

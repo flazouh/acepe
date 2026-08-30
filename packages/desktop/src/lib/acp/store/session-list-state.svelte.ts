@@ -127,6 +127,10 @@ export class SessionListState {
 			sourcePath: session.sourcePath,
 			sessionLifecycleState: session.sessionLifecycleState,
 			parentId: session.parentId,
+			// Carried, not dropped: getSessionCold rebuilds a row out of this
+			// slice, so leaving archivedAt out reported every archived session
+			// as active to every reader that goes through it.
+			archivedAt: session.archivedAt,
 			prNumber: session.prNumber,
 			prState: session.prState,
 			prLinkMode: session.prLinkMode,

@@ -180,6 +180,7 @@ describe("session-state envelope byte budgets", () => {
 			"delta",
 			"lifecycle",
 			"plan",
+			"sessionArchive",
 			"sessionMode",
 			"sessionModel",
 			"sessionModels",
