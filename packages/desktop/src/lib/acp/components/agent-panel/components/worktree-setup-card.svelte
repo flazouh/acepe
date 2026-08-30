@@ -6,13 +6,19 @@ import type { WorktreeSetupState } from "../logic/worktree-setup-events.js";
 
 interface Props {
 	state: WorktreeSetupState;
+	onDismiss?: () => void;
 }
 
-let { state: setupState }: Props = $props();
+let { state: setupState, onDismiss }: Props = $props();
+
+const isTerminal = $derived(setupState.status === "failed" || setupState.status === "succeeded");
 
 const summaryText = $derived.by(() => {
 	if (setupState.status === "creating-worktree") return "Creating worktree...";
 	if (setupState.status === "failed" && setupState.error) return setupState.error;
+	if (setupState.status === "succeeded") {
+		return setupState.commandCount === 1 ? "1 command" : `${setupState.commandCount} commands`;
+	}
 	if (setupState.activeCommand) return setupState.activeCommand;
 	return "Running setup...";
 });
@@ -25,6 +31,10 @@ const progressText = $derived.by(() => {
 const titleText = $derived.by(() => {
 	if (setupState.status === "failed") {
 		return "Setup script failed";
+	}
+
+	if (setupState.status === "succeeded") {
+		return "Setup complete";
 	}
 
 	if (setupState.status === "creating-worktree") {
@@ -46,10 +56,13 @@ const detailsText = $derived(
 	details={detailsText}
 	progressLabel={progressText}
 	tone={setupState.status === "failed" ? "error" : "running"}
+	onDismiss={isTerminal ? onDismiss : undefined}
 >
 	{#snippet leading()}
 		{#if setupState.status === "failed"}
 		<HugeiconsIcon name="warning" class="size-[13px] shrink-0 text-destructive" />
+		{:else if setupState.status === "succeeded"}
+			<HugeiconsIcon name="check-circle" class="size-[13px] shrink-0 text-muted-foreground" />
 		{:else}
 			<Spinner size={13} />
 		{/if}

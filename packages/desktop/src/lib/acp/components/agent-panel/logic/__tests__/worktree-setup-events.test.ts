@@ -5,7 +5,9 @@ import type { WorktreeSetupEvent } from "$lib/acp/types/worktree-setup.js";
 import {
 	createWorktreeCreationState,
 	createWorktreeSetupMatchContext,
+	createWorktreeSetupStartedEvent,
 	matchesWorktreeSetupContext,
+	projectWorktreeSetupRunEvents,
 	reduceWorktreeSetupEvent,
 } from "../worktree-setup-events.js";
 
@@ -81,7 +83,7 @@ describe("reduceWorktreeSetupEvent", () => {
 		expect(withOutput?.outputText).toContain("installed 42 packages");
 	});
 
-	it("hides the card after a successful finish", () => {
+	it("keeps a successful finish on screen while it still has output to show", () => {
 		const running = reduceWorktreeSetupEvent(
 			reduceWorktreeSetupEvent(null, createEvent()),
 			createEvent({
@@ -103,7 +105,23 @@ describe("reduceWorktreeSetupEvent", () => {
 
 		expect(finished).not.toBeNull();
 		expect(finished?.status).toBe("succeeded");
-		expect(finished?.isVisible).toBe(false);
+		expect(finished?.isVisible).toBe(true);
+		expect(finished?.outputText).toContain("$ bun install");
+	});
+
+	it("hides a successful finish that produced no output at all", () => {
+		const finished = reduceWorktreeSetupEvent(
+			null,
+			createEvent({
+				kind: "finished",
+				commandCount: 0,
+				success: true,
+			})
+		);
+
+		expect(finished.status).toBe("succeeded");
+		expect(finished.isVisible).toBe(false);
+		expect(finished.outputText).toBe("");
 	});
 
 	it("keeps the card visible after a failed finish and stores the error", () => {
@@ -132,6 +150,103 @@ describe("reduceWorktreeSetupEvent", () => {
 		expect(finished?.isVisible).toBe(true);
 		expect(finished?.error).toBe("bun install failed");
 		expect(finished?.outputText).toContain("bun install failed");
+	});
+});
+
+describe("projectWorktreeSetupRunEvents", () => {
+	function foldRun(run: Parameters<typeof projectWorktreeSetupRunEvents>[0]) {
+		let state = reduceWorktreeSetupEvent(
+			createWorktreeCreationState({ projectPath: run.projectPath }),
+			createWorktreeSetupStartedEvent({
+				projectPath: run.projectPath,
+				worktreePath: run.worktreePath,
+			})
+		);
+		for (const event of projectWorktreeSetupRunEvents(run)) {
+			state = reduceWorktreeSetupEvent(state, event);
+		}
+		return state;
+	}
+
+	it("drives the card to a terminal success state carrying every command's output", () => {
+		const state = foldRun({
+			projectPath: "/repo",
+			worktreePath: "/wt/repo-a",
+			success: true,
+			error: null,
+			commands: [
+				{
+					command: "echo ACEPE_SETUP_MARKER",
+					success: true,
+					stdout: "ACEPE_SETUP_MARKER\n",
+					stderr: "",
+					exitCode: 0,
+				},
+				{
+					command: "echo second",
+					success: true,
+					stdout: "second\n",
+					stderr: "",
+					exitCode: 0,
+				},
+			],
+		});
+
+		expect(state.status).toBe("succeeded");
+		expect(state.worktreePath).toBe("/wt/repo-a");
+		expect(state.commandCount).toBe(2);
+		expect(state.error).toBe(null);
+		expect(state.outputText).toContain("$ echo ACEPE_SETUP_MARKER");
+		expect(state.outputText).toContain("ACEPE_SETUP_MARKER");
+		expect(state.outputText).toContain("$ echo second");
+		expect(state.outputText).toContain("second");
+		expect(state.isVisible).toBe(true);
+	});
+
+	it("drives the card to failed and shows the failing command's stderr", () => {
+		const state = foldRun({
+			projectPath: "/repo",
+			worktreePath: "/wt/repo-a",
+			success: false,
+			error: "ACEPE_SETUP_BOOM",
+			commands: [
+				{
+					command: "echo starting",
+					success: true,
+					stdout: "starting\n",
+					stderr: "",
+					exitCode: 0,
+				},
+				{
+					command: "echo ACEPE_SETUP_BOOM >&2; exit 3",
+					success: false,
+					stdout: "",
+					stderr: "ACEPE_SETUP_BOOM\n",
+					exitCode: 3,
+				},
+			],
+		});
+
+		expect(state.status).toBe("failed");
+		expect(state.isVisible).toBe(true);
+		expect(state.error).toBe("ACEPE_SETUP_BOOM");
+		expect(state.outputText).toContain("starting");
+		expect(state.outputText).toContain("$ echo ACEPE_SETUP_BOOM >&2; exit 3");
+		expect(state.outputText).toContain("ACEPE_SETUP_BOOM");
+	});
+
+	it("emits nothing but a silent success when the project configures no setup commands", () => {
+		const state = foldRun({
+			projectPath: "/repo",
+			worktreePath: "/wt/repo-a",
+			success: true,
+			error: null,
+			commands: [],
+		});
+
+		expect(state.status).toBe("succeeded");
+		expect(state.isVisible).toBe(false);
+		expect(state.outputText).toBe("");
 	});
 });
 

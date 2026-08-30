@@ -9,12 +9,20 @@ import * as Effect from "effect/Effect";
 import { backendClient } from "$lib/utils/backend-client.js";
 
 import type { AppError } from "../../errors/app-error.js";
+import type { CommandOutput } from "../../types/worktree-config.js";
 
 const TAG = "[worktree-setup]";
 
 export interface WorktreeSetupResult {
 	readonly cwd: string;
 	readonly setupSuccess: boolean;
+	/**
+	 * What each configured setup command printed, in the order the server ran
+	 * them. Empty when the project configures no setup commands.
+	 */
+	readonly commands: readonly CommandOutput[];
+	/** The server's reason for the failure, or null when the run succeeded. */
+	readonly error: string | null;
 }
 
 export interface WorktreeSetupOptions {
@@ -46,7 +54,12 @@ export function runWorktreeSetup(
 			console.info(TAG, "config loaded", { commands, projectPath });
 			if (commands.length === 0) {
 				console.info(TAG, "no setup commands, skipping");
-				return Effect.succeed({ cwd: worktreeCwd, setupSuccess: true });
+				return Effect.succeed({
+					cwd: worktreeCwd,
+					setupSuccess: true,
+					commands: [],
+					error: null,
+				});
 			}
 
 			return executeSetup(worktreeCwd, projectPath);
@@ -71,7 +84,12 @@ function executeSetup(
 					commandsRun: result.commandsRun,
 				});
 			}
-			return { cwd: worktreeCwd, setupSuccess: result.success };
+			return {
+				cwd: worktreeCwd,
+				setupSuccess: result.success,
+				commands: result.output,
+				error: result.error,
+			};
 		}),
 		Effect.mapError((error) => {
 			console.error(TAG, "run-setup-invoke failed", { projectPath, worktreeCwd, error });

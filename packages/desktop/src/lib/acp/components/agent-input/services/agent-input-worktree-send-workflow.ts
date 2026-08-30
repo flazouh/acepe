@@ -7,7 +7,12 @@ import * as Result from "effect/Result";
 import { toast } from "svelte-sonner";
 import { backendClient } from "$lib/utils/backend-client.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
+import type { WorktreeSetupEvent } from "../../../types/worktree-setup.js";
 import { createLogger } from "../../../utils/logger.js";
+import {
+	createWorktreeSetupStartedEvent,
+	projectWorktreeSetupRunEvents,
+} from "../../agent-panel/logic/worktree-setup-events.js";
 import { runWorktreeSetup } from "../../worktree/worktree-setup-orchestrator.js";
 
 const logger = createLogger({
@@ -20,6 +25,11 @@ export type WorktreePrepForSendResult =
 			ok: true;
 			worktreePath: string;
 			preparedLaunch: PreparedWorktreeLaunch;
+			/**
+			 * Resolves once the background setup run has finished and its last
+			 * event has been reported. Callers may ignore it; tests await it.
+			 */
+			setupSettled: Promise<void>;
 	  }
 	| { ok: false; error: Error };
 
@@ -33,14 +43,21 @@ export async function prepareWorktreePathForPendingSend(args: {
 	existingPrepared: PreparedWorktreeLaunch | null;
 	/** Invoked immediately before the backend prepare call (panel pending UX + product hooks). */
 	notifyCreating: () => void;
+	/**
+	 * Receives the setup run's own events — one when the run starts, then the
+	 * replay of what each command printed once the server reports it. The panel
+	 * folds these into its setup card.
+	 */
+	onSetupEvent?: (event: WorktreeSetupEvent) => void;
 }): Promise<WorktreePrepForSendResult> {
-	const { projectPath, selectedAgentId, existingPrepared, notifyCreating } = args;
+	const { projectPath, selectedAgentId, existingPrepared, notifyCreating, onSetupEvent } = args;
 
 	if (existingPrepared) {
 		return {
 			ok: true,
 			worktreePath: existingPrepared.worktree.directory,
 			preparedLaunch: existingPrepared,
+			setupSettled: Promise.resolve(),
 		};
 	}
 
@@ -51,26 +68,47 @@ export async function prepareWorktreePathForPendingSend(args: {
 
 	if (Result.isSuccess(createResult)) {
 		const preparedLaunch = createResult.success;
-		void Effect.runPromise(
+		const worktreePath = preparedLaunch.worktree.directory;
+
+		onSetupEvent?.(createWorktreeSetupStartedEvent({ projectPath, worktreePath }));
+
+		const setupSettled = Effect.runPromise(
 			runWorktreeSetup({
 				projectPath,
-				worktreeCwd: preparedLaunch.worktree.directory,
+				worktreeCwd: worktreePath,
 			}).pipe(
 				Effect.match({
 					onSuccess: (result) => {
+						for (const event of projectWorktreeSetupRunEvents({
+							projectPath,
+							worktreePath,
+							commands: result.commands,
+							success: result.setupSuccess,
+							error: result.error,
+						})) {
+							onSetupEvent?.(event);
+						}
 						if (!result.setupSuccess) toast.warning("Setup script failed");
 					},
 					onFailure: (error) => {
 						logger.warn("Worktree setup failed", { error });
+						onSetupEvent?.({
+							...createWorktreeSetupStartedEvent({ projectPath, worktreePath }),
+							kind: "finished",
+							success: false,
+							error: error instanceof Error ? error.message : "Setup script failed",
+						});
 						toast.warning("Setup script failed");
 					},
 				})
 			)
 		);
+
 		return {
 			ok: true,
-			worktreePath: preparedLaunch.worktree.directory,
+			worktreePath,
 			preparedLaunch,
+			setupSettled,
 		};
 	}
 

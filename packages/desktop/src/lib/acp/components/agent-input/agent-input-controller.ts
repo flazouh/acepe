@@ -355,6 +355,9 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 						t_ms: Math.round(performance.now() - t0),
 					});
 				},
+				onSetupEvent: (event) => {
+					props.onWorktreeSetupEvent?.(event);
+				},
 			});
 			if (!prep.ok) {
 				if (effectivePanelId) {

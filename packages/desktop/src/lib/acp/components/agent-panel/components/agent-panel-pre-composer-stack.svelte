@@ -64,6 +64,7 @@ let {
 	onPreSessionWorktreeDismiss,
 	onRetryWorktree,
 	worktreeSetupState,
+	onWorktreeSetupDismiss,
 	agentInstallState,
 	sessionId,
 	effectiveProjectPath,
@@ -116,6 +117,7 @@ let {
 	onPreSessionWorktreeDismiss: () => void;
 	onRetryWorktree: () => void;
 	worktreeSetupState: WorktreeSetupState | null;
+	onWorktreeSetupDismiss: () => void;
 	agentInstallState: {
 		agentId: string;
 		agentName: string;
@@ -220,7 +222,7 @@ let {
 							/>
 						{/if}
 						{#if worktreeSetupState?.isVisible}
-							<WorktreeSetupCard state={worktreeSetupState} />
+							<WorktreeSetupCard state={worktreeSetupState} onDismiss={onWorktreeSetupDismiss} />
 						{/if}
 						{#if agentInstallState}
 							<AgentInstallCard

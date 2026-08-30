@@ -4,6 +4,7 @@ import type { SessionStatus } from "../../../application/dto/session-status.js";
 import type { AgentInfo } from "../../../logic/agent-manager.js";
 import type { QuestionRequest } from "../../../types/question.js";
 import type { PreparedWorktreeLaunch } from "../../../types/worktree-info.js";
+import type { WorktreeSetupEvent } from "../../../types/worktree-setup.js";
 
 /**
  * Host-provided bindings for floating setup chips above the composer.
@@ -119,6 +120,12 @@ export interface AgentInputProps {
 	 * Allows the panel to show a transient creating-worktree widget before setup begins.
 	 */
 	readonly onWorktreeCreating?: () => void;
+
+	/**
+	 * Callback fired for each event of the first-send setup run: one when the
+	 * run starts, then the replay of what each setup command printed.
+	 */
+	readonly onWorktreeSetupEvent?: (event: WorktreeSetupEvent) => void;
 
 	readonly onPreparedWorktreeLaunch?: (launch: PreparedWorktreeLaunch) => void;
 

@@ -63,6 +63,7 @@ import { getTodoStateManager } from "../../../logic/todo-state-manager.svelte.js
 import { usePlanLoader } from "../hooks";
 import {
 	createWorktreeSetupMatchContext,
+	matchesWorktreeSetupContext,
 	copyTextToClipboard,
 	resolveEffectiveProjectPath,
 	resolvePlanningPlaceholderPresentation,
@@ -611,35 +612,19 @@ $effect(() => {
 			worktreePath: pendingSetup.worktreePath,
 		});
 	}
-	// "running" phase: there is no setup-progress channel, so the card stays on
-	// the creation state until the worktree finishes being created.
+	// "running" phase: the send workflow reports the run's own events, so the
+	// card leaves the creation state as soon as setup actually starts.
 });
 
 $effect(() => {
 	const state = worktreeSetup.state;
 	if (!state) return;
 
-	if (worktreeSetupMatchContext.worktreePaths.length > 0) {
-		if (
-			!state.worktreePath ||
-			!worktreeSetupMatchContext.worktreePaths.includes(state.worktreePath)
-		) {
-			worktreeSetup.clear();
-			if (panelId) {
-				panelStore.clearPendingWorktreeSetup(panelId);
-			}
-		}
-		return;
-	}
+	if (matchesWorktreeSetupContext(state, worktreeSetupMatchContext)) return;
 
-	if (
-		worktreeSetupMatchContext.projectPaths.length > 0 &&
-		!worktreeSetupMatchContext.projectPaths.includes(state.projectPath)
-	) {
-		worktreeSetup.clear();
-		if (panelId) {
-			panelStore.clearPendingWorktreeSetup(panelId);
-		}
+	worktreeSetup.clear();
+	if (panelId) {
+		panelStore.clearPendingWorktreeSetup(panelId);
 	}
 });
 
@@ -1841,6 +1826,12 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 					onRetryWorktree={handleRetryWorktree}
 					worktreePending={worktreePending}
 					worktreeSetupState={worktreeSetup.state}
+					onWorktreeSetupDismiss={() => {
+						worktreeSetup.clear();
+						if (panelId) {
+							panelStore.clearPendingWorktreeSetup(panelId);
+						}
+					}}
 					{agentInstallState}
 					{sessionId}
 					effectiveProjectPath={effectiveProjectPath ?? null}
@@ -1965,6 +1956,9 @@ async function handleFixCiCheck(check: PrChecksItem): Promise<void> {
 									projectPath:
 										worktreeToggleProjectPath || sessionController.sessionProjectPath || project?.path || "",
 								});
+							}}
+							onWorktreeSetupEvent={(event) => {
+								worktreeSetup.applyEvent(event);
 							}}
 							onWorktreeCreated={(path) => handleWorktreeCreated(path)}
 							onPreparedWorktreeLaunch={handlePreparedWorktreeLaunch}

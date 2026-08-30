@@ -1,3 +1,4 @@
+import type { CommandOutput } from "$lib/acp/types/worktree-config.js";
 import type { WorktreeSetupEvent } from "$lib/acp/types/worktree-setup.js";
 
 export interface WorktreeSetupMatchContext {
@@ -173,7 +174,11 @@ export function reduceWorktreeSetupEvent(
 	return {
 		...current,
 		status: event.success ? "succeeded" : "failed",
-		isVisible: event.success !== true,
+		// A finished run stays on screen while it still has something to show:
+		// always on failure, and on success only when the commands actually
+		// printed. A project without setup commands prints nothing and gets no
+		// card.
+		isVisible: event.success !== true || outputWithError.length > 0,
 		commandCount: nextCommandCount,
 		activeCommandIndex: nextCommandIndex,
 		activeCommand: nextCommand,
@@ -182,17 +187,116 @@ export function reduceWorktreeSetupEvent(
 	};
 }
 
+export interface WorktreeSetupTarget {
+	readonly projectPath: string;
+	readonly worktreePath: string | null;
+}
+
 export function matchesWorktreeSetupContext(
-	event: WorktreeSetupEvent,
+	target: WorktreeSetupTarget,
 	context: WorktreeSetupMatchContext
 ): boolean {
 	if (context.worktreePaths.length > 0) {
-		return context.worktreePaths.includes(event.worktreePath);
+		return target.worktreePath !== null && context.worktreePaths.includes(target.worktreePath);
 	}
 
 	if (context.projectPaths.length === 0) {
 		return false;
 	}
 
-	return context.projectPaths.includes(event.projectPath);
+	return context.projectPaths.includes(target.projectPath);
+}
+
+function createBaseEvent(
+	kind: WorktreeSetupEvent["kind"],
+	projectPath: string,
+	worktreePath: string
+): WorktreeSetupEvent {
+	return {
+		kind,
+		projectPath,
+		worktreePath,
+		command: null,
+		commandCount: null,
+		commandIndex: null,
+		stream: null,
+		chunk: null,
+		success: null,
+		exitCode: null,
+		error: null,
+	};
+}
+
+/**
+ * The event that opens a setup run, emitted the moment the run is kicked off.
+ * It carries the worktree path the run belongs to, which is what keeps the
+ * card attached to its panel while the commands are still executing.
+ */
+export function createWorktreeSetupStartedEvent(options: {
+	projectPath: string;
+	worktreePath: string;
+}): WorktreeSetupEvent {
+	return createBaseEvent("started", options.projectPath, options.worktreePath);
+}
+
+export interface WorktreeSetupRun {
+	readonly projectPath: string;
+	readonly worktreePath: string;
+	readonly commands: readonly CommandOutput[];
+	readonly success: boolean;
+	readonly error: string | null;
+}
+
+/**
+ * Project a finished setup run — the per-command stdout/stderr/exit codes the
+ * server reported — onto the card's event vocabulary. Pure replay of recorded
+ * facts: no timing, no progress guessing, nothing the server did not report.
+ */
+export function projectWorktreeSetupRunEvents(
+	run: WorktreeSetupRun
+): readonly WorktreeSetupEvent[] {
+	const commandCount = run.commands.length;
+	const events: WorktreeSetupEvent[] = [];
+
+	run.commands.forEach((output, index) => {
+		const commandIndex = index + 1;
+		const base = createBaseEvent("command-started", run.projectPath, run.worktreePath);
+
+		events.push({
+			...base,
+			command: output.command,
+			commandCount,
+			commandIndex,
+		});
+
+		for (const stream of ["stdout", "stderr"] as const) {
+			const chunk = output[stream];
+			if (chunk.length === 0) {
+				continue;
+			}
+			events.push({
+				...base,
+				kind: "output",
+				command: output.command,
+				commandCount,
+				commandIndex,
+				stream,
+				chunk,
+			});
+		}
+	});
+
+	const lastCommand = run.commands.at(-1) ?? null;
+
+	events.push({
+		...createBaseEvent("finished", run.projectPath, run.worktreePath),
+		command: lastCommand ? lastCommand.command : null,
+		commandCount,
+		commandIndex: commandCount === 0 ? null : commandCount,
+		success: run.success,
+		exitCode: lastCommand ? lastCommand.exitCode : null,
+		error: run.error,
+	});
+
+	return events;
 }
