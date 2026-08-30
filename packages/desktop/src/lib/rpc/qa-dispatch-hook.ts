@@ -1,4 +1,6 @@
 import type {
+	AgentCallRequest,
+	AgentCallResult,
 	OrchestrationCommand,
 	RpcDispatchResult,
 	RpcSessionSnapshot,
@@ -15,6 +17,7 @@ declare global {
 		__acepeQaSessionSnapshot?: (sessionId: string) => Promise<RpcSessionSnapshot>;
 		__acepeQaLibrarySnapshot?: () => Promise<RpcSessionSnapshot>;
 		__acepeQaEventsPushReceived?: () => number;
+		__acepeQaAgentCall?: (request: AgentCallRequest) => Promise<AgentCallResult>;
 	}
 }
 
@@ -51,4 +54,14 @@ export const installQaDispatchHook = (): void => {
 	// can compare it against the bun-side "acepe-events-stream: push" log
 	// count to prove whether the transport delivers.
 	window.__acepeQaEventsPushReceived = () => readEventsPushReceivedCount();
+	// QA-only read/act counterpart for the agentCall utility RPC, the lane
+	// the agent picker's install control and the panel's sign-in control both
+	// ride. It lets a QA script prove what the server answers those controls
+	// without a script having to reproduce the facade's own decoding.
+	//
+	// A sign-in op reached through here runs the same real login command the
+	// button does, so a QA script must only name an agent whose sign-in
+	// spawns nothing -- see the sign-in method on the agent list.
+	window.__acepeQaAgentCall = (request) =>
+		Effect.runPromise(Effect.flatMap(appRpcClient(), (client) => client.agentCall(request)));
 };

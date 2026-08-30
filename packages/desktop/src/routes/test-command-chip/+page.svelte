@@ -65,6 +65,30 @@ import AgentEnvOverridesDialog from "$lib/components/settings-page/sections/agen
 import SettingsSidebar from "$lib/components/settings-page/settings-sidebar.svelte";
 import type { SettingsSectionId } from "$lib/components/settings-page/settings-types.js";
 import SessionTable from "$lib/components/settings/project-tab/session-table.svelte";
+import { deriveSignInCard } from "$lib/acp/components/agent-panel/logic/sign-in-card.js";
+import type { AgentSignInMethod } from "$lib/acp/store/types.js";
+import { api } from "$lib/acp/store/api.js";
+import * as Effect from "effect/Effect";
+import * as Result from "effect/Result";
+import { rootCauseMessage } from "$lib/acp/errors/error-cause-details.js";
+
+// Reads the live agent list so the cards below show what the backend
+// actually says about each agent's sign-in, rather than a hand-written
+// method that could drift from it.
+let liveSignInMethods = $state<Array<{ agentId: string; method: AgentSignInMethod }>>([]);
+let liveSignInErrors = $state<Record<string, string>>({});
+
+async function loadLiveSignInMethods(): Promise<void> {
+	const outcome = await Effect.runPromise(Effect.result(api.listAgents()));
+	if (Result.isFailure(outcome)) {
+		liveSignInErrors = { list: rootCauseMessage(outcome.failure) };
+		return;
+	}
+	liveSignInMethods = outcome.success.map((agent) => ({
+		agentId: agent.id,
+		method: agent.sign_in ?? { kind: "manual", instructions: "No sign-in method reported." },
+	}));
+}
 
 const modelCommandChip: CommandChipModel = {
 	command: "/model",
@@ -687,6 +711,43 @@ const commandPaletteItems: CommandPaletteItem[] = [
 			onSignIn={() => {}}
 			onDismiss={() => {}}
 		/>
+	</div>
+	<!--
+		The same card the agent panel shows, built from the live backend's
+		sign-in method per agent. It is here because whether an agent gets a
+		control is a backend fact, and a static fixture cannot show that the
+		fact travelled.
+	-->
+	<div class="flex w-[360px] flex-col gap-2" data-testid="live-sign-in-cards">
+		<Button variant="secondary" size="xs" onclick={loadLiveSignInMethods}>
+			Load sign-in methods
+		</Button>
+		{#each liveSignInMethods as entry (entry.agentId)}
+			{@const card = deriveSignInCard({
+				requirement: {
+					agent: entry.agentId,
+					instructions: `Complete the ${entry.agentId} sign-in, then retry.`,
+				},
+				signInMethod: entry.method,
+			})}
+			{#if card}
+				<div
+					class="border border-border/40 p-2"
+					data-testid="live-sign-in-card"
+					data-agent-id={entry.agentId}
+					data-sign-in-kind={entry.method.kind}
+					data-can-sign-in={String(card.canSignIn)}
+				>
+					<AgentPanelSignInCard
+						title="Sign in to continue"
+						message={card.message}
+						signInError={liveSignInErrors[entry.agentId] ?? null}
+						onSignIn={card.canSignIn ? () => {} : undefined}
+						onDismiss={() => {}}
+					/>
+				</div>
+			{/if}
+		{/each}
 	</div>
 	<div
 		class="flex w-[240px] items-center gap-3 border border-border/40 p-2"

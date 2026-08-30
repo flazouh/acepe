@@ -25,43 +25,6 @@ import { type AgentSignInPlan, signInPlanForAgent } from "../signIn.ts"
 const pathEntries = (pathVar: string): ReadonlyArray<string> =>
 	Arr.filter(Str.split(pathVar, ":"), (part) => Str.isNonEmpty(part))
 
-// The env override first and then PATH, the same order and the same shape as
-// every adapter's own binary probe (probeCopilotBinary, probeCursorBinary,
-// resolveClaudeExecutablePath). A login has to run the CLI the operator
-// installed, so this deliberately does not look in Acepe's managed agent
-// cache: what lives there is the ACP server entry point, and its login
-// subcommand is not what a managed download is for.
-const resolveSignInBinary = Effect.fn("AgentAuthenticator.resolveSignInBinary")(function*(
-	binaryName: string,
-	binaryEnvKey: string | null
-) {
-	const fs = yield* FileSystem.FileSystem
-	const path = yield* Path.Path
-	if (binaryEnvKey !== null) {
-		const override = yield* Config.option(Config.nonEmptyString(binaryEnvKey))
-		if (Option.isSome(override)) {
-			const exists = yield* fs.exists(override.value)
-			if (exists) {
-				return Option.some(override.value)
-			}
-		}
-	}
-	const pathVar = yield* Config.option(Config.string("PATH"))
-	const directories = Option.match(pathVar, {
-		onNone: () => Arr.empty<string>(),
-		onSome: pathEntries
-	})
-	return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) => {
-		if (Option.isSome(found)) {
-			return Effect.succeed(found)
-		}
-		const candidate = path.join(directory, binaryName)
-		return fs
-			.exists(candidate)
-			.pipe(Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>())))
-	})
-})
-
 // All three streams are closed off, on purpose.
 //
 // stdin: a login CLI that wants a terminal must fail rather than sit forever
@@ -85,10 +48,57 @@ const signInCommand = (binaryPath: string, args: ReadonlyArray<string>): ChildPr
 
 export const makeAgentAuthenticator = Effect.fn("AgentAuthenticator.make")(function*() {
 	const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+	const fs = yield* FileSystem.FileSystem
+	const path = yield* Path.Path
 	// One cancel latch per agent with a sign-in in flight. Not a process
 	// handle: cancelling means interrupting the effect that owns the child,
 	// and the spawner's own scope kills the process group from there.
-	const inFlight = yield* Ref.make(HashMap.empty<string, Deferred.Deferred<void>>())
+	const inFlight = yield* Ref.make(HashMap.empty<ProviderId, Deferred.Deferred<void>>())
+
+	// A path that cannot be read is a path with no binary on it, not a
+	// failure of its own: every branch here answers Option.none() rather than
+	// turning an unreadable PATH entry into a sign-in error that says nothing
+	// about signing in.
+	const existingFile = (candidate: string) =>
+		fs.exists(candidate).pipe(
+			Effect.orElseSucceed(() => false),
+			Effect.map((exists) => (exists ? Option.some(candidate) : Option.none<string>()))
+		)
+
+	const readEnv = (key: string) =>
+		Config.option(Config.nonEmptyString(key)).pipe(
+			Effect.orElseSucceed(() => Option.none<string>())
+		)
+
+	// The env override first and then PATH, the same order and the same shape
+	// as every adapter's own binary probe (probeCopilotBinary,
+	// probeCursorBinary, resolveClaudeExecutablePath). A login has to run the
+	// CLI the operator installed, so this deliberately does not look in
+	// Acepe's managed agent cache: what lives there is the ACP server entry
+	// point, and its login subcommand is not what a managed download is for.
+	const resolveSignInBinary = Effect.fn("AgentAuthenticator.resolveSignInBinary")(function*(
+		binaryName: string,
+		binaryEnvKey: string | null
+	) {
+		if (binaryEnvKey !== null) {
+			const override = yield* readEnv(binaryEnvKey)
+			if (Option.isSome(override)) {
+				const found = yield* existingFile(override.value)
+				if (Option.isSome(found)) {
+					return found
+				}
+			}
+		}
+		const pathVar = yield* readEnv("PATH")
+		const directories = Option.match(pathVar, {
+			onNone: () => Arr.empty<string>(),
+			onSome: pathEntries
+		})
+		return yield* Effect.reduce(directories, () => Option.none<string>(), (found, directory) =>
+			Option.isSome(found)
+				? Effect.succeed(found)
+				: existingFile(path.join(directory, binaryName)))
+	})
 
 	const runBrowserSignIn = Effect.fn("AgentAuthenticator.runBrowserSignIn")(function*(
 		agentId: ProviderId,
@@ -131,7 +141,7 @@ export const makeAgentAuthenticator = Effect.fn("AgentAuthenticator.make")(funct
 				instructions: plan.instructions
 			})
 		}
-		return yield* runBrowserSignIn(agentId, plan)
+		yield* runBrowserSignIn(agentId, plan)
 	})
 
 	const cancel = Effect.fn("AgentAuthenticator.cancel")(function*(agentId: ProviderId) {
