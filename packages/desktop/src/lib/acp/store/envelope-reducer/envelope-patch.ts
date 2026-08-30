@@ -129,6 +129,16 @@ export type EnvelopePatch =
 			lastTerminalTurnId: string | null;
 	  }
 	| {
+			/**
+			 * Drop the optimistic row of a creation that died before the backend
+			 * confirmed it. Nothing canonical exists behind the row, so leaving it
+			 * would leave a phantom thread in the list.
+			 */
+			kind: "abandonPendingCreationSession";
+			sessionId: string;
+			failure: TurnFailureSnapshot;
+	  }
+	| {
 			kind: "refreshSessionStateSnapshot";
 			sessionId: string;
 			reason: SessionStateSnapshotRefreshReason;

@@ -177,6 +177,50 @@ function createSnapshotEnvelope(
 	};
 }
 
+/**
+ * The envelope OrchestrationCanonicalBridge emits for ProviderSessionFailed:
+ * a graph delta off revision 0 that ends the turn as Failed. An adapter that
+ * dies on startSession produces exactly this, before any snapshot ever gave
+ * the store a canonical baseline for the session.
+ */
+function createFailedTurnDeltaEnvelope(
+	sessionId: string,
+	message = "Claude provider session identity could not be verified"
+): SessionStateEnvelope {
+	const fromRevision = { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 };
+	const toRevision = { graphRevision: 1, transcriptRevision: 0, lastEventSeq: 1 };
+	return {
+		sessionId,
+		graphRevision: toRevision.graphRevision,
+		lastEventSeq: toRevision.lastEventSeq,
+		payload: {
+			kind: "delta",
+			delta: {
+				fromRevision,
+				toRevision,
+				activity: {
+					kind: "idle",
+					activeOperationCount: 0,
+					activeSubagentCount: 0,
+				},
+				turnState: "Failed",
+				activeTurnFailure: {
+					turn_id: null,
+					message,
+					details: "provider operation: startSession",
+					kind: "fatal",
+					source: "transport",
+				},
+				activeStreamingTail: null,
+				transcriptOperations: [],
+				operationPatches: [],
+				interactionPatches: [],
+				changedFields: ["turnState", "activity", "activeStreamingTail", "activeTurnFailure"],
+			},
+		},
+	};
+}
+
 describe("SessionStore.createSession", () => {
 	let store: SessionStore;
 
@@ -845,5 +889,45 @@ describe("SessionStore.createSession", () => {
 			requestedPending
 		);
 		expect(store.read.getSessionPendingSendIntent("requested-local-id")).toBeNull();
+	});
+	it("removes the optimistic deferred session when creation fails before materialization", async () => {
+		const storeWithInternals = store as unknown as {
+			connectionMgr: {
+				createSession: ReturnType<typeof vi.fn>;
+			};
+		};
+
+		storeWithInternals.connectionMgr = {
+			createSession: vi.fn(() =>
+				Effect.succeed(
+					createPendingSessionResult({
+						sessionId: "pending-session",
+						title: "Failed Thread",
+					})
+				)
+			),
+		};
+
+		await Effect.runPromise(
+			store.connection.createSession({
+				projectPath: "/repo",
+				agentId: "claude-code",
+			})
+		);
+
+		// The optimistic cold row is present while creation is pending...
+		expect(store.read.getSessionIdentity("pending-session")).toBeDefined();
+		expect(store.connection.hasPendingCreationSession("pending-session")).toBe(true);
+
+		store.applySessionStateEnvelope(
+			"pending-session",
+			createFailedTurnDeltaEnvelope("pending-session")
+		);
+
+		// ...and goes when the provider dies before the session materializes, so
+		// no phantom row is left in the list.
+		expect(store.read.getSessionIdentity("pending-session")).toBeUndefined();
+		expect(store.read.getAllSessions()).toEqual([]);
+		expect(store.connection.hasPendingCreationSession("pending-session")).toBe(false);
 	});
 });

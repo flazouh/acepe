@@ -32,6 +32,7 @@ export class SessionCreationCoordinator {
 	#liveSessionStateGraphConsumer: LiveSessionStateGraphConsumer | null = null;
 
 	readonly #registerOptimisticSession?: (result: CreatedPendingSessionResult) => void;
+	readonly #removeOptimisticSession?: (sessionId: string) => void;
 
 	constructor(deps: {
 		/**
@@ -39,8 +40,11 @@ export class SessionCreationCoordinator {
 		 * agent panel resolves identity + title before canonical promotion.
 		 */
 		registerOptimisticSession?: (result: CreatedPendingSessionResult) => void;
+		/** Remove the optimistic cold session if the creation fails pre-promotion. */
+		removeOptimisticSession?: (sessionId: string) => void;
 	}) {
 		this.#registerOptimisticSession = deps.registerOptimisticSession;
+		this.#removeOptimisticSession = deps.removeOptimisticSession;
 	}
 
 	attachSessionConsumers(consumers: {
@@ -70,6 +74,19 @@ export class SessionCreationCoordinator {
 
 	completePendingCreation(sessionId: string): void {
 		this.#pendingCreationSessions.delete(sessionId);
+	}
+
+	/**
+	 * Undo `beginPendingCreation` for a creation that died before the backend
+	 * confirmed it. The optimistic record was never materialized, so the row
+	 * goes with the pending entry rather than lingering as a phantom.
+	 */
+	abandonPendingCreation(sessionId: string): void {
+		if (!this.#pendingCreationSessions.has(sessionId)) {
+			return;
+		}
+		this.#pendingCreationSessions.delete(sessionId);
+		this.#removeOptimisticSession?.(sessionId);
 	}
 
 	hasPendingCreationSession(sessionId: string): boolean {

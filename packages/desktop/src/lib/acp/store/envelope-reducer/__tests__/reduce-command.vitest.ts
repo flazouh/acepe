@@ -102,6 +102,7 @@ function createSnapshot(overrides: Partial<EnvelopeReducerSnapshot> = {}): Envel
 	return {
 		sessionId: overrides.sessionId ?? "session-1",
 		hasSessionIdentity: overrides.hasSessionIdentity ?? true,
+		hasPendingCreation: overrides.hasPendingCreation ?? false,
 		previousProjection:
 			overrides.previousProjection !== undefined
 				? overrides.previousProjection
@@ -113,6 +114,14 @@ function createSnapshot(overrides: Partial<EnvelopeReducerSnapshot> = {}): Envel
 		sessionCold: overrides.sessionCold,
 	};
 }
+
+const preBaselineFailure = {
+	turn_id: null,
+	message: "Claude provider session identity could not be verified",
+	details: "provider operation: startSession",
+	kind: "fatal" as const,
+	source: "transport" as const,
+};
 
 describe("reduceCommand", () => {
 	it("returns no session-mode patches without session identity", () => {
@@ -986,5 +995,59 @@ describe("reduceCommand", () => {
 				},
 			])
 		);
+	});
+	it("drops the optimistic row when a pre-baseline failure ends a pending creation", () => {
+		const patches = reduceCommand(
+			createSnapshot({
+				hasPendingCreation: true,
+				previousProjection: null,
+				previousGraph: null,
+			}),
+			{
+				kind: "applyPreBaselineTurnFailure",
+				failure: preBaselineFailure,
+				fromRevision: 0,
+				toRevision: 1,
+			},
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([
+			{
+				kind: "abandonPendingCreationSession",
+				sessionId: "session-1",
+				failure: preBaselineFailure,
+			},
+		]);
+	});
+
+	it("refetches instead when a pre-baseline failure hits a session with no pending creation", () => {
+		const patches = reduceCommand(
+			createSnapshot({
+				hasPendingCreation: false,
+				previousProjection: null,
+				previousGraph: null,
+			}),
+			{
+				kind: "applyPreBaselineTurnFailure",
+				failure: preBaselineFailure,
+				fromRevision: 0,
+				toRevision: 1,
+			},
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([
+			{
+				kind: "refreshSessionStateSnapshot",
+				sessionId: "session-1",
+				reason: "missingCanonicalGraph",
+				warnContext: {
+					currentTranscriptRevision: undefined,
+					fromRevision: 0,
+					toRevision: 1,
+				},
+			},
+		]);
 	});
 });

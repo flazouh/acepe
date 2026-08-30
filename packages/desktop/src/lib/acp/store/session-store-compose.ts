@@ -204,6 +204,10 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 			}
 			listState.addSession(optimisticSessionColdFromPendingCreation(result, new Date()));
 		},
+		// Light list-level removal: the optimistic record was never materialized,
+		// so a full lifecycle teardown (DB + model-pref persistence) is both
+		// unnecessary and wrong. `repository.removeSession` just filters the list.
+		removeOptimisticSession: (sessionId) => repository.removeSession(sessionId),
 	});
 
 	const lifecycleCleanup = new SessionLifecycleCleanup({
@@ -329,6 +333,9 @@ export function composeSessionStoreParts(input: ComposeSessionStorePartsInput): 
 			transientProjectionStore.getTransientProjection(sessionId),
 		getSessionCurrentModelId: (sessionId) => read.getSessionCurrentModelId(sessionId),
 		getSessionCold: (sessionId) => read.getSessionCold(sessionId),
+		getHasPendingCreation: (sessionId) => creationCoordinator.hasPendingCreation(sessionId),
+		abandonPendingCreationSession: (sessionId) =>
+			creationCoordinator.abandonPendingCreation(sessionId),
 		setCapabilitiesMaterialized: (sessionId, materialized) => {
 			projectionCore.canonicalCapabilitiesMaterialized.set(sessionId, materialized);
 		},

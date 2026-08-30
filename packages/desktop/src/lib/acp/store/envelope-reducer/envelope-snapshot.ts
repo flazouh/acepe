@@ -6,6 +6,8 @@ import type { SessionTransientProjection } from "../types.js";
 export type EnvelopeReducerSnapshot = {
 	readonly sessionId: string;
 	readonly hasSessionIdentity: boolean;
+	/** The session is an optimistic row whose creation the backend has not confirmed. */
+	readonly hasPendingCreation: boolean;
 	readonly previousProjection: CanonicalSessionProjection | null;
 	readonly previousGraph: SessionStateGraph | null;
 	readonly capabilitiesMaterialized: boolean;

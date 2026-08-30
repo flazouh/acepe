@@ -1484,3 +1484,68 @@ describe("routeSessionStateEnvelope", () => {
 		});
 	});
 });
+
+describe("routeSessionStateEnvelope pre-baseline turn failure", () => {
+	const failure = {
+		turn_id: null,
+		message: "Claude provider session identity could not be verified",
+		details: "provider operation: startSession",
+		kind: "fatal" as const,
+		source: "transport" as const,
+	};
+
+	function createFailedTurnDeltaEnvelope(): SessionStateEnvelope {
+		return {
+			sessionId: "session-1",
+			graphRevision: 1,
+			lastEventSeq: 1,
+			payload: {
+				kind: "delta",
+				delta: {
+					fromRevision: { graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+					toRevision: { graphRevision: 1, transcriptRevision: 0, lastEventSeq: 1 },
+					activity: {
+						kind: "idle",
+						activeOperationCount: 0,
+						activeSubagentCount: 0,
+					},
+					turnState: "Failed",
+					activeTurnFailure: failure,
+					activeStreamingTail: null,
+					transcriptOperations: [],
+					operationPatches: [],
+					interactionPatches: [],
+					changedFields: ["turnState", "activity", "activeStreamingTail", "activeTurnFailure"],
+				},
+			},
+		};
+	}
+
+	it("keeps the failure a delta reports for a session with no canonical baseline", () => {
+		expect(routeSessionStateEnvelope("session-1", undefined, createFailedTurnDeltaEnvelope())).toEqual([
+			{
+				kind: "applyPreBaselineTurnFailure",
+				failure,
+				fromRevision: 0,
+				toRevision: 1,
+			},
+		]);
+	});
+
+	it("still refetches when a baseline-less delta reports no failure", () => {
+		const envelope = createFailedTurnDeltaEnvelope();
+		if (envelope.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		envelope.payload.delta.turnState = "Completed";
+		envelope.payload.delta.activeTurnFailure = null;
+
+		expect(routeSessionStateEnvelope("session-1", undefined, envelope)).toEqual([
+			{
+				kind: "refreshSnapshot",
+				fromRevision: 0,
+				toRevision: 1,
+			},
+		]);
+	});
+});

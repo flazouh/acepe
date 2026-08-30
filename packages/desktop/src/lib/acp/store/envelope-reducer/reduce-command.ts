@@ -130,6 +130,8 @@ export function reduceCommand(
 			return reduceTranscriptDelta(snapshot, command.delta, command.revision);
 		case "refreshSnapshot":
 			return reduceRefreshSnapshot(snapshot, command);
+		case "applyPreBaselineTurnFailure":
+			return reducePreBaselineTurnFailure(snapshot, command);
 		default:
 			return [];
 	}
@@ -769,6 +771,42 @@ function transcriptDeltaEntries(delta: TranscriptDelta): readonly TranscriptEntr
 		}
 	}
 	return entries;
+}
+
+/**
+ * A turn failed for a session with no canonical graph behind it.
+ *
+ * When the store is still holding an optimistic row for a creation the backend
+ * never confirmed, that failure is the creation dying: the row has nothing
+ * canonical behind it and must go, or it lingers as a phantom thread. Any other
+ * session missing its graph is a gap in what the store holds, so it refetches.
+ */
+function reducePreBaselineTurnFailure(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applyPreBaselineTurnFailure" }>
+): readonly EnvelopePatch[] {
+	if (snapshot.hasPendingCreation) {
+		return [
+			{
+				kind: "abandonPendingCreationSession",
+				sessionId: snapshot.sessionId,
+				failure: command.failure,
+			},
+		];
+	}
+
+	return [
+		{
+			kind: "refreshSessionStateSnapshot",
+			sessionId: snapshot.sessionId,
+			reason: "missingCanonicalGraph",
+			warnContext: {
+				currentTranscriptRevision: snapshot.previousGraph?.transcriptSnapshot.revision,
+				fromRevision: command.fromRevision,
+				toRevision: command.toRevision,
+			},
+		},
+	];
 }
 
 function reduceRefreshSnapshot(

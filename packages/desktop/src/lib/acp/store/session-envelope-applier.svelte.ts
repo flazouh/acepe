@@ -74,6 +74,8 @@ export type SessionEnvelopeApplierDeps = {
 	readonly getTransientProjection: (sessionId: string) => SessionTransientProjection;
 	readonly getSessionCurrentModelId: (sessionId: string) => string | null;
 	readonly getSessionCold: (sessionId: string) => SessionCold | undefined;
+	readonly getHasPendingCreation: (sessionId: string) => boolean;
+	readonly abandonPendingCreationSession: (sessionId: string) => void;
 	readonly setCapabilitiesMaterialized: (sessionId: string, materialized: boolean) => void;
 	readonly setCanonicalProjection: (
 		sessionId: string,
@@ -230,6 +232,7 @@ export class SessionEnvelopeApplier {
 		return {
 			sessionId,
 			hasSessionIdentity: this.#deps.getSessionIdentity(sessionId) !== undefined,
+			hasPendingCreation: this.#deps.getHasPendingCreation(sessionId),
 			previousProjection: this.#deps.getCanonicalProjection(sessionId),
 			previousGraph: this.#deps.getSessionStateGraph(sessionId),
 			capabilitiesMaterialized: this.#deps.getCapabilitiesMaterialized(sessionId),
@@ -323,6 +326,15 @@ export class SessionEnvelopeApplier {
 						projectedFailure: patch.projectedFailure,
 						lastTerminalTurnId: patch.lastTerminalTurnId,
 					});
+					break;
+				case "abandonPendingCreationSession":
+					logger.warn("Dropping the optimistic row of a creation that failed", {
+						sessionId: patch.sessionId,
+						message: patch.failure.message,
+						kind: patch.failure.kind,
+						source: patch.failure.source,
+					});
+					this.#deps.abandonPendingCreationSession(patch.sessionId);
 					break;
 				case "refreshSessionStateSnapshot":
 					if (patch.warnContext !== undefined) {

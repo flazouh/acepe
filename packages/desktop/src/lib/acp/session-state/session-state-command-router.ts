@@ -104,6 +104,18 @@ export type SessionStateCommand =
 			interactionPatches: InteractionSnapshot[];
 	  }
 	| {
+			/**
+			 * A delta reporting a terminal turn failure for a session the store
+			 * has no canonical graph for yet. The patches cannot be applied
+			 * without a baseline, but the failure itself needs none: it says the
+			 * turn is over. The reducer decides what that means for the session.
+			 */
+			kind: "applyPreBaselineTurnFailure";
+			failure: TurnFailureSnapshot;
+			fromRevision: number;
+			toRevision: number;
+	  }
+	| {
 			kind: "applyBufferPush";
 			push: ViewportBufferPush;
 	  }
@@ -230,6 +242,17 @@ function graphDeltaIsMissingRequiredScalars(
 	}
 
 	return false;
+}
+
+/**
+ * The failure a delta reports when it ends a turn as Failed, or null for every
+ * other delta. A provider adapter that dies mid-request produces one of these.
+ */
+function terminalTurnFailureFrom(delta: SessionStateDelta): TurnFailureSnapshot | null {
+	if (delta.turnState !== "Failed") {
+		return null;
+	}
+	return delta.activeTurnFailure ?? null;
 }
 
 export function routeSessionStateEnvelope(
@@ -482,6 +505,17 @@ export function routeSessionStateEnvelope(
 				];
 			}
 			if (!hasCurrentGraphRevision(currentRevision)) {
+				const preBaselineFailure = terminalTurnFailureFrom(envelope.payload.delta);
+				if (preBaselineFailure !== null) {
+					return [
+						{
+							kind: "applyPreBaselineTurnFailure",
+							failure: preBaselineFailure,
+							fromRevision: envelope.payload.delta.fromRevision.graphRevision,
+							toRevision: envelope.payload.delta.toRevision.graphRevision,
+						},
+					];
+				}
 				return [
 					{
 						kind: "refreshSnapshot",
