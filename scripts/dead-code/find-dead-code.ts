@@ -126,6 +126,11 @@ const SKIP_DIR_NAMES = new Set([
 	"target",
 	".turbo",
 	"coverage",
+	// Electrobun's build and artifact folders, both gitignored. Without them the
+	// walk reports every bundled chunk as unreachable source and buries the real
+	// findings under thousands of lines, which is what made this check unusable.
+	"electrobun-build",
+	"electrobun-artifacts",
 ]);
 
 const SOURCE_EXTENSIONS = new Set([
@@ -172,6 +177,10 @@ const CONFIG_BASENAMES = new Set([
 	"drizzle.config.ts",
 	"drizzle.config.js",
 	"bunfig.toml",
+	"vitest.config.ts",
+	"vitest.config.js",
+	"electrobun.config.ts",
+	"lefthook.yml",
 ]);
 
 const MODULE_RESOLUTION_EXTENSIONS = [
@@ -252,6 +261,34 @@ function collectFiles(repoRoot: string, currentPath: string, results: string[]):
 	}
 }
 
+/**
+ * The files that make up this codebase, according to git.
+ *
+ * Walking the filesystem instead reported every build artifact as unreachable
+ * source: electrobun-build alone buried the real findings under thousands of
+ * bundled chunks, and a vendored clone under .repos added tens of thousands
+ * more. Every one of those is already declared in a .gitignore, so git knows
+ * the answer and a hand-maintained skip list will always lag behind it.
+ *
+ * Returns none outside a work tree, which is how the fixture tests run.
+ */
+function collectTrackedFiles(repoRoot: string): string[] | null {
+	const proc = Bun.spawnSync({
+		cmd: ["git", "ls-files", "--cached", "--others", "--exclude-standard"],
+		cwd: repoRoot,
+		stdout: "pipe",
+		stderr: "pipe",
+	});
+	if (proc.exitCode !== 0) {
+		return null;
+	}
+	const listed = new TextDecoder()
+		.decode(proc.stdout)
+		.split("\n")
+		.filter((line) => line.length > 0);
+	return listed.length > 0 ? listed : null;
+}
+
 function classifyFileKind(path: string): FileKind {
 	const name = basename(path);
 	const extension = extname(path);
@@ -292,6 +329,15 @@ function isSvelteKitConventionRoot(path: string): boolean {
 			name === "app.d.ts" ||
 			name === "app.html" ||
 			name.startsWith("service-worker."));
+}
+
+/**
+ * The Electrobun app's Bun-side entrypoint, named by build.bun.entrypoint in
+ * electrobun.config.ts. Nothing in the repo imports it — the bundler starts
+ * there — so a reachability walk calls the app's own main file dead.
+ */
+function isElectrobunEntrypoint(path: string): boolean {
+	return path.endsWith("/src/bun/index.ts");
 }
 
 function isStaticAsset(path: string): boolean {
@@ -507,6 +553,10 @@ function collectConventionRoots(files: readonly string[], roots: RootReason[]): 
 		}
 		if (isSvelteKitConventionRoot(file)) {
 			addRoot(roots, file, "sveltekit-route", "SvelteKit app convention root");
+			continue;
+		}
+		if (isElectrobunEntrypoint(file)) {
+			addRoot(roots, file, "config", "Electrobun bun entrypoint");
 			continue;
 		}
 		if (CONFIG_BASENAMES.has(name)) {
@@ -1231,8 +1281,11 @@ function candidateReasons(path: string, roots: readonly RootReason[], edges: rea
 
 export function analyzeDeadCode(options: AnalysisOptions): Result<DeadCodeAnalysis, string> {
 	const repoRoot = resolve(options.repoRoot);
-	const files: string[] = [];
-	collectFiles(repoRoot, repoRoot, files);
+	const tracked = collectTrackedFiles(repoRoot);
+	const files: string[] = tracked ?? [];
+	if (tracked === null) {
+		collectFiles(repoRoot, repoRoot, files);
+	}
 	files.sort();
 
 	const allowlistResult = readAllowlist(repoRoot, options.allowlistPath);
