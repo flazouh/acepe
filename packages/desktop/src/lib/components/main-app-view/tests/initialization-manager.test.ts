@@ -1,8 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
-import {
-	PROJECT_ICON_AUTO,
-	ProjectId
-} from "@acepe/contracts";
+import { PROJECT_ICON_AUTO, ProjectId } from "@acepe/contracts";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "bun:test";
 import {
 	CommandId,
-	emptyRpcSessionSnapshot,
 	EventId,
+	emptyRpcSessionSnapshot,
 	MessageId,
 	type OrchestrationCommand,
 	type OrchestrationEvent,
@@ -11,7 +11,7 @@ import {
 	type RpcClient,
 	type RpcDispatchResult,
 	type RpcSessionSnapshot,
-	SessionId
+	SessionId,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -114,6 +114,7 @@ const clientOf = (input: {
 	getProjectIndex: () =>
 		Effect.succeed({ projectPath: "/tmp/p", totalFiles: 0, files: [], scannedAt: 0 }) as never,
 	invalidateProjectIndex: () => Effect.void,
+	readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),
@@ -471,6 +472,7 @@ it("openProject keeps every other library project in the sidebar snapshot", () =
 						scannedAt: 0,
 					}) as never,
 				invalidateProjectIndex: () => Effect.void,
+				readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),
@@ -540,6 +542,7 @@ it("openSession also keeps every library project in the sidebar snapshot", () =>
 						scannedAt: 0,
 					}) as never,
 				invalidateProjectIndex: () => Effect.void,
+				readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 				readTextFile: () => Effect.succeed(""),
 				writeTextFile: () => Effect.void,
 				getDefaultShell: () => Effect.succeed("/bin/zsh"),

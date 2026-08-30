@@ -161,6 +161,25 @@ export function computeMissingLibraryProjects(
 }
 
 /**
+ * What the client can say about the resolved picture without asking.
+ *
+ * Empty for "auto", which is the server's to answer.
+ */
+const resolvedIconPatch = (
+	workspaceRoot: string,
+	icon: ProjectIcon
+): { iconPath?: string | null } => {
+	if (icon.kind === "none") {
+		return { iconPath: null };
+	}
+	if (icon.kind === "custom") {
+		const separator = workspaceRoot.endsWith("/") ? "" : "/";
+		return { iconPath: `${workspaceRoot}${separator}${icon.path}` };
+	}
+	return {};
+};
+
+/**
  * Corrects a known project's local `path` back to the server-authoritative
  * library snapshot's `workspaceRoot`, when the two disagree.
  *
@@ -636,12 +655,17 @@ export class ProjectManager {
 	/**
 	 * Set which icon a project shows.
 	 *
-	 * Applies the choice locally so the picker marks it at once, and leaves
-	 * iconPath exactly as it was. The server owns that value, and the row a
-	 * dispatch answers with cannot carry it: the projection catches up on its
-	 * own fiber, so the resolved path arrives with the ProjectMetaUpdated
-	 * refresh. Writing the dispatch reply's empty iconPath here made the icon
-	 * vanish from the badge the moment you picked one.
+	 * Applies the choice locally so the badge changes at once.
+	 *
+	 * Two of the three answers resolve without asking anyone. "none" is always
+	 * no picture, and "custom" is always the picked file, which the picker only
+	 * offers after reading its bytes, so it is known to be there. Those are the
+	 * same joins the server makes, not a guess at what it will say.
+	 *
+	 * "auto" is the one the client cannot answer: only the server knows what
+	 * detection finds. It keeps the picture it had until the ProjectMetaUpdated
+	 * refresh corrects it, because the row a dispatch replies with cannot carry
+	 * the resolved path -- the projection catches up on its own fiber.
 	 */
 	updateProjectIcon(path: string, icon: ProjectIcon): Effect.Effect<void, ProjectError> {
 		return this.client.updateProjectIcon(path, icon).pipe(
@@ -649,12 +673,20 @@ export class ProjectManager {
 				const existingIndex = this.projects.findIndex((project) => project.path === path);
 				if (existingIndex >= 0) {
 					this.projects = this.projects.map((project, index) =>
-						index === existingIndex ? { ...project, icon } : project
+						index === existingIndex
+							? { ...project, icon, ...resolvedIconPatch(path, icon) }
+							: project
 					);
 					this.projectStorageFresh = true;
 					this.writeCurrentProjectsToCache();
 				}
-			})
+			}),
+			// Then ask the server what the choice actually resolves to. This is
+			// what fills in "auto": the client cannot run detection, so without
+			// this the badge keeps its old picture until something else reloads
+			// the list. It also corrects the two answers patched above, should
+			// the file have gone between the picker reading it and now.
+			Effect.flatMap(() => this.loadProjects())
 		);
 	}
 

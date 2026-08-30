@@ -7,8 +7,8 @@ import { toast } from "svelte-sonner";
 import { ProjectLetterBadge } from "@acepe/ui";
 import type { ProjectManager } from "$lib/acp/logic/project-manager.svelte.js";
 import { Spinner } from "$lib/components/ui/spinner/index.js";
+import { projectIconPreview } from "$lib/acp/logic/project-icon-preview.svelte.js";
 import { backendClient } from "$lib/utils/backend-client.js";
-import { convertFileSrc } from "$lib/utils/file-src.js";
 import { cn } from "$lib/utils.js";
 import {
 	filterProjectIconCandidates,
@@ -80,13 +80,25 @@ const shown = $derived(matching.slice(0, MAX_SHOWN));
 /**
  * Where a candidate lives on disk.
  *
- * Built here only to draw the thumbnail. The icon the project actually shows
+ * Built only to ask for the thumbnail. The picture the project actually shows
  * still comes from the server's own resolution, never from this join.
  */
-function previewSrc(relativePath: string): string {
+const absolutePath = (relativePath: string): string => {
 	const separator = projectPath.endsWith("/") ? "" : "/";
-	return convertFileSrc(`${projectPath}${separator}${relativePath}`);
-}
+	return `${projectPath}${separator}${relativePath}`;
+};
+
+// Only what is on screen is fetched. Loading all 2449 images a monorepo can
+// offer would be pointless as well as slow, and the shared cache means a
+// thumbnail already fetched for a badge is not fetched again here.
+const thumbnails = $derived(
+	shown.map((candidate) => ({
+		path: candidate,
+		src: projectIconPreview(absolutePath(candidate)),
+	}))
+);
+
+const badgePreview = $derived(projectIconPreview(iconPath));
 </script>
 
 <div class="flex flex-col gap-3">
@@ -94,7 +106,7 @@ function previewSrc(relativePath: string): string {
 		<ProjectLetterBadge
 			name={projectName}
 			color={projectColor}
-			iconSrc={iconPath ? convertFileSrc(iconPath) : null}
+			iconSrc={badgePreview}
 			size={32}
 			fontSize={16}
 			class="shrink-0"
@@ -172,27 +184,31 @@ function previewSrc(relativePath: string): string {
 			{/if}
 		</div>
 		<div class="grid max-h-56 grid-cols-[repeat(auto-fill,minmax(76px,1fr))] gap-2 overflow-auto">
-			{#each shown as candidate (candidate)}
+			{#each thumbnails as thumbnail (thumbnail.path)}
 				<button
 					type="button"
 					disabled={isSaving}
-					title={candidate}
-					onclick={() => void choose({ kind: "custom", path: candidate })}
+					title={thumbnail.path}
+					onclick={() => void choose({ kind: "custom", path: thumbnail.path })}
 					class={cn(
 						"flex flex-col items-center gap-1 rounded-md border p-2 transition-colors",
-						selectedPath === candidate
+						selectedPath === thumbnail.path
 							? "border-primary/60 bg-accent"
 							: "border-border/60 hover:bg-accent"
 					)}
 				>
-					<img
-						src={previewSrc(candidate)}
-						alt=""
-						aria-hidden="true"
-						class="size-8 object-contain"
-					/>
+					{#if thumbnail.src}
+						<img
+							src={thumbnail.src}
+							alt=""
+							aria-hidden="true"
+							class="size-8 object-contain"
+						/>
+					{:else}
+						<div class="size-8 rounded bg-muted/40"></div>
+					{/if}
 					<span class="w-full truncate text-center text-[10px] text-muted-foreground/70">
-						{candidate.split("/").pop()}
+						{thumbnail.path.split("/").pop()}
 					</span>
 				</button>
 			{/each}

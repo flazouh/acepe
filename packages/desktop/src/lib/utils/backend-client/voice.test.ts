@@ -115,6 +115,7 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	snapshot: () => Effect.succeed(voiceSnapshot()),
 	getProjectIndex: () => Effect.succeed(unusedIndex),
 	invalidateProjectIndex: () => Effect.void,
+	readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),

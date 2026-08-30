@@ -7,7 +7,7 @@ import { BUTTON_CHIP_ICON_SIZE_PX } from "@acepe/ui/button";
 import * as DropdownMenu from "@acepe/ui/dropdown-menu";
 import { useTheme } from "$lib/components/theme/context.svelte.js";
 import { Skeleton } from "$lib/components/ui/skeleton/index.js";
-import { convertFileSrc } from "$lib/utils/file-src.js";
+import { projectIconPreview } from "../logic/project-icon-preview.svelte.js";
 import { backendClient } from "$lib/utils/backend-client.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
 
@@ -129,7 +129,7 @@ function handleOpenChange(open: boolean) {
 			{#if selectedProject}
 				<ProjectLetterBadge
 					name={selectedProject.name}
-					iconSrc={selectedProject.iconPath ? convertFileSrc(selectedProject.iconPath) : null}
+					iconSrc={projectIconPreview(selectedProject.iconPath)}
 					label={effectiveLabelByPath.get(selectedProject.path) ?? null}
 					{color}
 					size={BUTTON_CHIP_ICON_SIZE_PX}

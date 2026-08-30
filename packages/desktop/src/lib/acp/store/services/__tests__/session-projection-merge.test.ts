@@ -4,7 +4,7 @@ import {
 	ProjectId,
 	type RpcProjectedProject,
 	type RpcProjectedSession,
-	SessionId
+	SessionId,
 } from "@acepe/contracts";
 import type { SessionCold } from "../../types.js";
 import { isoToDate, mergeProjectionSessions } from "../session-projection-merge.js";

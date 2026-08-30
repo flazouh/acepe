@@ -8,7 +8,7 @@ import {
 	type RpcClient,
 	type RpcProjectedProject,
 	type RpcSessionSnapshot,
-	SessionId
+	SessionId,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -61,6 +61,7 @@ const makeClient = (overrides: Partial<RpcClient>): RpcClient => ({
 	snapshot: () => Effect.succeed(withProjects(emptyRpcSessionSnapshot(0), [projected])),
 	getProjectIndex: () => Effect.succeed(unusedIndex),
 	invalidateProjectIndex: () => Effect.void,
+	readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),

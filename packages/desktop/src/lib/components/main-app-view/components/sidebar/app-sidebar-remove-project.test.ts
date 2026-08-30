@@ -6,7 +6,7 @@ import {
 	ProjectId,
 	type RpcClient,
 	type RpcProjectedProject,
-	SessionId
+	SessionId,
 } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -56,6 +56,7 @@ const makeClient = (
 			totalLines: 0,
 		}),
 	invalidateProjectIndex: () => Effect.void,
+	readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 	readTextFile: () => Effect.succeed(""),
 	writeTextFile: () => Effect.void,
 	getDefaultShell: () => Effect.succeed("/bin/zsh"),

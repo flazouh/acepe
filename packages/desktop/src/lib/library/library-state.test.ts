@@ -1,10 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	emptyRpcSessionSnapshot,
-	PROJECT_ICON_AUTO,
-	ProjectId,
-	SessionId
-} from "@acepe/contracts";
+import { emptyRpcSessionSnapshot, PROJECT_ICON_AUTO, ProjectId, SessionId } from "@acepe/contracts";
 
 import {
 	librarySidebarViewModel,

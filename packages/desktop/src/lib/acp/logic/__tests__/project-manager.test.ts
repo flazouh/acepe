@@ -1,9 +1,5 @@
 import type { ProjectIcon } from "@acepe/contracts";
-import {
-	PROJECT_ICON_AUTO,
-	ProjectId,
-	type RpcProjectedProject
-} from "@acepe/contracts";
+import { PROJECT_ICON_AUTO, ProjectId, type RpcProjectedProject } from "@acepe/contracts";
 import { Colors } from "@acepe/ui/colors";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";

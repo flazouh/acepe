@@ -60,6 +60,7 @@ describe("history.getStartupSessions alias resolution", () => {
 				totalLines: 0,
 			}),
 		invalidateProjectIndex: () => Effect.void,
+		readImageDataUrl: () => Effect.succeed("data:image/png;base64,"),
 		readTextFile: () => Effect.succeed(""),
 		writeTextFile: () => Effect.void,
 		getDefaultShell: () => Effect.succeed("/bin/zsh"),

@@ -1,8 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import {
-	PROJECT_ICON_AUTO,
-	ProjectId
-} from "@acepe/contracts";
+import { PROJECT_ICON_AUTO, ProjectId } from "@acepe/contracts";
 
 import {
 	gitReviewFileIsReady,
