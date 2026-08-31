@@ -551,9 +551,15 @@ $effect(() => {
 	if (transcriptRevision === undefined) {
 		return;
 	}
+	// Turn state is a dependency on purpose: rows carry the live streaming
+	// tail (transcript-viewport-rows-from-entries.ts), and the turn ENDING
+	// changes no transcript revision -- without re-running here, the last
+	// reply would stay marked streaming (mode "streaming", reveal never
+	// finishing) until the next transcript change.
+	const turnState = sessionStore.read.getSessionTurnState(sessionId);
 	sessionStore.viewport.resyncElectrobunTranscriptRows(
 		sessionId,
-		`transcript-revision:${String(transcriptRevision)}`
+		`transcript-revision:${String(transcriptRevision)}:${turnState ?? "none"}`
 	);
 });
 

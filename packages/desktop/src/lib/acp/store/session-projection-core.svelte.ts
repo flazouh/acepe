@@ -13,6 +13,7 @@
  */
 import { SvelteMap } from "svelte/reactivity";
 import type {
+	ActiveStreamingTail,
 	FailureReason,
 	OperationSnapshot,
 	SessionGraphActivity,
@@ -98,6 +99,19 @@ export class SessionProjectionCore {
 	/** Canonical operation graph; null means no canonical graph exists yet. */
 	getOperations(sessionId: string): ReadonlyArray<OperationSnapshot> | null {
 		return this.sessionStateGraphs.get(sessionId)?.operations ?? null;
+	}
+
+	/**
+	 * The graph's live streaming tail, gated to a Running turn -- the same
+	 * gate conversation-rebuild applies. Null when idle, so a projection that
+	 * marks the tail row never marks anything on a finished turn.
+	 */
+	getLiveStreamingTail(sessionId: string): ActiveStreamingTail | null {
+		const graph = this.sessionStateGraphs.get(sessionId);
+		if (graph === undefined || graph.turnState !== "Running") {
+			return null;
+		}
+		return graph.activeStreamingTail;
 	}
 
 	getLastTerminalTurnId(sessionId: string): string | null {

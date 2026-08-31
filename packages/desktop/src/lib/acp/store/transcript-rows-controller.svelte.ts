@@ -7,6 +7,7 @@
 import * as Effect from "effect/Effect";
 import { SvelteMap } from "svelte/reactivity";
 import type {
+	ActiveStreamingTail,
 	OperationSnapshot,
 	SessionGraphRevision,
 	SessionOpenTranscriptRowPage,
@@ -51,6 +52,13 @@ export interface TranscriptRowsControllerDeps {
 	 * see `transcript-viewport-rows-from-entries.ts`.
 	 */
 	readonly getOperations: (sessionId: string) => ReadonlyArray<OperationSnapshot> | null;
+	/**
+	 * The graph's live streaming tail, already gated to a Running turn (see
+	 * session-projection-core's getLiveStreamingTail). Marks exactly one row
+	 * so the row mapper's isStreaming -- and every streaming reveal mode
+	 * downstream -- has a live signal.
+	 */
+	readonly getLiveStreamingTail: (sessionId: string) => ActiveStreamingTail | null;
 }
 
 export type TranscriptRowsControllerDiagnostic = {
@@ -385,7 +393,11 @@ export class TranscriptRowsController {
 				sessionId,
 				graphRevision: revision,
 				emissionSeq: revision.lastEventSeq,
-				rows: transcriptViewportRowsFromEntries(entries, operations),
+				rows: transcriptViewportRowsFromEntries(
+					entries,
+					operations,
+					this.deps.getLiveStreamingTail(sessionId)
+				),
 				requestGeneration,
 				diagnostics: [],
 			});

@@ -61,6 +61,64 @@ describe("transcriptViewportRowsFromEntries", () => {
 		]);
 	});
 
+	// Reproduces the live defect: every row hardcoded activeStreamingTail to
+	// null, so the row mapper's `isStreaming: row.activeStreamingTail !== null`
+	// was permanently false and every streaming reveal mode (fade + reveal
+	// included) rendered as "instant" -- measured live: a full reply streamed
+	// with data-native-markdown-mode="static" throughout.
+	it("marks the graph's live tail row with the tail's content kind", () => {
+		const entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-user",
+				role: "user",
+				segments: [{ kind: "text", segmentId: "seg-u", text: "why?" }],
+			},
+			{
+				entryId: "entry-assistant-1",
+				role: "assistant",
+				segments: [{ kind: "text", segmentId: "seg-a", text: "Because" }],
+			},
+		];
+
+		const rows = transcriptViewportRowsFromEntries(entries, [], {
+			rowId: "entry-assistant-1",
+			contentKind: "message",
+		});
+
+		expect(rows.map((row) => row.activeStreamingTail)).toEqual([null, "message"]);
+	});
+
+	it("marks a thought tail with the thought content kind", () => {
+		const entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-assistant-1",
+				role: "assistant",
+				segments: [{ kind: "thought", segmentId: "seg-t", text: "Weighing." }],
+			},
+		];
+
+		const rows = transcriptViewportRowsFromEntries(entries, [], {
+			rowId: "entry-assistant-1",
+			contentKind: "thought",
+		});
+
+		expect(rows[0]?.activeStreamingTail).toBe("thought");
+	});
+
+	it("leaves every row untailed when no live tail is given", () => {
+		const entries: TranscriptEntry[] = [
+			{
+				entryId: "entry-assistant-1",
+				role: "assistant",
+				segments: [{ kind: "text", segmentId: "seg-a", text: "Done." }],
+			},
+		];
+
+		const rows = transcriptViewportRowsFromEntries(entries, []);
+
+		expect(rows[0]?.activeStreamingTail).toBeNull();
+	});
+
 	it("classifies an assistant entry with only thought segments as assistantThought", () => {
 		const entries: TranscriptEntry[] = [
 			{

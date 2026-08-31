@@ -19,6 +19,7 @@
  * "linked" means.
  */
 import type {
+	ActiveStreamingTail,
 	OperationSnapshot,
 	TranscriptEntry,
 	TranscriptViewportOperationLink,
@@ -77,7 +78,11 @@ function operationLinkFor(
 	];
 }
 
-function rowFromEntry(entry: TranscriptEntry, index: OperationIndex | null): TranscriptViewportRow {
+function rowFromEntry(
+	entry: TranscriptEntry,
+	index: OperationIndex | null,
+	liveTail: ActiveStreamingTail | null
+): TranscriptViewportRow {
 	return {
 		rowId: entry.entryId,
 		sourceEntryId: entry.entryId,
@@ -88,7 +93,12 @@ function rowFromEntry(entry: TranscriptEntry, index: OperationIndex | null): Tra
 		// the content change" -- see `renderKey` in transcript-rows-store.ts.
 		version: String(entry.segments.length),
 		anchorEligible: entry.role === "user",
-		activeStreamingTail: null,
+		// The graph names ONE row as the live streaming tail; the row mapper's
+		// `isStreaming: row.activeStreamingTail !== null` and every reveal mode
+		// downstream hang off this. Hardcoding null here was the live defect
+		// that made fade + reveal render as "instant" for whole replies.
+		activeStreamingTail:
+			liveTail !== null && liveTail.rowId === entry.entryId ? liveTail.contentKind : null,
 		operationLinks: operationLinkFor(entry, index),
 		interactionLinks: [],
 		content: contentFromEntry(entry),
@@ -106,10 +116,14 @@ function rowFromEntry(entry: TranscriptEntry, index: OperationIndex | null): Tra
  */
 export function transcriptViewportRowsFromEntries(
 	entries: ReadonlyArray<TranscriptEntry>,
-	operations: ReadonlyArray<OperationSnapshot> = []
+	operations: ReadonlyArray<OperationSnapshot> = [],
+	// The graph's activeStreamingTail, already gated by the caller to a
+	// Running turn (conversation-rebuild applies the same gate). Omit for
+	// historical or idle projections and no row is marked.
+	liveTail: ActiveStreamingTail | null = null
 ): TranscriptViewportRow[] {
 	// Building the index once per call, not per entry, keeps this
 	// O(entries + operations) instead of O(entries * operations).
 	const index = operations.length === 0 ? null : buildOperationIndex(operations);
-	return entries.map((entry) => rowFromEntry(entry, index));
+	return entries.map((entry) => rowFromEntry(entry, index, liveTail));
 }

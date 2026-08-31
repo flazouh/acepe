@@ -8,6 +8,7 @@ import type {
 	ProviderMetadataProjection,
 } from "../../services/acp-provider-metadata.js";
 import type {
+	ActiveStreamingTail,
 	ConfigOptionData as CanonicalConfigOptionData,
 	FailureReason,
 	OperationSnapshot,
@@ -135,6 +136,10 @@ export class SessionReadFacade implements ISessionStateReader {
 
 	getSessionOperations(sessionId: string): ReadonlyArray<OperationSnapshot> | null {
 		return this.#deps.projectionCore.getOperations(sessionId);
+	}
+
+	getSessionLiveStreamingTail(sessionId: string): ActiveStreamingTail | null {
+		return this.#deps.projectionCore.getLiveStreamingTail(sessionId);
 	}
 
 	getSessionCanSend(sessionId: string): boolean | null {

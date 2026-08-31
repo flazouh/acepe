@@ -94,6 +94,7 @@ describe("SessionEnvelopeApplier", () => {
 			getSessionCold: () => undefined,
 			getHasPendingCreation: () => false,
 			abandonPendingCreationSession: vi.fn(),
+			setSessionArchivedAt: vi.fn(),
 			setCapabilitiesMaterialized,
 			setCanonicalProjection,
 			setSessionStateGraph,
