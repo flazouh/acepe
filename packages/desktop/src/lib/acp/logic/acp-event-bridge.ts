@@ -6,12 +6,13 @@ import { appRpcClient } from "$lib/rpc/app-client.js";
 import type { JsonValue } from "$lib/services/converted-session-types.js";
 import type { SessionGraphRevision } from "../../services/acp-types.js";
 import { LOGGER_IDS } from "../constants/logger-ids.js";
-import type { AcpError } from "../errors/index.js";
+import { type AcpError, ProtocolError } from "../errors/index.js";
 import { createLogger } from "../utils/logger.js";
 import {
 	makeProjectPathResolver,
 	OrchestrationCanonicalBridge,
 } from "./orchestration-canonical-bridge.js";
+import { shareEventSource } from "./shared-event-source.js";
 
 const logger = createLogger({
 	id: LOGGER_IDS.EVENT_SUBSCRIBER,
@@ -130,7 +131,7 @@ export function realignCanonicalSession(
 	liveBridge?.realignSession(sessionId, revision, serverSequenceWatermark);
 }
 
-export function openAcpEventSource(
+function openUnderlyingAcpEventSource(
 	onEnvelope: (envelope: AcpEventEnvelope) => void
 ): Effect.Effect<() => void, AcpError> {
 	return appRpcClient().pipe(
@@ -163,4 +164,28 @@ export function openAcpEventSource(
 			);
 		})
 	);
+}
+
+/**
+ * The page's one shared event source.
+ *
+ * Every consumer (EventSubscriber's session-state fan-out, the inbound
+ * request handler) subscribes here instead of opening its own stream: the
+ * Electrobun transport is a single broadcast channel, so a second
+ * `client.events(0)` call meant a second full replay interleaved on that
+ * channel (tripping the gapless-sequence check and killing one stream) and a
+ * second OrchestrationCanonicalBridge, with the reopen realign landing on
+ * whichever registered last. One underlying stream means one replay, one
+ * bridge, and one `liveBridge` for realignCanonicalSession to hit -- see
+ * shared-event-source.ts's header for the live evidence.
+ */
+const sharedAcpEventSource = shareEventSource<AcpEventEnvelope, AcpError>(
+	openUnderlyingAcpEventSource,
+	(error) => new ProtocolError(`Event source subscription failed: ${String(error)}`, error)
+);
+
+export function openAcpEventSource(
+	onEnvelope: (envelope: AcpEventEnvelope) => void
+): Effect.Effect<() => void, AcpError> {
+	return sharedAcpEventSource.open(onEnvelope);
 }
