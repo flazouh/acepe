@@ -534,6 +534,145 @@ describe("graphFromReopenSnapshot", () => {
 		expect(interaction.payload.Permission.tool?.callId).toBe(APPROVAL_REQUEST_ID);
 	});
 
+	// Reopen half of the abandoned-approval hang (tracer DB session
+	// session-create-1788199807537-*: ApprovalRequested, no InteractionReplied,
+	// TurnCompleted 30 minutes later). The projections keep the activity row
+	// pending and the approval row forever -- the settle is derived here, from
+	// the snapshot's own turns: a row whose covering turn (the last turn started
+	// at or before it) is terminal can never advance, so it reopens settled
+	// instead of spinning "Executing…" behind a question nobody can answer.
+	describe("terminal-turn settling", () => {
+		const terminalTurn = {
+			turnId: TURN_ID,
+			sessionId: SESSION_ID,
+			sequence: 1,
+			status: "completed" as const,
+			startedAt: "2026-08-01T00:00:00.000Z",
+			endedAt: "2026-08-01T00:05:00.000Z",
+			inputTokens: 0,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			costUsd: 0,
+			contextWindowSize: null,
+		};
+		const runningTurn = { ...terminalTurn, status: "running" as const, endedAt: null };
+
+		it("settles a still-open activity to cancelled when its covering turn ended", () => {
+			const snapshot: RpcSessionSnapshot = {
+				...withMessages(4, []),
+				turns: [terminalTurn],
+				activities: [
+					{
+						activityId: ActivityId.make("activity-1"),
+						sessionId: SESSION_ID,
+						sequence: 2,
+						kind: "tool",
+						status: "in_progress",
+						title: "Bash",
+						path: null,
+						toolCallId: ToolCallId.make("tool-1"),
+					},
+				],
+			};
+
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+			expect(graph.operations[0]?.operation_state).toBe("cancelled");
+			// Provenance stays what the provider last reported.
+			expect(graph.operations[0]?.provider_status).toBe("in_progress");
+		});
+
+		it("keeps a still-open activity running while its covering turn is open", () => {
+			const snapshot: RpcSessionSnapshot = {
+				...withMessages(4, []),
+				turns: [runningTurn],
+				activities: [
+					{
+						activityId: ActivityId.make("activity-1"),
+						sessionId: SESSION_ID,
+						sequence: 2,
+						kind: "tool",
+						status: "in_progress",
+						title: "Bash",
+						path: null,
+						toolCallId: ToolCallId.make("tool-1"),
+					},
+				],
+			};
+
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+			expect(graph.operations[0]?.operation_state).toBe("running");
+		});
+
+		it("resolves a pending approval as Unresolved when its covering turn ended", () => {
+			const snapshot: RpcSessionSnapshot = {
+				...withMessages(4, []),
+				turns: [terminalTurn],
+				pendingApprovals: [
+					{
+						approvalRequestId: APPROVAL_REQUEST_ID,
+						sessionId: SESSION_ID,
+						sequence: 4,
+						title: "Run rm -rf",
+					},
+				],
+			};
+
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+			expect(graph.interactions[0]?.state).toBe("Unresolved");
+			expect(graph.operations[0]?.operation_state).toBe("cancelled");
+			// Nothing is waiting on the user any more.
+			expect(graph.activity.kind).toBe("idle");
+		});
+
+		it("keeps a pending approval answerable while its covering turn is open", () => {
+			const snapshot: RpcSessionSnapshot = {
+				...withMessages(4, []),
+				turns: [runningTurn],
+				pendingApprovals: [
+					{
+						approvalRequestId: APPROVAL_REQUEST_ID,
+						sessionId: SESSION_ID,
+						sequence: 4,
+						title: "Run rm -rf",
+					},
+				],
+			};
+
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+			expect(graph.interactions[0]?.state).toBe("Pending");
+			expect(graph.activity.kind).toBe("waiting_for_user");
+		});
+
+		it("settles nothing that a later, still-open turn covers", () => {
+			const laterRunningTurn = {
+				...runningTurn,
+				turnId: TurnId.make("turn-2"),
+				sequence: 5,
+			};
+			const snapshot: RpcSessionSnapshot = {
+				...withMessages(8, []),
+				turns: [terminalTurn, laterRunningTurn],
+				pendingApprovals: [
+					{
+						approvalRequestId: APPROVAL_REQUEST_ID,
+						sessionId: SESSION_ID,
+						sequence: 6,
+						title: "Run rm -rf",
+					},
+				],
+			};
+
+			const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+			expect(graph.interactions[0]?.state).toBe("Pending");
+		});
+	});
+
 	it("marks an unknown/never-imported session as reserved (not ready)", () => {
 		const snapshot = emptyRpcSessionSnapshot(0);
 

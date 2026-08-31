@@ -29,6 +29,7 @@ import type {
 	RpcProjectedMessage,
 	RpcProjectedPendingApproval,
 	RpcProjectedSessionActivity,
+	RpcProjectedTurn,
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
 import { providerConfigOptions, providerModes } from "@acepe/contracts";
@@ -142,6 +143,38 @@ function observedStatusFromActivityStatus(status: string | undefined): ObservedT
 	return "completed";
 }
 
+/**
+ * Whether a snapshot row can still advance, decided from the snapshot's own
+ * turns -- the reopen counterpart to orchestration-canonical-bridge.ts's
+ * endTurn settle (the abandoned-approval hang its test documents: the
+ * projections keep the activity row pending and the approval row forever, so
+ * a reopen re-seeded the stuck card the live settle had just cleared).
+ *
+ * A row's covering turn is the last turn started at or before the row's own
+ * sequence: MessageSent opens a turn before anything inside it, so every
+ * activity and approval sequences after its turn row. Covering turn terminal
+ * means nothing can ever advance the row again -- its operation settles to
+ * cancelled and its approval resolves as Unresolved. No covering turn (a
+ * session predating the turns projection, or a synthetic snapshot) keeps
+ * today's behavior: the row stays live, which is the answerable default #268
+ * requires.
+ */
+function isAbandonedAtSequence(
+	turns: ReadonlyArray<RpcProjectedTurn>,
+	sequence: number
+): boolean {
+	let covering: RpcProjectedTurn | null = null;
+	for (const turn of turns) {
+		if (turn.sequence <= sequence && (covering === null || turn.sequence > covering.sequence)) {
+			covering = turn;
+		}
+	}
+	if (covering === null) {
+		return false;
+	}
+	return !(covering.status === "running" && covering.endedAt === null);
+}
+
 function transcriptEntryFromActivity(activity: RpcProjectedSessionActivity): TranscriptEntry {
 	return {
 		entryId: activity.activityId,
@@ -156,9 +189,18 @@ function transcriptEntryFromActivity(activity: RpcProjectedSessionActivity): Tra
 	};
 }
 
-function operationFromActivity(activity: RpcProjectedSessionActivity): OperationSnapshot {
+function operationFromActivity(
+	activity: RpcProjectedSessionActivity,
+	abandoned: boolean
+): OperationSnapshot {
 	const toolCallId = activity.toolCallId ?? activity.activityId;
 	const title = activity.title ?? "Tool call";
+	const observedStatus = observedStatusFromActivityStatus(activity.status);
+	// Settled, not re-reported: provider_status keeps what the provider last
+	// said (it never reported terminal), only the canonical operation_state
+	// closes -- the same split endTurn's live settle makes.
+	const settledToCancelled =
+		abandoned && (observedStatus === "pending" || observedStatus === "in_progress");
 	return {
 		id: activity.activityId,
 		session_id: activity.sessionId,
@@ -168,9 +210,7 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 		// activity (tool_kind column), so a reopened session renders the
 		// right card without re-parsing the display title.
 		kind: asOperationToolKind(activity.toolKind),
-		provider_status: observedStatusToToolCallStatus(
-			observedStatusFromActivityStatus(activity.status)
-		),
+		provider_status: observedStatusToToolCallStatus(observedStatus),
 		title,
 		// The tool's own arguments, carried per activity by the snapshot (input
 		// column). A reopened session must show the same proposed change the
@@ -190,9 +230,9 @@ function operationFromActivity(activity: RpcProjectedSessionActivity): Operation
 		parent_operation_id: null,
 		child_tool_call_ids: [],
 		child_operation_ids: [],
-		operation_state: observedStatusToOperationState(
-			observedStatusFromActivityStatus(activity.status)
-		),
+		operation_state: settledToCancelled
+			? "cancelled"
+			: observedStatusToOperationState(observedStatus),
 		locations:
 			activity.path === null || activity.path === undefined ? null : [{ path: activity.path }],
 		awaiting_plan_approval: false,
@@ -236,7 +276,10 @@ function transcriptEntryFromPendingApproval(
  * the same sentence again. The title stays on the interaction, where the bar
  * and assistive technology still read it.
  */
-function operationFromPendingApproval(approval: RpcProjectedPendingApproval): OperationSnapshot {
+function operationFromPendingApproval(
+	approval: RpcProjectedPendingApproval,
+	abandoned: boolean
+): OperationSnapshot {
 	const title = approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE;
 	return {
 		id: approval.approvalRequestId,
@@ -255,7 +298,7 @@ function operationFromPendingApproval(approval: RpcProjectedPendingApproval): Op
 		parent_operation_id: null,
 		child_tool_call_ids: [],
 		child_operation_ids: [],
-		operation_state: observedStatusToOperationState("pending"),
+		operation_state: abandoned ? "cancelled" : observedStatusToOperationState("pending"),
 		locations: null,
 		awaiting_plan_approval: false,
 		source_link: { kind: "transcript_linked", entry_id: approvalEntryId(approval) },
@@ -263,14 +306,18 @@ function operationFromPendingApproval(approval: RpcProjectedPendingApproval): Op
 }
 
 function interactionFromPendingApproval(
-	approval: RpcProjectedPendingApproval
+	approval: RpcProjectedPendingApproval,
+	abandoned: boolean
 ): InteractionSnapshot {
 	const title = approval.title ?? PENDING_APPROVAL_FALLBACK_TITLE;
 	return {
 		id: approval.approvalRequestId,
 		session_id: approval.sessionId,
 		kind: "Permission",
-		state: "Pending",
+		// "Unresolved" -- nobody approved and nobody rejected; any non-"Pending"
+		// state keeps the PermissionBar off the row (interaction-store
+		// .svelte.ts's applyPermissionInteraction).
+		state: abandoned ? "Unresolved" : "Pending",
 		json_rpc_request_id: null,
 		reply_handler: null,
 		tool_reference: { callId: approval.approvalRequestId },
@@ -323,13 +370,25 @@ export function transcriptEntriesFromSnapshot(snapshot: RpcSessionSnapshot): Tra
 
 export function operationsFromSnapshot(snapshot: RpcSessionSnapshot): OperationSnapshot[] {
 	return [
-		...snapshot.activities.map(operationFromActivity),
-		...snapshot.pendingApprovals.map(operationFromPendingApproval),
+		...snapshot.activities.map((activity) =>
+			operationFromActivity(activity, isAbandonedAtSequence(snapshot.turns, activity.sequence))
+		),
+		...snapshot.pendingApprovals.map((approval) =>
+			operationFromPendingApproval(
+				approval,
+				isAbandonedAtSequence(snapshot.turns, approval.sequence)
+			)
+		),
 	];
 }
 
 export function interactionsFromSnapshot(snapshot: RpcSessionSnapshot): InteractionSnapshot[] {
-	return snapshot.pendingApprovals.map(interactionFromPendingApproval);
+	return snapshot.pendingApprovals.map((approval) =>
+		interactionFromPendingApproval(
+			approval,
+			isAbandonedAtSequence(snapshot.turns, approval.sequence)
+		)
+	);
 }
 
 function lifecycleForStatus(status: SessionGraphLifecycle["status"]): SessionGraphLifecycle {
@@ -521,7 +580,12 @@ export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): Sessio
 	const entries = transcriptEntriesFromSnapshot(input.snapshot);
 	const operations = operationsFromSnapshot(input.snapshot);
 	const interactions = interactionsFromSnapshot(input.snapshot);
-	const hasPendingApproval = input.snapshot.pendingApprovals.length > 0;
+	// Only an approval that can still be answered holds the session on
+	// waiting_for_user; abandoned ones (covering turn already terminal) reopen
+	// settled and must not park the composer on a question nobody can answer.
+	const hasPendingApproval = input.snapshot.pendingApprovals.some(
+		(approval) => !isAbandonedAtSequence(input.snapshot.turns, approval.sequence)
+	);
 	return {
 		requestedSessionId: input.requestedSessionId,
 		canonicalSessionId: input.canonicalSessionId,
