@@ -11,6 +11,8 @@
  * comes back as an `error` string and the window stays up.
  */
 
+import * as Effect from "effect/Effect"
+
 export type ShellUpdaterLocalInfo = {
 	readonly version: string
 	readonly channel: string
@@ -117,52 +119,43 @@ export const checkForUpdateResponse = (check: ShellUpdaterCheck): CheckForUpdate
 	return { version, error: null }
 }
 
+const attempt = <A>(run: () => Promise<A>): Effect.Effect<A, string> =>
+	Effect.tryPromise({ try: run, catch: failureReason })
+
+const workResponse = (work: Effect.Effect<unknown, string>): Effect.Effect<UpdateWorkResponse> =>
+	work.pipe(
+		Effect.as({ ok: true, error: null }),
+		Effect.catch((error) => Effect.succeed({ ok: false, error }))
+	)
+
 export const makeUpdaterRpcHandlers = (port: ShellUpdaterPort): AcepeUpdaterRpcHandlers => {
 	let progress: ShellUpdateDownloadProgress = NO_PROGRESS
 	port.onDownloadProgress((next) => {
 		progress = next
 	})
-	return {
-		getAppVersion: async () => {
-			try {
-				return appVersionResponse(await port.localInfo())
-			} catch {
-				return { version: null, channel: null }
-			}
-		},
-		checkForUpdate: async () => {
-			try {
-				return checkForUpdateResponse(await port.checkForUpdate())
-			} catch (cause) {
-				return { version: null, error: failureReason(cause) }
-			}
-		},
-		downloadUpdate: async () => {
+	const getAppVersion = attempt(() => port.localInfo()).pipe(
+		Effect.map(appVersionResponse),
+		Effect.orElseSucceed(() => ({ version: null, channel: null }))
+	)
+	const checkForUpdate = attempt(() => port.checkForUpdate()).pipe(
+		Effect.map(checkForUpdateResponse),
+		Effect.catch((error) => Effect.succeed({ version: null, error }))
+	)
+	const downloadUpdate = workResponse(
+		Effect.gen(function* () {
 			progress = NO_PROGRESS
-			try {
-				await port.downloadUpdate()
-				return { ok: true, error: null }
-			} catch (cause) {
-				return { ok: false, error: failureReason(cause) }
-			}
-		},
-		applyUpdate: async () => {
-			try {
-				await port.applyUpdate()
-				return { ok: true, error: null }
-			} catch (cause) {
-				return { ok: false, error: failureReason(cause) }
-			}
-		},
-		updateDownloadProgress: async () => progress,
-		relaunchApp: async () => {
-			try {
-				port.relaunch()
-				return { ok: true, error: null }
-			} catch (cause) {
-				return { ok: false, error: failureReason(cause) }
-			}
-		},
+			yield* attempt(() => port.downloadUpdate())
+		})
+	)
+	const applyUpdate = workResponse(attempt(() => port.applyUpdate()))
+	const relaunchApp = workResponse(Effect.try({ try: () => port.relaunch(), catch: failureReason }))
+	return {
+		getAppVersion: () => Effect.runPromise(getAppVersion),
+		checkForUpdate: () => Effect.runPromise(checkForUpdate),
+		downloadUpdate: () => Effect.runPromise(downloadUpdate),
+		applyUpdate: () => Effect.runPromise(applyUpdate),
+		updateDownloadProgress: () => Promise.resolve(progress),
+		relaunchApp: () => Effect.runPromise(relaunchApp),
 	}
 }
 

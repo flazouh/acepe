@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test"
+import * as Effect from "effect/Effect"
 
 import {
 	appBundlePathFromExecutable,
@@ -36,10 +37,10 @@ const makePort = (
 	const relaunches: Array<number> = []
 	let listener: (progress: ShellUpdateDownloadProgress) => void = () => undefined
 	const port: ShellUpdaterPort = {
-		localInfo: async () => ({ version: "2026.3.33", channel: "stable" }),
-		checkForUpdate: async () => noUpdate,
-		downloadUpdate: async () => undefined,
-		applyUpdate: async () => undefined,
+		localInfo: () => Promise.resolve({ version: "2026.3.33", channel: "stable" }),
+		checkForUpdate: () => Promise.resolve(noUpdate),
+		downloadUpdate: () => Promise.resolve(undefined),
+		applyUpdate: () => Promise.resolve(undefined),
 		relaunch: () => {
 			relaunches.push(1)
 		},
@@ -98,98 +99,121 @@ test("checkForUpdateResponse refuses an available update without a version", () 
 	expect(response.error).toBe("update available without a version")
 })
 
-test("getAppVersion answers the version the updater read", async () => {
-	const { port } = makePort({})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.getAppVersion({})).toEqual({
-		version: "2026.3.33",
-		channel: "stable",
-	})
-})
+test("getAppVersion answers the version the updater read", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port } = makePort({})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.getAppVersion({}))
+			expect(response).toEqual({ version: "2026.3.33", channel: "stable" })
+		})
+	))
 
-test("getAppVersion answers null instead of throwing the bun process down", async () => {
-	const { port } = makePort({
-		localInfo: async () => {
-			throw new Error("version.json is missing")
-		},
-	})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.getAppVersion({})).toEqual({ version: null, channel: null })
-})
+test("getAppVersion answers null instead of throwing the bun process down", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port } = makePort({
+				localInfo: () => Promise.reject(new Error("version.json is missing")),
+			})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.getAppVersion({}))
+			expect(response).toEqual({ version: null, channel: null })
+		})
+	))
 
-test("checkForUpdate answers the available version", async () => {
-	const { port } = makePort({ checkForUpdate: async () => updateAvailable })
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.checkForUpdate({})).toEqual({ version: "2026.4.4", error: null })
-})
+test("checkForUpdate answers the available version", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port } = makePort({ checkForUpdate: () => Promise.resolve(updateAvailable) })
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.checkForUpdate({}))
+			expect(response).toEqual({ version: "2026.4.4", error: null })
+		})
+	))
 
-test("checkForUpdate answers no update on the dev channel", async () => {
-	const { port } = makePort({})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.checkForUpdate({})).toEqual({ version: null, error: null })
-})
+test("checkForUpdate answers no update on the dev channel", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port } = makePort({})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.checkForUpdate({}))
+			expect(response).toEqual({ version: null, error: null })
+		})
+	))
 
-test("checkForUpdate turns a thrown updater failure into an error string", async () => {
-	const { port } = makePort({
-		checkForUpdate: async () => {
-			throw new Error("network is down")
-		},
-	})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.checkForUpdate({})).toEqual({ version: null, error: "network is down" })
-})
+test("checkForUpdate turns a thrown updater failure into an error string", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port } = makePort({
+				checkForUpdate: () => Promise.reject(new Error("network is down")),
+			})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.checkForUpdate({}))
+			expect(response).toEqual({ version: null, error: "network is down" })
+		})
+	))
 
-test("downloadUpdate reports the failure reason instead of throwing", async () => {
-	const { port } = makePort({
-		downloadUpdate: async () => {
-			throw new Error("patch chain broke")
-		},
-	})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.downloadUpdate({})).toEqual({ ok: false, error: "patch chain broke" })
-})
+test("downloadUpdate reports the failure reason instead of throwing", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port } = makePort({
+				downloadUpdate: () => Promise.reject(new Error("patch chain broke")),
+			})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.downloadUpdate({}))
+			expect(response).toEqual({ ok: false, error: "patch chain broke" })
+		})
+	))
 
-test("updateDownloadProgress follows the bytes the updater reports", async () => {
-	const { port, emitProgress } = makePort({})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.updateDownloadProgress({})).toEqual({
-		downloadedBytes: 0,
-		totalBytes: null,
-	})
-	emitProgress({ downloadedBytes: 1_024, totalBytes: 4_096 })
-	expect(await handlers.updateDownloadProgress({})).toEqual({
-		downloadedBytes: 1_024,
-		totalBytes: 4_096,
-	})
-})
+test("updateDownloadProgress follows the bytes the updater reports", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port, emitProgress } = makePort({})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const before = yield* Effect.promise(() => handlers.updateDownloadProgress({}))
+			expect(before).toEqual({ downloadedBytes: 0, totalBytes: null })
+			emitProgress({ downloadedBytes: 1_024, totalBytes: 4_096 })
+			const after = yield* Effect.promise(() => handlers.updateDownloadProgress({}))
+			expect(after).toEqual({ downloadedBytes: 1_024, totalBytes: 4_096 })
+		})
+	))
 
-test("downloadUpdate restarts the progress count for the new download", async () => {
-	const { port, emitProgress } = makePort({})
-	const handlers = makeUpdaterRpcHandlers(port)
-	emitProgress({ downloadedBytes: 4_096, totalBytes: 4_096 })
-	await handlers.downloadUpdate({})
-	expect(await handlers.updateDownloadProgress({})).toEqual({
-		downloadedBytes: 0,
-		totalBytes: null,
-	})
-})
+test("downloadUpdate restarts the progress count for the new download", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port, emitProgress } = makePort({})
+			const handlers = makeUpdaterRpcHandlers(port)
+			emitProgress({ downloadedBytes: 4_096, totalBytes: 4_096 })
+			yield* Effect.promise(() => handlers.downloadUpdate({}))
+			const progress = yield* Effect.promise(() => handlers.updateDownloadProgress({}))
+			expect(progress).toEqual({ downloadedBytes: 0, totalBytes: null })
+		})
+	))
 
-test("relaunchApp asks the shell for the relaunch primitive", async () => {
-	const { port, relaunches } = makePort({})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.relaunchApp({})).toEqual({ ok: true, error: null })
-	expect(relaunches.length).toBe(1)
-})
+test("relaunchApp asks the shell for the relaunch primitive", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port, relaunches } = makePort({})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.relaunchApp({}))
+			expect(response).toEqual({ ok: true, error: null })
+			expect(relaunches.length).toBe(1)
+		})
+	))
 
-test("relaunchApp reports a failed relaunch instead of throwing", async () => {
-	const { port } = makePort({
-		relaunch: () => {
-			throw new Error("no app bundle")
-		},
-	})
-	const handlers = makeUpdaterRpcHandlers(port)
-	expect(await handlers.relaunchApp({})).toEqual({ ok: false, error: "no app bundle" })
-})
+test("relaunchApp reports a failed relaunch instead of throwing", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const { port } = makePort({
+				relaunch: () => {
+					throw new Error("no app bundle")
+				},
+			})
+			const handlers = makeUpdaterRpcHandlers(port)
+			const response = yield* Effect.promise(() => handlers.relaunchApp({}))
+			expect(response).toEqual({ ok: false, error: "no app bundle" })
+		})
+	))
 
 test("downloadProgressFromStatus reads the byte counts off a progress entry", () => {
 	expect(

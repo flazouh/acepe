@@ -14,10 +14,10 @@ import { acepeWindowSpec } from "./window-spec.ts"
 // The updater talks to the network and to the app bundle on disk. These
 // window tests only need the shell to build, so the port answers nothing.
 const silentUpdaterPort: ShellUpdaterPort = {
-	localInfo: async () => ({ version: "", channel: "" }),
-	checkForUpdate: async () => ({ version: "", updateAvailable: false, error: "" }),
-	downloadUpdate: async () => undefined,
-	applyUpdate: async () => undefined,
+	localInfo: () => Promise.resolve({ version: "", channel: "" }),
+	checkForUpdate: () => Promise.resolve({ version: "", updateAvailable: false, error: "" }),
+	downloadUpdate: () => Promise.resolve(undefined),
+	applyUpdate: () => Promise.resolve(undefined),
 	relaunch: () => undefined,
 	onDownloadProgress: () => undefined,
 }
