@@ -84,22 +84,6 @@
 	line-height: 1.5;
 }
 
-.markdown-content [data-acepe-code-line-numbers="true"] {
-	counter-reset: line;
-}
-
-.markdown-content [data-acepe-code-line-numbers="true"] pre.shiki code .line::before {
-	counter-increment: line;
-	content: counter(line);
-	width: 1.5rem;
-	margin-right: 0.875rem;
-	flex-shrink: 0;
-	text-align: right;
-	color: color-mix(in srgb, var(--muted-foreground) 48%, transparent);
-	font-family: var(--font-mono, ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace);
-	user-select: none;
-}
-
 .markdown-content pre.shiki code .line:empty {
 	min-height: 1.5em;
 }

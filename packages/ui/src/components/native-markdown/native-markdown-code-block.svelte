@@ -34,9 +34,6 @@
 		yaml: "YAML",
 		yml: "YAML",
 	};
-	const CODE_START_LINE_META_PATTERN = /startLine=(\d+)/u;
-	const CODE_NO_LINE_NUMBERS_META_PATTERN = /\bnoLineNumbers\b/u;
-
 	let cursorCodeThemesPromise: Promise<CursorCodeThemes> | null = null;
 
 	function normalizeCodeLanguage(language: string): string {
@@ -49,16 +46,6 @@
 			return "Text";
 		}
 		return CODE_LANGUAGE_LABEL[language] ?? language;
-	}
-
-	function extractCodeStartLine(meta: string): number | undefined {
-		const line = CODE_START_LINE_META_PATTERN.exec(meta)?.[1];
-		if (line === undefined) {
-			return undefined;
-		}
-
-		const startLine = Number.parseInt(line, 10);
-		return startLine >= 1 ? startLine : undefined;
 	}
 
 	function writeClipboardText(text: string): Effect.Effect<void, Error> {
@@ -147,25 +134,15 @@
 	interface Props {
 		code: string;
 		language: string;
-		meta: string;
 		isIncomplete: boolean;
 	}
 
-	let { code, language, meta, isIncomplete }: Props = $props();
+	let { code, language, isIncomplete }: Props = $props();
 
 	const normalizedLanguage = $derived(normalizeCodeLanguage(language));
 	const languageLabel = $derived(getCodeLanguageLabel(normalizedLanguage));
 	const languageIconSrc = $derived(
 		normalizedLanguage.length === 0 ? getFallbackIconSrc() : getFileIconSrc(normalizedLanguage),
-	);
-	const lineNumbers = $derived(!CODE_NO_LINE_NUMBERS_META_PATTERN.test(meta));
-	const startLine = $derived(extractCodeStartLine(meta));
-	const codeCounterStyle = $derived(
-		lineNumbers && startLine !== undefined
-			? `counter-reset: line ${String(startLine - 1)};`
-			: lineNumbers
-				? "counter-reset: line;"
-				: undefined,
 	);
 	const highlightedHtmlPromise = $derived.by(() => {
 		if (isIncomplete) {
@@ -271,24 +248,20 @@
 		</div>
 	</div>
 	<div
-		class="border-0 rounded-none bg-transparent px-2.5 py-2 text-[0.8125rem] !leading-normal language-{normalizedLanguage ||
+		class="border-0 rounded-none bg-transparent p-0 text-[0.8125rem] !leading-normal language-{normalizedLanguage ||
 			'text'}"
 		data-native-markdown="code-block-body"
 	>
 		{#await highlightedHtmlPromise then highlightedHtml}
 			{#if highlightedHtml}
-				<div
-					data-acepe-code-highlighted="true"
-					data-acepe-code-line-numbers={lineNumbers ? "true" : "false"}
-					style={codeCounterStyle}
-				>
+				<div data-acepe-code-highlighted="true">
 					{@html highlightedHtml}
 				</div>
 			{:else}
 				<pre
 					class="!m-0 !p-0 rounded-none bg-transparent text-inherit !text-[0.8125rem] !leading-normal language-{normalizedLanguage ||
 						'text'}"
-				><code style={codeCounterStyle}>{code}</code></pre>
+				><code>{code}</code></pre>
 			{/if}
 		{/await}
 	</div>

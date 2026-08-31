@@ -65,7 +65,6 @@
 	<NativeMarkdownCodeBlock
 		code={block.code}
 		language={block.language}
-		meta={block.meta}
 		isIncomplete={block.isIncomplete}
 	/>
 {:else if block.type === "list"}
