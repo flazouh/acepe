@@ -55,6 +55,10 @@ export type SessionRuntime = {
 	// Keyed by the ACP toolCallId. See OpenToolCallInfo in SessionEvents.ts.
 	readonly openToolCalls: OpenToolCalls
 	readonly providerSessionId: Ref.Ref<Option.Option<string>>
+	// Offers the ACP id once session/new returns. sendPrompt waits here
+	// instead of failing while New-chat's first message.send races the
+	// handshake. A Deferred.await deadlocks this Effect version.
+	readonly acpSessionReady: Queue.Queue<string, Done>
 	readonly handle: GrokAcpHandle
 }
 
@@ -411,10 +415,12 @@ export const requireSession = Effect.fn("GrokAdapter.requireSession")(function*(
 
 export const requireProviderSessionId = Effect.fn("GrokAdapter.requireProviderSessionId")(
 	function*(runtime: SessionRuntime, operation: ProviderAdapterError["operation"]) {
-		const providerSessionId = yield* Ref.get(runtime.providerSessionId)
-		if (Option.isNone(providerSessionId)) {
-			return yield* adapterError(operation, "Grok ACP session id is missing.")
+		const already = yield* Ref.get(runtime.providerSessionId)
+		if (Option.isSome(already)) {
+			return already.value
 		}
-		return providerSessionId.value
+		return yield* Queue.take(runtime.acpSessionReady).pipe(
+			Effect.catch(() => adapterError(operation, "Grok ACP session id is missing."))
+		)
 	}
 )

@@ -123,6 +123,7 @@ export const makeGrokAdapter = Effect.fn("makeGrokAdapter")(function*(
 		)
 		const openToolCalls = yield* Ref.make(HashMap.empty<string, OpenToolCallInfo>())
 		const providerSessionId = yield* Ref.make(Option.none<string>())
+		const acpSessionReady = yield* Queue.unbounded<string, Done>()
 		const runtimeHolder = yield* Ref.make(Option.none<SessionRuntime>())
 		const handle = yield* options.connect({
 			launch,
@@ -138,15 +139,23 @@ export const makeGrokAdapter = Effect.fn("makeGrokAdapter")(function*(
 			pendingPermissions,
 			openToolCalls,
 			providerSessionId,
+			acpSessionReady,
 			handle
 		}
 		yield* Ref.set(runtimeHolder, Option.some(runtime))
 		yield* Ref.update(sessions, (current) => HashMap.set(current, request.sessionId, runtime))
-		const initializeResult = yield* handle.initialize
-		const authenticate = yield* options.resolveAuthenticate
-		yield* handle.authenticate(authenticate)
-		const openedId = yield* handle.newSession(request.workspaceRoot)
+		const initializeResult = yield* handle.initialize.pipe(
+			Effect.tapError(() => Queue.end(acpSessionReady))
+		)
+		const authenticate = yield* options.resolveAuthenticate.pipe(
+			Effect.tapError(() => Queue.end(acpSessionReady))
+		)
+		yield* handle.authenticate(authenticate).pipe(Effect.tapError(() => Queue.end(acpSessionReady)))
+		const openedId = yield* handle.newSession(request.workspaceRoot).pipe(
+			Effect.tapError(() => Queue.end(acpSessionReady))
+		)
 		yield* Ref.set(providerSessionId, Option.some(openedId))
+		yield* Queue.offer(acpSessionReady, openedId)
 		yield* publishFact(runtime, providerSessionFact(openedId))
 		const models = grokModelsFromInitialize(initializeResult)
 		if (Option.isSome(models)) {
@@ -219,6 +228,7 @@ export const makeGrokAdapter = Effect.fn("makeGrokAdapter")(function*(
 		// Queue.end below, because the drain publishes onto outbound. See
 		// drainPendingPermissions.
 		yield* drainPendingPermissions(runtime)
+		yield* Queue.end(runtime.acpSessionReady).pipe(Effect.asVoid)
 		yield* Queue.end(runtime.outbound).pipe(Effect.asVoid)
 		yield* Ref.update(sessions, (current) => HashMap.remove(current, request.sessionId))
 	})
@@ -237,6 +247,7 @@ export const makeGrokAdapter = Effect.fn("makeGrokAdapter")(function*(
 				runtime.handle.close.pipe(
 					// Same order as cancelTurn's, for the same reason.
 					Effect.andThen(drainPendingPermissions(runtime)),
+					Effect.andThen(Queue.end(runtime.acpSessionReady)),
 					Effect.andThen(Queue.end(runtime.outbound)),
 					Effect.asVoid
 				),
