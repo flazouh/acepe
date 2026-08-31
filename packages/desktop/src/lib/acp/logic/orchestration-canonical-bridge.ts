@@ -36,6 +36,7 @@ import type {
 	CanonicalAgentId,
 	InteractionSnapshot,
 	OperationSnapshot,
+	OperationState,
 	SessionGraphActivity,
 	SessionGraphCapabilities,
 	SessionGraphRevision,
@@ -89,6 +90,13 @@ type SessionCanonicalState = {
 	// decision) can be patched back onto the same interaction with the same
 	// tool reference and title rather than inventing them.
 	pendingApprovals: Map<string, PendingApprovalRecord>;
+	// The last emitted snapshot of every operation whose operation_state is
+	// still non-terminal, keyed by toolCallId. A terminal turn is the outer
+	// bound of every operation in it: nothing can advance one of these after
+	// TurnCompleted/TurnCancelled/ProviderSessionFailed fires, so endTurn
+	// settles whatever is left here (see the abandoned-approval hang its test
+	// documents) and a terminal ToolCallObserved removes its own entry.
+	openOperations: Map<string, OperationSnapshot>;
 	// Whether the provider answered a turn with its signed-out rendering
 	// (canonical auth_required fact -- see @acepe/contracts sessionAuth.ts).
 	// While set, the lifecycle carries detachedReason "awaitingAuthentication"
@@ -130,6 +138,7 @@ function freshSessionState(): SessionCanonicalState {
 		observedToolCallIds: new Set(),
 		observedApprovalIds: new Set(),
 		pendingApprovals: new Map(),
+		openOperations: new Map(),
 		authRequired: false,
 		turnStartedAtMs: null,
 	};
@@ -648,15 +657,20 @@ export class OrchestrationCanonicalBridge {
 			awaiting_plan_approval: false,
 			source_link: { kind: "transcript_linked", entry_id: toolEntryId },
 		};
-		const activity: SessionGraphActivity =
-			payload.status === "completed" || payload.status === "failed"
-				? awaitingModelActivityAt(state.turnStartedAtMs)
-				: {
-						kind: "running_operation",
-						activeOperationCount: 1,
-						activeSubagentCount: 0,
-						dominantOperationId: operation.id,
-					};
+		const isTerminalObservation = payload.status === "completed" || payload.status === "failed";
+		if (isTerminalObservation) {
+			state.openOperations.delete(payload.toolCallId);
+		} else {
+			state.openOperations.set(payload.toolCallId, operation);
+		}
+		const activity: SessionGraphActivity = isTerminalObservation
+			? awaitingModelActivityAt(state.turnStartedAtMs)
+			: {
+					kind: "running_operation",
+					activeOperationCount: 1,
+					activeSubagentCount: 0,
+					dominantOperationId: operation.id,
+				};
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
@@ -832,6 +846,7 @@ export class OrchestrationCanonicalBridge {
 			awaiting_plan_approval: false,
 			source_link: { kind: "transcript_linked", entry_id: approvalEntryId },
 		};
+		state.openOperations.set(operation.tool_call_id, operation);
 		const interaction: InteractionSnapshot = {
 			id: payload.approvalRequestId,
 			session_id: payload.sessionId,
@@ -934,6 +949,23 @@ export class OrchestrationCanonicalBridge {
 				},
 			},
 		};
+		// A standalone approval hosts its own OperationSnapshot (the row minted
+		// in onApprovalRequestedAsStandaloneRow, pending so the card renders as
+		// waiting). The answer settles that operation too, or the row keeps its
+		// spinner after the bar is gone. An approval attached to a real tool
+		// call is different: the provider keeps reporting that tool call itself
+		// (ToolCallObserved in_progress -> completed), so the answer must not
+		// pre-empt it.
+		const standaloneOperation =
+			toolCallId === payload.approvalRequestId ? state.openOperations.get(toolCallId) : undefined;
+		const operationPatches: OperationSnapshot[] = [];
+		if (standaloneOperation !== undefined) {
+			state.openOperations.delete(toolCallId);
+			operationPatches.push({
+				...standaloneOperation,
+				operation_state: accepted ? "completed" : "cancelled",
+			});
+		}
 		// Only this approval's own block is released. A session waiting on a
 		// different interaction stays waiting on it.
 		const releasesActivity =
@@ -942,6 +974,12 @@ export class OrchestrationCanonicalBridge {
 		const activity = releasesActivity
 			? awaitingModelActivityAt(state.turnStartedAtMs)
 			: state.activity;
+		const changedFields: SessionStateField[] = releasesActivity
+			? ["interactions", "activity"]
+			: ["interactions"];
+		if (operationPatches.length > 0) {
+			changedFields.push("operations");
+		}
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
@@ -949,9 +987,9 @@ export class OrchestrationCanonicalBridge {
 			turnState: state.turnState,
 			activeStreamingTail: null,
 			transcriptOperations: [],
-			operationPatches: [],
+			operationPatches,
 			interactionPatches: [interaction],
-			changedFields: releasesActivity ? ["interactions", "activity"] : ["interactions"],
+			changedFields,
 		};
 		state.revision = toRevision;
 		state.activity = activity;
@@ -1252,6 +1290,14 @@ export class OrchestrationCanonicalBridge {
 	 * Cancelled, failed and completed differ only in the turn state they land
 	 * on and whether they carry a failure, so one place decides what closing a
 	 * turn means.
+	 *
+	 * A terminal turn also settles everything still open inside it. An
+	 * operation the provider left pending/in_progress (a Bash approval nobody
+	 * answered, then the provider gave the turn up -- the live hang this
+	 * repairs) can never advance once the turn is over, so it settles to
+	 * cancelled (failed when the turn itself failed), and every unanswered
+	 * approval resolves as Unresolved so the PermissionBar stops asking a
+	 * question no one can answer any more.
 	 */
 	private endTurn(
 		sessionId: string,
@@ -1260,9 +1306,28 @@ export class OrchestrationCanonicalBridge {
 	): AcpEventEnvelope[] {
 		const state = this.stateFor(sessionId);
 		const toRevision = nextRevision(state.revision, false);
+		// operation_state is the canonical decision surface; provider_status is
+		// provenance and stays whatever the provider last reported -- it never
+		// reported terminal, and settling must not fake that it did.
+		const settledState: OperationState = turnState === "Failed" ? "failed" : "cancelled";
+		const operationPatches = Array.from(state.openOperations.values(), (operation) => ({
+			...operation,
+			operation_state: settledState,
+		}));
+		const interactionPatches = Array.from(state.pendingApprovals, ([approvalRequestId, record]) =>
+			this.unresolvedApprovalInteraction(sessionId, approvalRequestId, record)
+		);
+		state.openOperations.clear();
+		state.pendingApprovals.clear();
 		const changedFields: SessionStateField[] = ["turnState", "activity", "activeStreamingTail"];
 		if (failure !== null) {
 			changedFields.push("activeTurnFailure");
+		}
+		if (operationPatches.length > 0) {
+			changedFields.push("operations");
+		}
+		if (interactionPatches.length > 0) {
+			changedFields.push("interactions");
 		}
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
@@ -1272,8 +1337,8 @@ export class OrchestrationCanonicalBridge {
 			...(failure === null ? {} : { activeTurnFailure: failure }),
 			activeStreamingTail: null,
 			transcriptOperations: [],
-			operationPatches: [],
-			interactionPatches: [],
+			operationPatches,
+			interactionPatches,
 			changedFields,
 		};
 		state.revision = toRevision;
@@ -1283,6 +1348,40 @@ export class OrchestrationCanonicalBridge {
 		state.assistantEntryId = null;
 		state.assistantEntryRunSeq = 0;
 		return [toSessionStateAcpEnvelope(envelopeForDelta(sessionId, toRevision, delta))];
+	}
+
+	// An approval the turn ended on with no answer. "Unresolved" is the honest
+	// state -- nobody approved and nobody rejected -- and any non-"Pending"
+	// state is what takes the PermissionBar off the row (interaction-store
+	// .svelte.ts's applyPermissionInteraction).
+	private unresolvedApprovalInteraction(
+		sessionId: string,
+		approvalRequestId: string,
+		record: PendingApprovalRecord
+	): InteractionSnapshot {
+		return {
+			id: approvalRequestId,
+			session_id: sessionId,
+			kind: "Permission",
+			state: "Unresolved",
+			json_rpc_request_id: null,
+			reply_handler: null,
+			tool_reference: { callId: record.toolCallId },
+			responded_at_event_seq: null,
+			response: null,
+			payload: {
+				Permission: {
+					id: approvalRequestId,
+					sessionId,
+					permission: record.title,
+					patterns: [],
+					metadata: null,
+					always: [],
+					autoAccepted: false,
+					tool: { callId: record.toolCallId },
+				},
+			},
+		};
 	}
 
 	private onTurnCancelled(sessionId: string, _turnId: string | null): AcpEventEnvelope[] {

@@ -1451,6 +1451,280 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(envelopes.length).toBeGreaterThan(0);
 	});
 
+	// Reproduces the abandoned-approval hang seen live (tracer DB session
+	// session-create-1788199807537-*): ApprovalRequested with no
+	// InteractionReplied, then TurnCompleted 30 minutes later. The turn is a
+	// terminal signal -- nothing can ever advance an operation that was still
+	// pending/in_progress when it fired -- yet endTurn patched neither the
+	// operation nor the interaction, so the tool card spun "Executing…"
+	// forever and the PermissionBar kept asking a question nobody could answer.
+	it("settles a still-open tool call to cancelled when the turn completes", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("MessageSent", { sessionId, messageId: MessageId.make("u1"), text: "go" })
+		);
+		runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "toolu_1",
+				operationId: null,
+				status: "pending",
+				title: "Bash",
+				path: null,
+			})
+		);
+
+		const envelopes = runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }));
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+		expect(delta.operationPatches).toHaveLength(1);
+		expect(delta.operationPatches[0]?.tool_call_id).toBe("toolu_1");
+		expect(delta.operationPatches[0]?.operation_state).toBe("cancelled");
+		expect(delta.changedFields).toContain("operations");
+		// Settling appends no transcript row: the tool row is already on screen.
+		expect(delta.transcriptOperations).toHaveLength(0);
+		expect(delta.toRevision.transcriptRevision).toBe(delta.fromRevision.transcriptRevision);
+	});
+
+	it("resolves an abandoned approval as Unresolved when the turn completes", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "toolu_1",
+				operationId: null,
+				status: "pending",
+				title: "Bash",
+				path: null,
+			})
+		);
+		runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_1",
+				title: "Bash",
+			})
+		);
+
+		const envelopes = runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }));
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+		expect(delta.interactionPatches).toHaveLength(1);
+		const [interaction] = delta.interactionPatches;
+		expect(interaction?.id).toBe("perm-toolu_1");
+		// Any non-"Pending" state is what takes the PermissionBar off the row
+		// (interaction-store.svelte.ts's applyPermissionInteraction). It is
+		// "Unresolved", not "Rejected": nobody answered.
+		expect(interaction?.state).toBe("Unresolved");
+		expect(interaction?.response).toBeNull();
+		expect(interaction?.tool_reference).toEqual({ callId: "toolu_1" });
+		expect(delta.changedFields).toContain("interactions");
+		// The underlying tool call settles in the same delta.
+		expect(delta.operationPatches).toHaveLength(1);
+		expect(delta.operationPatches[0]?.operation_state).toBe("cancelled");
+	});
+
+	it("settles a standalone approval's own row when the turn is cancelled", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_2",
+				title: "Write",
+			})
+		);
+
+		const envelopes = runTranslate(bridge, makeEvent("TurnCancelled", { sessionId }));
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+		expect(delta.operationPatches).toHaveLength(1);
+		expect(delta.operationPatches[0]?.tool_call_id).toBe("perm-toolu_2");
+		expect(delta.operationPatches[0]?.operation_state).toBe("cancelled");
+		expect(delta.interactionPatches).toHaveLength(1);
+		expect(delta.interactionPatches[0]?.state).toBe("Unresolved");
+	});
+
+	it("leaves settled tool calls and answered approvals untouched at turn end", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "toolu_1",
+				operationId: null,
+				status: "completed",
+				title: "Read",
+				path: "package.json",
+			})
+		);
+		runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_9",
+				title: "Write",
+			})
+		);
+		runTranslate(
+			bridge,
+			makeEvent("InteractionReplied", {
+				sessionId,
+				approvalRequestId: "perm-toolu_9",
+				decision: "allow",
+			})
+		);
+
+		const envelopes = runTranslate(bridge, makeEvent("TurnCompleted", { sessionId }));
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+		expect(delta.operationPatches).toHaveLength(0);
+		expect(delta.interactionPatches).toHaveLength(0);
+		expect(delta.changedFields).not.toContain("operations");
+		expect(delta.changedFields).not.toContain("interactions");
+	});
+
+	// The standalone approval row hosts its own OperationSnapshot (pending, so
+	// the card renders as waiting). The answer must settle that operation too,
+	// or the row keeps its spinner after the bar is gone -- the same
+	// forever-"Executing…" family the turn-end settle fixes.
+	it("settles the standalone approval row's own operation when the approval is answered", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_9",
+				title: "Write",
+			})
+		);
+
+		const replied = runTranslate(
+			bridge,
+			makeEvent("InteractionReplied", {
+				sessionId,
+				approvalRequestId: "perm-toolu_9",
+				decision: "deny",
+			})
+		);
+
+		const payload = replied[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+		expect(delta.operationPatches).toHaveLength(1);
+		expect(delta.operationPatches[0]?.tool_call_id).toBe("perm-toolu_9");
+		expect(delta.operationPatches[0]?.operation_state).toBe("cancelled");
+		expect(delta.changedFields).toContain("operations");
+	});
+
+	it("does not settle a real tool call's operation when its attached approval is answered", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "toolu_1",
+				operationId: null,
+				status: "pending",
+				title: "Bash",
+				path: null,
+			})
+		);
+		runTranslate(
+			bridge,
+			makeEvent("ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-toolu_1",
+				title: "Bash",
+			})
+		);
+
+		const replied = runTranslate(
+			bridge,
+			makeEvent("InteractionReplied", {
+				sessionId,
+				approvalRequestId: "perm-toolu_1",
+				decision: "allow",
+			})
+		);
+
+		// The provider keeps reporting the real tool call itself
+		// (ToolCallObserved in_progress -> completed); the answer must not
+		// pre-empt it.
+		const payload = replied[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		expect(payload.payload.delta.operationPatches).toHaveLength(0);
+	});
+
+	it("settles a still-open tool call to failed when the provider session fails", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		runTranslate(
+			bridge,
+			makeEvent("ToolCallObserved", {
+				sessionId,
+				activityId: "activity-1",
+				toolCallId: "toolu_1",
+				operationId: null,
+				status: "in_progress",
+				title: "Bash",
+				path: null,
+			})
+		);
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ProviderSessionFailed", {
+				sessionId,
+				operation: "prompt",
+				detail: "adapter stream died",
+			})
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		if (payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+		expect(delta.operationPatches).toHaveLength(1);
+		expect(delta.operationPatches[0]?.operation_state).toBe("failed");
+	});
+
 	it("skips event types outside its scope without throwing", () => {
 		const bridge = makeBridge();
 		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
