@@ -44,7 +44,6 @@ import * as ManagedRuntime from "effect/ManagedRuntime";
 import { loadQaSocketPath, qaPreloadScript } from "electrobun-qa";
 import { standardApplicationMenu } from "./application-menu.ts";
 import { keepQaHost, qaInternalMessageMap, qaWindowPreload } from "./qa-host.ts";
-import { makeSupersedingEventsHandler } from "./superseding-events.ts";
 import {
 	migrateLegacyTracerDb,
 	resolveTracerDbPath,
@@ -216,24 +215,6 @@ const launched = startElectrobunAcepeApp(
 	}
 );
 
-// One window, one events subscription: a page reload requests `events` again,
-// and the previous push fiber must not keep feeding the same window channel
-// (see superseding-events.ts's header for the leak this repairs).
-const handleEventsRequest = makeSupersedingEventsHandler(
-	(effect) => runtime.runFork(effect),
-	(params) =>
-		pushEvents(params, (payload) => {
-			// acepe#261 diagnostic: prove the payload handed to sendEvents is
-			// JSON-safe (both electrobun transport fallbacks silently drop
-			// anything JSON.stringify can't serialize) before it leaves bun.
-			const { jsonSafe, jsonLength } = describeJsonSafety(payload);
-			writeLine(
-				`acepe-events-stream: push type=${typeof payload} jsonSafe=${jsonSafe} jsonLength=${jsonLength}`
-			);
-			launched.sendEvents(payload);
-		})
-);
-
 launched.attach({
 	dispatch: (params) => runtime.runPromise(encodedDispatch(params)),
 	snapshot: (params) => runtime.runPromise(encodedSnapshot(params)),
@@ -251,7 +232,19 @@ launched.attach({
 	importProviderSession: (params) => runtime.runPromise(encodedImportProviderSession(params)),
 	events: (params) => {
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
-		return handleEventsRequest(params);
+		runtime.runFork(
+			pushEvents(params, (payload) => {
+				// acepe#261 diagnostic: prove the payload handed to sendEvents is
+				// JSON-safe (both electrobun transport fallbacks silently drop
+				// anything JSON.stringify can't serialize) before it leaves bun.
+				const { jsonSafe, jsonLength } = describeJsonSafety(payload);
+				writeLine(
+					`acepe-events-stream: push type=${typeof payload} jsonSafe=${jsonSafe} jsonLength=${jsonLength}`
+				);
+				launched.sendEvents(payload);
+			})
+		);
+		return undefined;
 	},
 });
 

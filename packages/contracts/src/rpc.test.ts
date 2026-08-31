@@ -47,7 +47,6 @@ import {
 	RpcCommandInvariantError,
 	RpcCommandPreviouslyRejectedError,
 	RpcDispatchResult,
-	RpcEventSequenceGapError,
 	RpcFileIndexNotADirectoryError,
 	RpcFileIndexRootNotFoundError,
 	RpcFsPathDeniedError,
@@ -708,7 +707,16 @@ describe("makeResumingRpcClient", () => {
 				Effect.runPromise,
 			));
 
-	it("fails on a sequence gap instead of reconnecting", () =>
+	// The event log is legally non-contiguous: deleting a session removes its
+	// rows but never renumbers the survivors, so every replay of a store that
+	// ever deleted anything crosses holes. Treating a hole as a fatal gap
+	// (RpcEventSequenceGapError, removed) killed the page's one event stream
+	// seconds after every load -- measured live 2026-09-01 against the real
+	// tracer DB: 5240 rows, max sequence 5328, first hole at 13, "Event
+	// sequence gap: last seen 12, received 14", and the panel deaf to every
+	// live canonical event from then on. Monotonicity is still enforced (the
+	// duplicate skip above); contiguity must not be.
+	it("passes events across a sequence hole left by deleted events", () =>
 		makeResumingRpcClient({
 			dispatch: unusedDispatch,
 			snapshot: unusedSnapshot,
@@ -728,10 +736,10 @@ describe("makeResumingRpcClient", () => {
 		})
 			.events(0)
 			.pipe(
+				Stream.take(2),
 				Stream.runCollect,
-				Effect.flip,
-				Effect.map((error) => {
-					expect(error._tag).toBe("RpcEventSequenceGapError");
+				Effect.map((events) => {
+					expect(events.map((event) => event.sequence)).toEqual([1, 3]);
 				}),
 				Effect.runPromise,
 			));
@@ -783,13 +791,6 @@ describe("RpcServerError message getters", () => {
 		});
 		expect(error.message.length).toBeGreaterThan(0);
 		expect(error.message).toContain("/tmp/acepe/file.txt");
-	});
-
-	it("RpcEventSequenceGapError.message carries both sequences", () => {
-		const error = new RpcEventSequenceGapError({ last: 4, received: 9 });
-		expect(error.message.length).toBeGreaterThan(0);
-		expect(error.message).toContain("4");
-		expect(error.message).toContain("9");
 	});
 
 	it("RpcFsPathDeniedError.message carries the offending path", () => {

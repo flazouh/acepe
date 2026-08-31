@@ -179,18 +179,6 @@ export class RpcTransportError extends Schema.TaggedError<RpcTransportError>()("
 	}
 }
 
-export class RpcEventSequenceGapError extends Schema.TaggedError<RpcEventSequenceGapError>()(
-	"RpcEventSequenceGapError",
-	{
-		last: Sequence,
-		received: Sequence,
-	},
-) {
-	override get message(): string {
-		return `Event sequence gap: last seen ${this.last}, received ${this.received}`
-	}
-}
-
 export class RpcFsPathDeniedError extends Schema.TaggedError<RpcFsPathDeniedError>()(
 	"RpcFsPathDeniedError",
 	{
@@ -270,7 +258,6 @@ export type RpcServerError = typeof RpcServerError.Type
 export const RpcClientError = Schema.Union([
 	RpcServerError,
 	RpcTransportError,
-	RpcEventSequenceGapError,
 ])
 export type RpcClientError = typeof RpcClientError.Type
 
@@ -1139,23 +1126,24 @@ export type RpcTransport<R = never> = {
 
 export type RpcClient<R = never> = RpcTransport<R>
 
+// Monotonicity only, never contiguity: the event log is legally
+// non-contiguous, because deleting a session removes its rows without
+// renumbering the survivors, so every replay of a store that ever deleted
+// anything crosses holes. The old contiguity check (RpcEventSequenceGapError)
+// read the first hole as a fatal transport gap and killed the page's one
+// event stream seconds after every load. Per-session frontier checks
+// downstream (session-state-command-router.ts) remain the desync authority.
 const considerEvent = (
 	cursor: Ref.Ref<Sequence>,
 	event: OrchestrationEvent,
 ): Effect.Effect<
 	Result.Result<OrchestrationEvent, OrchestrationEvent>,
-	RpcTransportError | RpcEventSequenceGapError
+	RpcTransportError
 > =>
 	Effect.gen(function*() {
 		const last = yield* Ref.get(cursor)
 		if (event.sequence <= last) {
 			return Result.fail(event)
-		}
-		if (last > 0 && event.sequence > last + 1) {
-			return yield* new RpcEventSequenceGapError({
-				last,
-				received: event.sequence,
-			})
 		}
 		yield* Ref.set(cursor, event.sequence)
 		return Result.succeed(event)
@@ -1171,7 +1159,7 @@ const exclusiveEvents = <R>(
 			OrchestrationEvent,
 			OrchestrationEvent,
 			OrchestrationEvent,
-			RpcTransportError | RpcEventSequenceGapError,
+			RpcTransportError,
 			never
 		>((event) => considerEvent(cursor, event)),
 	)

@@ -1,3 +1,4 @@
+import { librarySnapshotRequest } from "@acepe/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -135,11 +136,30 @@ function openUnderlyingAcpEventSource(
 	onEnvelope: (envelope: AcpEventEnvelope) => void
 ): Effect.Effect<() => void, AcpError> {
 	return appRpcClient().pipe(
-		Effect.flatMap((client) => {
+		Effect.flatMap((client) =>
+			client
+				.snapshot(librarySnapshotRequest())
+				.pipe(
+					Effect.mapError(
+						(error) => new ProtocolError(`Event source snapshot failed: ${String(error)}`, error)
+					),
+					Effect.map((snapshot) => ({ client, fromSequence: snapshot.snapshotSequence }))
+				)
+		),
+		// Tail subscription, like every other store (settings/library/review/
+		// voice all ride events(snapshotSequence)): the past is the reopen
+		// hydration's domain (reopen-snapshot-graph.ts builds it from the
+		// contract snapshot), and this bridge's own header scopes it to
+		// sessions created live in this app run. Replaying the whole log from
+		// 0 here re-translated thousands of already-hydrated events through
+		// the store's reactive state on every page load -- measured live
+		// 2026-09-01 as minutes of a pegged WebContent process before the
+		// panel answered at all.
+		Effect.flatMap(({ client, fromSequence }) => {
 			const bridge = new OrchestrationCanonicalBridge(makeProjectPathResolver(client));
 			liveBridge = bridge;
 			const enqueueEnvelope = createAcpEventDrain(onEnvelope);
-			const consume = client.events(0).pipe(
+			const consume = client.events(fromSequence).pipe(
 				Stream.runForEach((event) =>
 					bridge.translate(event).pipe(
 						Effect.map((envelopes) => {
