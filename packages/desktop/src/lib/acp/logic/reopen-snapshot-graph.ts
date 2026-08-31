@@ -34,7 +34,6 @@ import type {
 import { providerConfigOptions, providerModes } from "@acepe/contracts";
 import type {
 	CanonicalAgentId,
-	ConfigOptionData,
 	InteractionSnapshot,
 	OperationSnapshot,
 	SessionCompactionEvent,
@@ -55,6 +54,7 @@ import {
 	observedStatusToToolCallStatus,
 } from "./observed-tool-call-status.js";
 import { asOperationToolKind } from "./observed-tool-kind.js";
+import { configOptionDataFromDescriptor } from "./provider-config-option-data.js";
 import { noToolArguments, toolArgumentsFromCanonical } from "./tool-arguments-projection.js";
 
 const idleActivity: SessionGraphActivity = {
@@ -501,20 +501,11 @@ function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCap
 	if (configOptionValues !== null) {
 		const catalog = providerConfigOptions(snapshot.session?.provider);
 		if (catalog.length > 0) {
-			capabilities.configOptions = catalog.map(
-				(option): ConfigOptionData => ({
-					id: option.id,
-					name: option.name,
-					category: option.category,
-					type: option.type,
-					description: option.description,
-					currentValue: configOptionValues[option.id] ?? option.currentValue,
-					options: option.options.map((value) => ({
-						name: value.name,
-						value: value.value,
-					})),
-					presentation: option.presentation as ConfigOptionData["presentation"],
-				}),
+			capabilities.configOptions = catalog.map((option) =>
+				configOptionDataFromDescriptor(
+					option,
+					configOptionValues[option.id] ?? option.currentValue
+				)
 			);
 		}
 	}

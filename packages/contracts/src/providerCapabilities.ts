@@ -17,6 +17,8 @@
  * publishes it as a canonical session fact -- see sessionModels.ts.
  */
 
+import type { ConfigOptionPresentation } from "./preconnection.ts"
+
 /**
  * How a mode is drawn. Matches the client's ModeIconKind, which already carries
  * a colour per kind -- naming the kind here is what finally lights it up.
@@ -88,7 +90,9 @@ export type ProviderConfigOptionDescriptor = {
 	readonly description: string
 	readonly currentValue: string
 	readonly options: ReadonlyArray<ProviderConfigOptionValue>
-	readonly presentation: string
+	// The same literal union ConfigOptionData carries, so a consumer building
+	// one from a descriptor needs no cast.
+	readonly presentation: ConfigOptionPresentation
 }
 
 /**

@@ -7,6 +7,7 @@ import {
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
+import { configOptionDataFromDescriptor } from "../../../logic/provider-config-option-data.js";
 import type { PreconnectionAgentSkillsStore } from "../../../../skills/store/preconnection-agent-skills-store.svelte.js";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import type { AgentStore } from "../../../store/agent-store.svelte.js";
@@ -226,20 +227,8 @@ export class ComposerViewController {
 		const options =
 			baseOptions.length > 0
 				? baseOptions
-				: providerConfigOptions(this.capabilitiesAgentId).map(
-						(option): ConfigOptionData => ({
-							id: option.id,
-							name: option.name,
-							category: option.category,
-							type: option.type,
-							description: option.description,
-							currentValue: option.currentValue,
-							options: option.options.map((value) => ({
-								name: value.name,
-								value: value.value,
-							})),
-							presentation: option.presentation as ConfigOptionData["presentation"],
-						})
+				: providerConfigOptions(this.capabilitiesAgentId).map((option) =>
+						configOptionDataFromDescriptor(option)
 					);
 		return applyProvisionalConfigOptionOverrides(options, this.provisionalConfigOptions);
 	});
