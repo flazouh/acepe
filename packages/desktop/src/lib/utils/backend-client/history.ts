@@ -352,15 +352,21 @@ export const ensureProviderSessionImported = Effect.fn("history.ensureProviderSe
 		);
 		const projectPath = yield* findProviderSessionProjectPath(decodedSessionId);
 		if (Option.isNone(projectPath)) {
-			return;
+			return { resolvedSessionId: null };
 		}
-		yield* withRpcClient("history.ensureProviderSessionImported", (client) =>
+		// The result's sessionId is the resolution answer: the requested id for
+		// a plain import, or the claiming aggregate's id when a live session
+		// already owns this provider uuid via provider_session_id (the importer
+		// resolves instead of forking a twin). Callers that go on to dispatch
+		// against the session must target the resolved id.
+		const imported = yield* withRpcClient("history.ensureProviderSessionImported", (client) =>
 			client.importProviderSession({
 				provider: "claude",
 				projectPath: projectPath.value,
 				sessionId: decodedSessionId,
 			})
 		);
+		return { resolvedSessionId: imported.sessionId };
 	}
 );
 
@@ -368,11 +374,11 @@ const setSessionTitleEffect = Effect.fn("history.setSessionTitle")(function* (
 	sessionId: string,
 	title: string
 ) {
-	yield* ensureProviderSessionImported(sessionId);
+	const imported = yield* ensureProviderSessionImported(sessionId);
 	const decodedSessionId = yield* decodeEffect(
 		"history.setSessionTitle",
 		decodeSessionId
-	)(sessionId);
+	)(imported.resolvedSessionId ?? sessionId);
 	const decodedTitle = yield* decodeTrimmed("history.setSessionTitle", title);
 	const commandId = yield* nextCommandId("session-meta-update-title");
 	yield* withRpcClient("history.setSessionTitle", (client) =>
@@ -394,11 +400,11 @@ const setSessionPrNumberEffect = Effect.fn("history.setSessionPrNumber")(functio
 	prNumber: number | null,
 	prLinkMode?: SessionPrLinkMode | null
 ) {
-	yield* ensureProviderSessionImported(sessionId);
+	const imported = yield* ensureProviderSessionImported(sessionId);
 	const decodedSessionId = yield* decodeEffect(
 		"history.setSessionPrNumber",
 		decodeSessionId
-	)(sessionId);
+	)(imported.resolvedSessionId ?? sessionId);
 	const decodedPrNumber =
 		prNumber === null
 			? null

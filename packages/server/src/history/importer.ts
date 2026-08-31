@@ -266,6 +266,21 @@ export const makeHistoryImporter = <A>(config: HistoryLineDecoder<A>) =>
 			const fromLine = Option.flatMap(Arr.head(decoded.rows), config.sessionIdFromLine)
 			const stem = path.basename(filePath, ".jsonl")
 			const sessionId = yield* decodeSessionId(Option.getOrElse(fromLine, () => stem))
+			// A live session claims its provider's on-disk uuid via the
+			// provider_session contract fact (provider_session_id column). This
+			// JSONL is then that session's own history, already canonical in the
+			// event store -- creating a session keyed by the uuid would fork a
+			// twin aggregate with messages only (no tool activities, no pending
+			// approvals), and a reopen that resolves to the twin loses the
+			// still-unanswered approval UI. Resolve to the claiming session and
+			// import nothing.
+			const claiming = yield* sessions.findByProviderSessionId(sessionId)
+			if (Option.isSome(claiming)) {
+				return {
+					sessionId: Option.some(claiming.value.sessionId),
+					warnings: decoded.warnings
+				}
+			}
 			const title = sessionTitleFromUserText(firstUserText(facts))
 			const sessionCommandId = yield* importCommandId([
 				"history",

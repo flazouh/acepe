@@ -340,8 +340,11 @@ export const acp = {
 	// session only ever scanned from disk has no orchestration row yet, so it
 	// is imported first -- the same idempotent step the rename path uses.
 	archiveSession: Effect.fn("acp.archiveSession")(function* (sessionId: string) {
-		yield* ensureProviderSessionImported(sessionId);
-		const decodedSessionId = yield* decodeEffect("acp.archiveSession", decodeSessionId)(sessionId);
+		const imported = yield* ensureProviderSessionImported(sessionId);
+		const decodedSessionId = yield* decodeEffect(
+			"acp.archiveSession",
+			decodeSessionId
+		)(imported.resolvedSessionId ?? sessionId);
 		const commandId = yield* nextCommandId("session-archive");
 		yield* withRpcClient("acp.archiveSession", (client) =>
 			client.dispatch({

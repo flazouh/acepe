@@ -589,7 +589,10 @@ export function graphFromReopenSnapshot(input: ReopenSnapshotGraphInput): Sessio
 	return {
 		requestedSessionId: input.requestedSessionId,
 		canonicalSessionId: input.canonicalSessionId,
-		isAlias: false,
+		// True when the caller resolved a provider's on-disk uuid to the live
+		// aggregate that claims it (provider_session_id) -- same alias shape
+		// SessionOpenFound carries on the found path.
+		isAlias: input.requestedSessionId !== input.canonicalSessionId,
 		agentId: canonicalAgentIdFromString(input.agentId),
 		projectPath: input.projectPath,
 		worktreePath: input.worktreePath,

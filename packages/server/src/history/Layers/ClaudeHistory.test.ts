@@ -1,5 +1,14 @@
 import { firstDivergence } from "@acepe/harness"
-import { CommandId, ProjectCreateCommand, ProjectId } from "@acepe/contracts"
+import {
+	CommandId,
+	EventId,
+	ProjectCreateCommand,
+	ProjectId,
+	Sequence,
+	SessionCreateCommand,
+	SessionId,
+	SessionMetaUpdatedEvent
+} from "@acepe/contracts"
 import * as Vitest from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -7,7 +16,10 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Path from "effect/Path"
 import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { OrchestrationEventStore } from "../../persistence/Services/OrchestrationEventStore.ts"
+import { ProjectionSessions } from "../../persistence/Services/ProjectionSessions.ts"
 import { ProjectionSnapshotQueryLive } from "../../orchestration/Layers/ProjectionSnapshotQuery.ts"
 import { OrchestrationEngine } from "../../orchestration/Services/OrchestrationEngine.ts"
 import { SessionProjectionSnapshot } from "../../orchestration/Services/ProjectionSnapshotQuery.ts"
@@ -234,6 +246,104 @@ Vitest.layer(isolated())("ClaudeHistoryLive", (it) => {
 			// project.create receipt from the first call's invariant rejection.
 			const second = yield* history.importSessionFile(input, filePath)
 			Vitest.assert.deepStrictEqual(second.sessionId, first.sessionId)
+		})
+	)
+
+	// Reload-loses-pending-approval root cause (live repro 2026-08-31): a
+	// session created live in Acepe keeps its orchestration aggregate id
+	// (session-session-create-*) and claims the provider's on-disk JSONL uuid
+	// via SessionMetaUpdated metadata (provider_session contract fact).
+	// Importing that same JSONL used to CREATE A SECOND session aggregate
+	// keyed by the uuid — a twin with messages only, no activities and no
+	// pending approvals — and the reopen path then hydrated the twin, so a
+	// still-unanswered approval vanished from the UI. The importer must
+	// resolve the uuid to the claiming session instead of forking.
+	it.effect("resolves a JSONL uuid claimed by a live session instead of forking a twin", () =>
+		Effect.gen(function*() {
+			yield* setHistoryClock(HISTORY_TEST_NOW)
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const sql = yield* SqlClient.SqlClient
+			const engine = yield* OrchestrationEngine
+			const history = yield* ClaudeHistory
+			const dir = yield* fs.makeTempDirectoryScoped()
+			const providerUuid = "sess-claude-4"
+			const liveSessionId = SessionId.make("session-session-create-claimed-1")
+			const projectId = ProjectId.make("project-claimed")
+			yield* engine.dispatch(
+				ProjectCreateCommand.make({
+					type: "project.create",
+					commandId: CommandId.make("manual-add-repository-claimed"),
+					projectId,
+					title: "Claimed",
+					workspaceRoot: "/tmp/acepe-claimed"
+				})
+			)
+			yield* engine.dispatch(
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId: CommandId.make("live-session-create-claimed"),
+					sessionId: liveSessionId,
+					projectId,
+					title: "Live session",
+					providerId: "claude-code"
+				})
+			)
+			// The same provider_session contract fact ProviderBridge appends when
+			// the real adapter learns its on-disk session uuid.
+			yield* engine.appendEvents([
+				SessionMetaUpdatedEvent.make({
+					sequence: Sequence.make(0),
+					eventId: EventId.make(`event-${liveSessionId}-provider-session`),
+					aggregateKind: "session",
+					aggregateId: liveSessionId,
+					occurredAt: HISTORY_TEST_NOW,
+					commandId: CommandId.make("live-session-meta-claimed"),
+					causationEventId: null,
+					correlationId: CommandId.make("live-session-meta-claimed"),
+					metadata: {
+						contractKind: "provider_session",
+						providerSessionId: providerUuid
+					},
+					type: "SessionMetaUpdated",
+					payload: { sessionId: liveSessionId }
+				})
+			])
+			// The engine does not project; production runs a projector loop. Fold
+			// the live session's events into projection_sessions the same way the
+			// importer's own applyImportedEvents does, so provider_session_id is
+			// visible to the lookup under test.
+			const store = yield* OrchestrationEventStore
+			const sessions = yield* ProjectionSessions
+			const events = yield* Stream.runCollect(store.readFrom(Sequence.make(0), 1000))
+			yield* sql.withTransaction(
+				Effect.forEach(events, (event) => sessions.apply(event, sql), { discard: true })
+			)
+			const filePath = path.join(dir, `${providerUuid}.jsonl`)
+			yield* fs.writeFileString(
+				filePath,
+				[
+					`{"type":"user","sessionId":"${providerUuid}","message":{"role":"user","content":"Prompt that is already canonical"}}`,
+					`{"type":"assistant","sessionId":"${providerUuid}","message":{"role":"assistant","content":[{"type":"text","text":"Reply that is already canonical"}]}}`
+				].join("\n")
+			)
+			const input = yield* decodeInput({
+				root: dir,
+				projectId: "project-claimed",
+				workspaceRoot: "/tmp/acepe-claimed"
+			})
+
+			const imported = yield* history.importSessionFile(input, filePath)
+			Vitest.assert.deepStrictEqual(imported.sessionId, Option.some(liveSessionId))
+
+			const twinRows = yield* sql`
+				SELECT session_id FROM projection_sessions WHERE session_id = ${providerUuid}
+			`.withoutTransform
+			Vitest.assert.strictEqual(twinRows.length, 0, "importer forked a twin session aggregate")
+			const twinEvents = yield* sql`
+				SELECT sequence FROM orchestration_events WHERE aggregate_id = ${providerUuid}
+			`.withoutTransform
+			Vitest.assert.strictEqual(twinEvents.length, 0, "importer committed events for the twin")
 		})
 	)
 })

@@ -1129,6 +1129,8 @@ export class InitializationManager {
 				sessionOpenHydrator: this.sessionOpenHydrator,
 				isPanelCurrent: (targetPanelId, targetSessionId) =>
 					this.panelStore.getPanel(targetPanelId)?.sessionId === targetSessionId,
+				bindPanelSession: (targetPanelId, targetSessionId) =>
+					this.panelStore.updatePanelSession(targetPanelId, targetSessionId),
 				timeoutMs: SESSION_OPEN_TIMEOUT_MS,
 				source: "initialization-manager",
 				repairPriority: panel.id === this.panelStore.focusedPanelId ? "selected" : "visible",

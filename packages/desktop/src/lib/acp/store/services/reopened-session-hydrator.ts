@@ -44,11 +44,32 @@ export interface ReopenedSessionHydrationInput {
 
 export interface ReopenedSessionHydrationResult {
 	readonly applied: boolean;
+	/**
+	 * Present only when the requested id resolved to a DIFFERENT aggregate:
+	 * the requested id was a provider's on-disk session uuid that a live
+	 * session claims via provider_session_id (the #262 alias display
+	 * identity). The graph was applied under this id; the caller must rebind
+	 * its panel to it, exactly like session-open-hydrator's found path does
+	 * with SessionOpenFound.canonicalSessionId.
+	 */
+	readonly canonicalSessionId?: string;
+}
+
+export interface EnsureProviderSessionImportedResult {
+	/**
+	 * The aggregate id the provider session resolved to, or null when
+	 * discovery found no such provider session (nothing to import, nothing
+	 * claimed). Equal to the requested id for a plain import; different when
+	 * a live session already claims the uuid via provider_session_id.
+	 */
+	readonly resolvedSessionId: string | null;
 }
 
 export interface ReopenedSessionHydratorDeps {
 	readonly getSessionSnapshot: (sessionId: string) => Effect.Effect<RpcSessionSnapshot, AppError>;
-	readonly ensureProviderSessionImported: (sessionId: string) => Effect.Effect<void, AppError>;
+	readonly ensureProviderSessionImported: (
+		sessionId: string
+	) => Effect.Effect<EnsureProviderSessionImportedResult, AppError>;
 	readonly applySessionStateEnvelope: (sessionId: string, envelope: SessionStateEnvelope) => void;
 	/**
 	 * The local graph's current revision, if one already exists (e.g. from an
@@ -64,8 +85,19 @@ function snapshotIsNotYetImported(snapshot: RpcSessionSnapshot): boolean {
 	return snapshot.session === null;
 }
 
+interface ResolvedSnapshot {
+	readonly snapshot: RpcSessionSnapshot;
+	/** The aggregate the snapshot belongs to (differs from the requested id on alias). */
+	readonly resolvedSessionId: string;
+}
+
 /**
- * Best-effort re-fetch after an import attempt. A failed import (e.g. the
+ * Best-effort import-then-re-fetch. The import step doubles as identity
+ * resolution: a requested id that is really a provider's on-disk uuid
+ * claimed by a live session (provider_session_id) resolves to that claiming
+ * aggregate instead of importing a twin, and the re-fetch follows the
+ * resolved id so the snapshot carries the claiming aggregate's canonical
+ * facts (still-pending approvals included). A failed import (e.g. the
  * session was never actually on disk, or discovery raced with a deletion)
  * falls back to the pre-import snapshot rather than failing hydration
  * outright -- an empty/"reserved" graph is an honest, harmless result.
@@ -74,15 +106,20 @@ function snapshotAfterEnsuringImported(
 	deps: ReopenedSessionHydratorDeps,
 	sessionId: string,
 	initialSnapshot: RpcSessionSnapshot
-): Effect.Effect<RpcSessionSnapshot, never> {
+): Effect.Effect<ResolvedSnapshot, never> {
 	return deps.ensureProviderSessionImported(sessionId).pipe(
-		Effect.flatMap(() => deps.getSessionSnapshot(sessionId)),
+		Effect.flatMap((imported) => {
+			const resolvedSessionId = imported.resolvedSessionId ?? sessionId;
+			return deps
+				.getSessionSnapshot(resolvedSessionId)
+				.pipe(Effect.map((snapshot) => ({ snapshot, resolvedSessionId })));
+		}),
 		Effect.catch((error) => {
 			logger.warn("Import-on-open failed; hydrating from the pre-import snapshot", {
 				sessionId,
 				error,
 			});
-			return Effect.succeed(initialSnapshot);
+			return Effect.succeed({ snapshot: initialSnapshot, resolvedSessionId: sessionId });
 		})
 	);
 }
@@ -92,16 +129,17 @@ export function hydrateReopenedSessionSnapshot(
 	deps: ReopenedSessionHydratorDeps
 ): Effect.Effect<ReopenedSessionHydrationResult, never> {
 	return deps.getSessionSnapshot(input.sessionId).pipe(
-		Effect.flatMap((initialSnapshot) => {
+		Effect.flatMap((initialSnapshot): Effect.Effect<ResolvedSnapshot, AppError> => {
 			const isOnDiskOnly = snapshotIsNotYetImported(initialSnapshot) && input.sourcePath !== null;
 			return isOnDiskOnly
 				? snapshotAfterEnsuringImported(deps, input.sessionId, initialSnapshot)
-				: Effect.succeed(initialSnapshot);
+				: Effect.succeed({ snapshot: initialSnapshot, resolvedSessionId: input.sessionId });
 		}),
-		Effect.map((snapshot) => {
+		Effect.map(({ snapshot, resolvedSessionId }) => {
+			const isAlias = resolvedSessionId !== input.sessionId;
 			const graph = graphFromReopenSnapshot({
 				requestedSessionId: input.sessionId,
-				canonicalSessionId: input.sessionId,
+				canonicalSessionId: resolvedSessionId,
 				agentId: input.agentId,
 				projectPath: input.projectPath,
 				worktreePath: input.worktreePath,
@@ -109,21 +147,25 @@ export function hydrateReopenedSessionSnapshot(
 				sequenceId: input.sequenceId,
 				snapshot,
 			});
-			const currentRevision = deps.getCurrentGraphRevision(input.sessionId);
+			const currentRevision = deps.getCurrentGraphRevision(resolvedSessionId);
 			const revisionForApply = reopenGraphRevisionForApply(graph, currentRevision);
 			if (revisionForApply === null) {
-				return { applied: false };
+				return isAlias
+					? { applied: false, canonicalSessionId: resolvedSessionId }
+					: { applied: false };
 			}
 			const graphForApply = { ...graph, revision: revisionForApply };
-			deps.applySessionStateEnvelope(input.sessionId, createSnapshotEnvelope(graphForApply));
+			deps.applySessionStateEnvelope(resolvedSessionId, createSnapshotEnvelope(graphForApply));
 			// The live bridge counts this session's revisions from zero and has no
 			// way to learn that a reopen just moved it to the snapshot's
 			// server-sequence revision. Without this every event after a reopen
 			// arrives at a revision the client has already passed, the router
 			// reads a frontier mismatch, and the session stops applying anything
 			// while the server keeps committing tool calls and approvals.
-			realignCanonicalSession(input.sessionId, revisionForApply);
-			return { applied: true };
+			realignCanonicalSession(resolvedSessionId, revisionForApply);
+			return isAlias
+				? { applied: true, canonicalSessionId: resolvedSessionId }
+				: { applied: true };
 		}),
 		Effect.catch((error) => {
 			logger.warn("Reopen-session snapshot hydration failed", {

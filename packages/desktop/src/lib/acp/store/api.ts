@@ -22,6 +22,7 @@ import type { HistoryEntry, StartupSessionsResponse } from "../../services/claud
 import type { ConfigOptionData } from "../../services/converted-session-types.js";
 import { backendClient } from "../../utils/backend-client";
 import { ensureProviderSessionImported as backendClientEnsureProviderSessionImported } from "../../utils/backend-client/history.js";
+import type { EnsureProviderSessionImportedResult } from "./services/reopened-session-hydrator.js";
 import type { AppError } from "../errors/app-error";
 import type { InteractionReplyRequest } from "../types/interaction-reply-request.js";
 import type {
@@ -273,9 +274,14 @@ export function getSessionSnapshot(sessionId: string): Effect.Effect<RpcSessionS
  * into the orchestration event store, keyed by scanning discovered projects
  * for the session id -- reused as-is from history.ts's rename-triggers-import
  * path (setSessionTitle/setSessionPrNumber already call it before writing).
- * A no-op when the session is already imported.
+ * A no-op when the session is already imported. The result carries the
+ * resolution answer: the aggregate id the provider session resolved to
+ * (different from the requested id when a live session claims the uuid via
+ * provider_session_id), or null when discovery found no such session.
  */
-export function ensureProviderSessionImported(sessionId: string): Effect.Effect<void, AppError> {
+export function ensureProviderSessionImported(
+	sessionId: string
+): Effect.Effect<EnsureProviderSessionImportedResult, AppError> {
 	return backendClientEnsureProviderSessionImported(sessionId);
 }
 

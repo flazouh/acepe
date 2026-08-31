@@ -76,6 +76,15 @@ interface OpenPersistedSessionOptions {
 	readonly preparedOpenResult?: SessionOpenResult;
 	readonly repairPriority?: "selected" | "visible";
 	readonly isPanelCurrent?: (panelId: string, sessionId: string) => boolean;
+	/**
+	 * Rebinds a panel to a session id. Called when catch-path snapshot
+	 * hydration resolves the requested id (a provider's on-disk uuid) to the
+	 * live aggregate claiming it via provider_session_id -- the same rebind
+	 * session-open-hydrator's found path performs with
+	 * SessionOpenFound.canonicalSessionId. Optional so existing callers that
+	 * never open by a provider uuid keep working unchanged.
+	 */
+	readonly bindPanelSession?: (panelId: string, sessionId: string) => void;
 	readonly timeoutMs: number;
 	readonly source: "initialization-manager" | "session-handler";
 }
@@ -110,6 +119,7 @@ function reattachLocalCreatedSession(input: {
 	readonly sessionMetadata: SessionMetadata;
 	readonly getSessionSnapshot: typeof api.getSessionSnapshot;
 	readonly ensureProviderSessionImported: typeof api.ensureProviderSessionImported;
+	readonly bindPanelSession?: (panelId: string, sessionId: string) => void;
 }): Effect.Effect<void, AppError> {
 	const {
 		source,
@@ -121,6 +131,7 @@ function reattachLocalCreatedSession(input: {
 		sessionMetadata,
 		getSessionSnapshot,
 		ensureProviderSessionImported,
+		bindPanelSession,
 	} = input;
 	return sessionStore.connection.connectSession(sessionId).pipe(
 		Effect.flatMap(() => {
@@ -154,6 +165,7 @@ function reattachLocalCreatedSession(input: {
 				sessionMetadata,
 				getSessionSnapshot,
 				ensureProviderSessionImported,
+				bindPanelSession,
 			});
 		}),
 		Effect.catch((error: AppError) => {
@@ -189,6 +201,7 @@ function hydrateProviderBackedSessionOnOpen(input: {
 	readonly sessionMetadata: SessionMetadata;
 	readonly getSessionSnapshot: typeof api.getSessionSnapshot;
 	readonly ensureProviderSessionImported: typeof api.ensureProviderSessionImported;
+	readonly bindPanelSession?: (panelId: string, sessionId: string) => void;
 }): Effect.Effect<void, never> {
 	const {
 		source,
@@ -199,6 +212,7 @@ function hydrateProviderBackedSessionOnOpen(input: {
 		sessionMetadata,
 		getSessionSnapshot,
 		ensureProviderSessionImported,
+		bindPanelSession,
 	} = input;
 	return hydrateReopenedSessionSnapshot(
 		{
@@ -220,10 +234,18 @@ function hydrateProviderBackedSessionOnOpen(input: {
 	).pipe(
 		Effect.map((result) => {
 			sessionStore.loading.setSessionLoaded(sessionId);
+			// The requested id resolved to the live aggregate claiming it via
+			// provider_session_id: the graph now lives under that id, so the
+			// panel must read it from there or it renders nothing.
+			if (result.canonicalSessionId !== undefined && result.canonicalSessionId !== sessionId) {
+				sessionStore.loading.setSessionLoaded(result.canonicalSessionId);
+				bindPanelSession?.(panelId, result.canonicalSessionId);
+			}
 			logger.debug("Hydrated reopened session from contract snapshot", {
 				source,
 				panelId,
 				sessionId,
+				canonicalSessionId: result.canonicalSessionId ?? sessionId,
 				applied: result.applied,
 			});
 		})
@@ -244,6 +266,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 		preparedOpenResult,
 		repairPriority = "selected",
 		isPanelCurrent,
+		bindPanelSession,
 	} = options;
 	const startedAtMs = performance.now();
 	const recordDiagnostic = (
@@ -388,6 +411,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					sessionMetadata,
 					getSessionSnapshot,
 					ensureProviderSessionImported,
+					bindPanelSession,
 				});
 			}
 			sessionStore.loading.setSessionLoaded(sessionId);
@@ -424,6 +448,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					sessionMetadata,
 					getSessionSnapshot,
 					ensureProviderSessionImported,
+					bindPanelSession,
 				});
 			}
 			sessionStore.loading.setSessionLoaded(sessionId);
@@ -525,6 +550,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 					sessionMetadata,
 					getSessionSnapshot,
 					ensureProviderSessionImported,
+					bindPanelSession,
 				});
 			}
 			logger.warn("Session open request failed; hydrating from the contract snapshot instead", {
@@ -542,6 +568,7 @@ export function openPersistedSession(options: OpenPersistedSessionOptions): void
 				sessionMetadata,
 				getSessionSnapshot,
 				ensureProviderSessionImported,
+				bindPanelSession,
 			});
 		})
 	);

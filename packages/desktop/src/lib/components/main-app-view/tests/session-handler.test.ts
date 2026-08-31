@@ -230,6 +230,7 @@ describe("SessionHandler", () => {
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
 				isPanelCurrent: expect.any(Function),
+				bindPanelSession: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -253,6 +254,7 @@ describe("SessionHandler", () => {
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
 				isPanelCurrent: expect.any(Function),
+				bindPanelSession: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -293,6 +295,7 @@ describe("SessionHandler", () => {
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
 				isPanelCurrent: expect.any(Function),
+				bindPanelSession: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -362,6 +365,7 @@ describe("SessionHandler", () => {
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
 				isPanelCurrent: expect.any(Function),
+				bindPanelSession: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -401,6 +405,7 @@ describe("SessionHandler", () => {
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
 				isPanelCurrent: expect.any(Function),
+				bindPanelSession: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});
@@ -490,6 +495,7 @@ describe("SessionHandler", () => {
 				sessionStore: mockSessionStore,
 				sessionOpenHydrator: mockSessionOpenHydrator,
 				isPanelCurrent: expect.any(Function),
+				bindPanelSession: expect.any(Function),
 				timeoutMs: 30_000,
 				source: "session-handler",
 			});

@@ -185,6 +185,15 @@ export interface ProjectionSessionsShape {
 	readonly get: (
 		sessionId: SessionId
 	) => Effect.Effect<Option.Option<ProjectedSession>, SqlError | Schema.SchemaError>
+	// The session that claims a provider's own on-disk session id
+	// (provider_session_id, stamped by the provider_session contract fact --
+	// see providerSessionIdFromMetadata above). One provider session belongs
+	// to at most one live session; the history importer asks this before
+	// creating a session for a JSONL uuid, so it resolves to the claiming
+	// session instead of forking a twin aggregate.
+	readonly findByProviderSessionId: (
+		providerSessionId: TrimmedNonEmptyString
+	) => Effect.Effect<Option.Option<ProjectedSession>, SqlError | Schema.SchemaError>
 }
 
 export class ProjectionSessions extends Context.Service<

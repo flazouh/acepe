@@ -56,6 +56,40 @@ const readById = Effect.fn("ProjectionSessions.readById")(function*(
 	})
 })
 
+const readByProviderSessionId = Effect.fn("ProjectionSessions.readByProviderSessionId")(
+	function*(tx: SqlClient.SqlClient, providerSessionId: TrimmedNonEmptyString) {
+		const rows = yield* tx`
+			SELECT
+				session_id,
+				project_id,
+				title,
+				provider,
+				created_at,
+				updated_at,
+				last_activity_at,
+				archived_at,
+				deleted_at,
+				pr_number,
+				pr_link_mode,
+				provider_session_id,
+				provider_session_failed,
+				ephemeral,
+				current_mode_id,
+				current_model_id,
+				available_models,
+				config_options
+			FROM projection_sessions
+			WHERE provider_session_id = ${providerSessionId}
+				AND deleted_at IS NULL
+			ORDER BY session_id ASC
+		`.withoutTransform
+		return yield* Option.match(Arr.head(rows), {
+			onNone: () => Effect.succeed(Option.none()),
+			onSome: (row) => decodeStoredProjectedSession(row).pipe(Effect.map(Option.some))
+		})
+	}
+)
+
 const readCurrent = Effect.fn("ProjectionSessions.readCurrent")(function*(
 	tx: SqlClient.SqlClient,
 	event: OrchestrationEvent
@@ -227,13 +261,20 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 			return yield* readById(sql, sessionId)
 		})
 
+		const findByProviderSessionId = Effect.fn("ProjectionSessions.findByProviderSessionId")(
+			function*(providerSessionId: TrimmedNonEmptyString) {
+				return yield* readByProviderSessionId(sql, providerSessionId)
+			}
+		)
+
 		return ProjectionSessions.of({
 			name,
 			apply,
 			truncate,
 			list,
 			listForProject,
-			get
+			get,
+			findByProviderSessionId
 		})
 	})
 )

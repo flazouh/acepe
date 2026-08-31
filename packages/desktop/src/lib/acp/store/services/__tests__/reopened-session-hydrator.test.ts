@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import type { RpcProjectedMessage, RpcSessionSnapshot } from "@acepe/contracts";
-import { emptyRpcSessionSnapshot, ProjectId, SessionId } from "@acepe/contracts";
+import { ApprovalRequestId, emptyRpcSessionSnapshot, ProjectId, SessionId } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 
 import type { SessionStateEnvelope } from "../../../../services/acp-types.js";
@@ -68,7 +68,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			getSessionSnapshot: () => Effect.succeed(snapshot),
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.void;
+				return Effect.succeed({ resolvedSessionId: null });
 			},
 			applySessionStateEnvelope: (sessionId, envelope) => {
 				appliedEnvelopes.push({ sessionId, envelope });
@@ -110,7 +110,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			},
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.void;
+				return Effect.succeed({ resolvedSessionId: null });
 			},
 			applySessionStateEnvelope: () => undefined,
 			getCurrentGraphRevision: () => null,
@@ -134,7 +134,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			getSessionSnapshot: () => Effect.succeed(emptyRpcSessionSnapshot(0)),
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.void;
+				return Effect.succeed({ resolvedSessionId: null });
 			},
 			applySessionStateEnvelope: () => undefined,
 			getCurrentGraphRevision: () => null,
@@ -174,7 +174,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: (): Effect.Effect<RpcSessionSnapshot, AppError> =>
 				Effect.fail(new AgentError("acp.getSessionSnapshot", new Error("network down"))),
-			ensureProviderSessionImported: () => Effect.void,
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: null }),
 			applySessionStateEnvelope: () => undefined,
 			getCurrentGraphRevision: () => null,
 		};
@@ -201,7 +201,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const appliedEnvelopes: SessionStateEnvelope[] = [];
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: () => Effect.succeed(snapshot),
-			ensureProviderSessionImported: () => Effect.void,
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: null }),
 			applySessionStateEnvelope: (_sessionId, envelope) => {
 				appliedEnvelopes.push(envelope);
 			},
@@ -227,6 +227,74 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		expect(applied.graphRevision).toBeGreaterThan(4);
 	});
 
+	// Reload-loses-pending-approval root cause (live repro 2026-08-31): a
+	// panel restored with the provider's on-disk uuid (the #262 alias display
+	// identity) has no aggregate of its own -- the live session claimed that
+	// uuid via provider_session_id. The import step now RESOLVES the uuid to
+	// the claiming aggregate instead of forking a twin, and the hydrator must
+	// follow that resolution: fetch the claiming aggregate's snapshot (which
+	// carries the still-pending approval), apply the graph under the claiming
+	// id, and report the canonical id so the caller can rebind the panel.
+	it("follows the resolved aggregate when the requested id is a claimed provider uuid", async () => {
+		const requestedUuid = "3c8bd13c-556e-428b-a155-ae33a1a0a0f6";
+		const claimingSessionId = SessionId.make("session-session-create-claimed-1");
+		const claimingSnapshot = withSession(
+			{
+				...emptyRpcSessionSnapshot(10),
+				messages: [userMessage("msg-1", "run the command", 1)],
+				pendingApprovals: [
+					{
+						approvalRequestId: ApprovalRequestId.make("perm-toolu-claimed-1"),
+						sessionId: claimingSessionId,
+						sequence: 9,
+					},
+				],
+			},
+			claimingSessionId
+		);
+		const fetchedIds: string[] = [];
+		const appliedEnvelopes: Array<{ sessionId: string; envelope: SessionStateEnvelope }> = [];
+		const deps: ReopenedSessionHydratorDeps = {
+			getSessionSnapshot: (sessionId) => {
+				fetchedIds.push(sessionId);
+				return Effect.succeed(
+					sessionId === claimingSessionId ? claimingSnapshot : emptyRpcSessionSnapshot(0)
+				);
+			},
+			ensureProviderSessionImported: () =>
+				Effect.succeed({ resolvedSessionId: claimingSessionId }),
+			applySessionStateEnvelope: (sessionId, envelope) => {
+				appliedEnvelopes.push({ sessionId, envelope });
+			},
+			getCurrentGraphRevision: () => null,
+		};
+
+		const result = await Effect.runPromise(
+			hydrateReopenedSessionSnapshot(
+				{
+					...baseInput(),
+					sessionId: requestedUuid,
+					sourcePath: "/home/user/.claude/3c8bd13c.jsonl",
+				},
+				deps
+			)
+		);
+
+		expect(result).toEqual({ applied: true, canonicalSessionId: claimingSessionId });
+		expect(fetchedIds).toEqual([requestedUuid, claimingSessionId]);
+		expect(appliedEnvelopes).toHaveLength(1);
+		expect(appliedEnvelopes[0]?.sessionId).toBe(claimingSessionId);
+		const payload = appliedEnvelopes[0]?.envelope.payload;
+		if (payload?.kind !== "snapshot") {
+			throw new Error("expected a snapshot envelope");
+		}
+		expect(payload.graph.canonicalSessionId).toBe(claimingSessionId);
+		expect(payload.graph.requestedSessionId).toBe(requestedUuid);
+		expect(payload.graph.isAlias).toBe(true);
+		expect(payload.graph.interactions).toHaveLength(1);
+		expect(payload.graph.interactions[0]?.id).toBe("perm-toolu-claimed-1");
+	});
+
 	it("does not re-apply when the local graph's transcript is already at least as new", async () => {
 		const snapshot = withSession(
 			{ ...emptyRpcSessionSnapshot(3), messages: [userMessage("msg-1", "hello", 1)] },
@@ -235,7 +303,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const appliedEnvelopes: SessionStateEnvelope[] = [];
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: () => Effect.succeed(snapshot),
-			ensureProviderSessionImported: () => Effect.void,
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: null }),
 			applySessionStateEnvelope: (_sessionId, envelope) => {
 				appliedEnvelopes.push(envelope);
 			},

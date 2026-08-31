@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
+import { emptyRpcSessionSnapshot } from "@acepe/contracts";
 import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -25,7 +26,8 @@ const getSessionSnapshotMock = mock(
 		Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
 );
 const ensureProviderSessionImportedMock = mock(
-	(_sessionId: string): Effect.Effect<void, AppError> => Effect.succeed(undefined)
+	(_sessionId: string): Effect.Effect<{ resolvedSessionId: string | null }, AppError> =>
+		Effect.succeed({ resolvedSessionId: null })
 );
 
 let openPersistedSession: typeof import("../logic/open-persisted-session.js").openPersistedSession;
@@ -109,7 +111,9 @@ describe("openPersistedSession", () => {
 			Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
 		);
 		ensureProviderSessionImportedMock.mockReset();
-		ensureProviderSessionImportedMock.mockImplementation(() => Effect.succeed(undefined));
+		ensureProviderSessionImportedMock.mockImplementation(() =>
+			Effect.succeed({ resolvedSessionId: null })
+		);
 
 		sessionStore = {
 			read: {
@@ -902,6 +906,85 @@ describe("openPersistedSession", () => {
 		// normal provider-history-backed reopen does.
 		expect(getSessionSnapshotMock).toHaveBeenCalledWith("session-1");
 		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith("session-1");
+	});
+
+	// Reload-loses-pending-approval root cause (live repro 2026-08-31): a
+	// panel restored with the provider's on-disk uuid resolves, through the
+	// import step, to the live aggregate that claims the uuid. The catch-path
+	// hydration then applies the graph under the claiming id, so the panel
+	// must be rebound to it -- exactly like session-open-hydrator's found
+	// path rebinding to SessionOpenFound.canonicalSessionId.
+	it("rebinds the panel when catch-path hydration resolves a claimed provider uuid", async () => {
+		const requestedUuid = "3c8bd13c-556e-428b-a155-ae33a1a0a0f6";
+		const claimingSessionId = "session-session-create-claimed-1";
+		getSessionOpenResultMock.mockImplementation(
+			() =>
+				Effect.fail(new Error("unsupportedOnContract")) as unknown as ReturnType<
+					typeof getSessionOpenResultMock
+				>
+		);
+		setSessionLookup({
+			id: requestedUuid,
+			title: "Claimed uuid session",
+			projectPath: "/project",
+			agentId: "claude-code",
+			sourcePath: "/tmp/3c8bd13c.jsonl",
+			createdAt: new Date(),
+			updatedAt: new Date(),
+			sessionLifecycleState: "persisted" as const,
+			parentId: null,
+		});
+		getSessionSnapshotMock.mockImplementation(
+			(sessionId: string) =>
+				Effect.succeed(
+					sessionId === claimingSessionId
+						? {
+								...emptyRpcSessionSnapshot(10),
+								session: {
+									sessionId: claimingSessionId,
+									projectId: "project-1",
+									title: "Claimed",
+									provider: "claude-code",
+									createdAt: "2026-08-01T00:00:00.000Z",
+									updatedAt: "2026-08-01T00:00:00.000Z",
+									lastActivityAt: "2026-08-01T00:00:00.000Z",
+									archivedAt: null,
+									deletedAt: null,
+									prNumber: null,
+									prLinkMode: null,
+									providerSessionId: requestedUuid,
+									providerSessionFailed: false,
+								},
+							}
+						: emptyRpcSessionSnapshot(0)
+				) as unknown as ReturnType<typeof getSessionSnapshotMock>
+		);
+		ensureProviderSessionImportedMock.mockImplementation(
+			() =>
+				Effect.succeed({ resolvedSessionId: claimingSessionId }) as unknown as ReturnType<
+					typeof ensureProviderSessionImportedMock
+				>
+		);
+		const bindPanelSession = mock((_panelId: string, _sessionId: string) => {});
+
+		openPersistedSession({
+			panelId: "panel-1",
+			sessionId: requestedUuid,
+			sessionStore,
+			sessionOpenHydrator,
+			getSessionOpenResult: getSessionOpenResultMock,
+			getSessionSnapshot: getSessionSnapshotMock,
+			ensureProviderSessionImported: ensureProviderSessionImportedMock,
+			bindPanelSession,
+			timeoutMs: 10_000,
+			source: "initialization-manager",
+		});
+
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(getSessionSnapshotMock).toHaveBeenCalledWith(requestedUuid);
+		expect(getSessionSnapshotMock).toHaveBeenCalledWith(claimingSessionId);
+		expect(bindPanelSession).toHaveBeenCalledWith("panel-1", claimingSessionId);
+		expect(sessionStore.loading.setSessionLoaded).toHaveBeenCalledWith(claimingSessionId);
 	});
 
 	it("hydrates local-created sessions when Rust can open a canonical snapshot", async () => {
