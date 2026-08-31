@@ -13,6 +13,10 @@
 #   scripts/staging-app.sh          build if missing, start the staging app
 #   scripts/staging-app.sh stop     stop the staging app
 #   scripts/staging-app.sh reset    stop it and delete the staging DB
+#   scripts/staging-app.sh seed     stop it and copy the REAL DB into staging
+#                                   (upgrade rehearsal: new migrations run
+#                                   against a copy of live data, never the
+#                                   real file)
 #   scripts/staging-app.sh status   show whether the staging app runs
 set -euo pipefail
 
@@ -54,6 +58,18 @@ case "${1:-start}" in
     stop_app
     rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal"
     echo "staging app stopped and staging DB deleted ($DB_PATH)"
+    exit 0
+    ;;
+  seed)
+    PROD_DB="$HOME/Library/Application Support/com.acepe.app/acepe-tracer-com.acepe.app.sqlite"
+    [ -f "$PROD_DB" ] || { echo "no production DB at $PROD_DB" >&2; exit 1; }
+    stop_app
+    rm -f "$DB_PATH" "$DB_PATH-shm" "$DB_PATH-wal"
+    # sqlite's own .backup reads a consistent snapshot even while the real
+    # app is running (WAL-safe); a plain cp mid-write would not be.
+    sqlite3 "$PROD_DB" ".backup '$DB_PATH'"
+    echo "staging DB seeded from a copy of the real DB ($(du -h "$DB_PATH" | cut -f1 | tr -d ' '))"
+    echo "start it: scripts/staging-app.sh"
     exit 0
     ;;
   start) ;;
