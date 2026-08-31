@@ -349,6 +349,7 @@ describe("SessionStore canonical projection accessors", () => {
 		expect(store.read.getSessionTurnState("session-1")).toBe("Running");
 		expect(store.presentation.getSessionAgentPanelSessionSource("session-1")).toEqual({
 			kind: "canonical",
+			activeStreamingTail: null,
 			lifecycle: createReadyLifecycle(),
 			activity: {
 				kind: "idle",

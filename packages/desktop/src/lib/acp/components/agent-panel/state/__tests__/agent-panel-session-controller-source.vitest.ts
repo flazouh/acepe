@@ -79,6 +79,7 @@ describe("AgentPanelSessionController canonical source binding", () => {
 				blockingInteractionId: null,
 			},
 			turnState: "Completed",
+			activeStreamingTail: null,
 		});
 
 		expect(controller.canonicalPanelSessionSource.kind).toBe("canonical");
@@ -97,6 +98,7 @@ describe("AgentPanelSessionController canonical source binding", () => {
 				blockingInteractionId: null,
 			},
 			turnState: "Completed",
+			activeStreamingTail: null,
 		});
 
 		expect(controller.sessionCanSubmit).toBe(false);

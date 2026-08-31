@@ -164,7 +164,6 @@ function renderTurn(input: {
 		source,
 		hasEntries: input.sceneEntries.length > 0,
 		hasLocalPendingSendIntent: input.hasLocalPendingSendIntent,
-		hasTrailingCompletedTool: hasTrailingCompletedTool(input.bufferRows),
 	});
 
 	const rendered = buildRenderedTranscriptViewportRows({

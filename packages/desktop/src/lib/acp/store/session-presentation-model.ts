@@ -146,6 +146,7 @@ export class SessionPresentationModel {
 			lifecycle: projection.lifecycle,
 			activity: projection.activity,
 			turnState: projection.turnState,
+			activeStreamingTail: projection.activeStreamingTail,
 		};
 	}
 

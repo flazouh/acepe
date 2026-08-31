@@ -361,7 +361,6 @@ export class AgentPanelSessionController {
 			hasEntries: this.hasMessages,
 			hasOptimisticPendingEntry: this.preSessionPendingUserEntry !== null,
 			hasLocalPendingSendIntent: this.sessionPendingSendIntent !== null,
-			hasTrailingCompletedTool: this.hasTrailingCompletedTool,
 		})
 	);
 

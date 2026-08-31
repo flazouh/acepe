@@ -163,31 +163,32 @@ function operationSnapshot(state: OperationState): OperationSnapshot {
 
 function awaitingModelSessionState(
 	bufferRows: readonly TranscriptViewportRow[],
-	operations: readonly OperationSnapshot[] | null = null
+	operations: readonly OperationSnapshot[] | null = null,
+	activityKind: "awaiting_model" | "running_operation" = "awaiting_model"
 ) {
 	return deriveCanonicalAgentPanelSessionState({
 		source: {
 			kind: "canonical",
 			lifecycle: READY_LIFECYCLE,
 			activity: {
-				kind: "awaiting_model",
-				activeOperationCount: 0,
+				kind: activityKind,
+				activeOperationCount: activityKind === "running_operation" ? 1 : 0,
 				activeSubagentCount: 0,
-				dominantOperationId: null,
+				dominantOperationId: activityKind === "running_operation" ? "tool-1" : null,
 				blockingInteractionId: null,
 			},
 			turnState: "Running",
 		},
 		hasEntries: true,
-		hasTrailingCompletedTool: hasTrailingCompletedTool(bufferRows, operations),
 	});
 }
 
 function renderAwaitingModelRows(
 	bufferRows: readonly TranscriptViewportRow[],
-	operations: readonly OperationSnapshot[] | null = null
+	operations: readonly OperationSnapshot[] | null = null,
+	activityKind: "awaiting_model" | "running_operation" = "awaiting_model"
 ) {
-	const sessionState = awaitingModelSessionState(bufferRows, operations);
+	const sessionState = awaitingModelSessionState(bufferRows, operations, activityKind);
 	return buildRenderedTranscriptViewportRows({
 		bufferRows,
 		bufferStartIndex: 0,
@@ -225,14 +226,25 @@ test("uses canonical operation patches when the trailing viewport tool link is s
 	});
 });
 
-test("does not show planning immediately after send while the user row is still the tail", () => {
+// Found live: a plain first send with a long thinking phase rendered
+// NOTHING after the user row for the whole model wait. The canonical
+// awaiting_model + Running with no streaming tail IS the wait, and the
+// working placeholder must cover it.
+test("shows the working placeholder through the model wait right after send", () => {
 	const renderedRows = renderAwaitingModelRows([userRow()]);
 
-	expect(renderedRows.map((row) => row.entry.type)).toEqual(["user"]);
+	expect(renderedRows.map((row) => row.entry.type)).toEqual(["user", "thinking"]);
 });
 
-test("does not show planning while the trailing tool has not completed", () => {
-	const renderedRows = renderAwaitingModelRows([userRow(), toolRow("running")]);
+// A genuinely running tool reports activity running_operation (see the
+// bridge's tool handling), so the placeholder stays off and the tool row
+// itself carries the live state.
+test("does not show planning while the trailing tool is still running", () => {
+	const renderedRows = renderAwaitingModelRows(
+		[userRow(), toolRow("running")],
+		null,
+		"running_operation"
+	);
 
 	expect(renderedRows.map((row) => row.entry.type)).toEqual(["user", "tool_call"]);
 });

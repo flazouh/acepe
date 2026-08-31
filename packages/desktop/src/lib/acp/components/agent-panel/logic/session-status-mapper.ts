@@ -25,6 +25,11 @@ export type CanonicalAgentPanelSessionSource =
 			readonly lifecycle: SessionGraphLifecycle;
 			readonly activity: SessionGraphActivity | null;
 			readonly turnState: SessionTurnState | null;
+			/**
+			 * The canonical streaming tail, or null while nothing streams.
+			 * Optional so older callers and fixtures read as "no tail".
+			 */
+			readonly activeStreamingTail?: { readonly rowId: string } | null;
 	  }
 	| {
 			readonly kind: "missing_canonical";
@@ -36,7 +41,6 @@ export interface CanonicalAgentPanelSessionStateInput {
 	readonly hasEntries?: boolean;
 	readonly hasOptimisticPendingEntry?: boolean;
 	readonly hasLocalPendingSendIntent?: boolean;
-	readonly hasTrailingCompletedTool: boolean;
 }
 
 export interface CanonicalAgentPanelSessionState {
@@ -238,17 +242,23 @@ export function deriveCanonicalAgentPanelSessionState(
 	// A local send intent is set synchronously on the client the instant the
 	// user hits send (see SessionMessagingService.setPendingSendIntent). The
 	// canonical `awaiting_model`/`Running` envelope only arrives after a round
-	// trip to Rust, so gating the placeholder on that envelope alone leaves a
-	// blank panel between send and first token on an already-`ready` session
-	// (e.g. a reopened panel sending a follow-up). Trust the local send intent
-	// immediately; fall back to the canonical awaiting-model signal for the
-	// no-local-intent case (the agent auto-continuing after a completed tool).
+	// trip to the server, so gating the placeholder on that envelope alone
+	// leaves a blank panel between send and first token. Trust the local send
+	// intent immediately; past that, the canonical signal that means "the
+	// model is working and nothing is visible yet" is awaiting_model + Running
+	// with NO active streaming tail. The tail check is what ends the
+	// placeholder: activity stays awaiting_model while tokens stream (see the
+	// bridge's onTokenAppended), so without it the row would sit under the
+	// streaming reply. An earlier version demanded a trailing completed tool
+	// instead, which made the placeholder vanish for the whole model wait of
+	// a plain text turn -- the send intent clears the moment the canonical
+	// user entry lands, long before the first token.
 	const shouldShowPlanningPlaceholder =
 		input.source.lifecycle.status === "ready" &&
 		(input.hasLocalPendingSendIntent === true ||
 			(effectiveActivity?.kind === "awaiting_model" &&
 				effectiveTurnState === "Running" &&
-				input.hasTrailingCompletedTool));
+				(input.source.activeStreamingTail ?? null) === null));
 	let localPlaceholderMode: LocalPlaceholderMode = "none";
 	// #268 defect 3: a turn blocked on an unanswered approval (activity.kind
 	// === "waiting_for_user") used to fall through to the same endless
