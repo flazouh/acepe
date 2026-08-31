@@ -9,6 +9,7 @@ import {
 	type SessionModelCatalog,
 	SessionMetaUpdatedEvent,
 	sessionModelsListedFact,
+	ThoughtAppendedEvent,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
@@ -106,6 +107,31 @@ const makeTokenEvent = Effect.fn("GrokAdapter.makeTokenEvent")(function*(
 		correlationId: header.commandId,
 		metadata: EMPTY_JSON_OBJECT,
 		type: "TokenAppended",
+		payload: {
+			sessionId: runtime.sessionId,
+			messageId: assistantMessageId(runtime.sessionId, lastUser),
+			token
+		}
+	})
+})
+
+const makeThoughtEvent = Effect.fn("GrokAdapter.makeThoughtEvent")(function*(
+	runtime: SessionRuntime,
+	token: string
+) {
+	const header = yield* stamp(runtime)
+	const lastUser = yield* Ref.get(runtime.lastUserMessageId)
+	return ThoughtAppendedEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "ThoughtAppended",
 		payload: {
 			sessionId: runtime.sessionId,
 			messageId: assistantMessageId(runtime.sessionId, lastUser),
@@ -345,6 +371,13 @@ export const publishFact = Effect.fn("GrokAdapter.publishFact")(function*(
 ) {
 	if (fact.contractKind === "text_delta") {
 		const event = yield* makeTokenEvent(runtime, fact.token)
+		return yield* offerOutbound(runtime, event)
+	}
+	// Same carve-out as text_delta: thought content is transcript product
+	// truth and must not fold into generic SessionMetaUpdated metadata --
+	// see makeThoughtEvent's doc in Claude/Session.ts.
+	if (fact.contractKind === "thought_delta") {
+		const event = yield* makeThoughtEvent(runtime, fact.token)
 		return yield* offerOutbound(runtime, event)
 	}
 	// A real Grok tool call must reach ProjectionSessionActivities as a

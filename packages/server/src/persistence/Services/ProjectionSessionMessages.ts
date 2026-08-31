@@ -1,7 +1,11 @@
 import {
+	appendAssistantPart,
+	AssistantMessageContent,
+	normalizeAssistantContent,
 	type OrchestrationEvent,
 	Sequence,
 	SessionId,
+	StoredAssistantMessageContent,
 	TranscriptText,
 	TrimmedNonEmptyString,
 	TurnId
@@ -64,7 +68,11 @@ export const AssistantProjectedMessage = Schema.Struct({
 	messageId: TrimmedNonEmptyString,
 	turnId: Schema.NullOr(TurnId),
 	rowType: Schema.Literal("assistant"),
-	content: TextContent
+	// Ordered streamed slices (reply text and extended thinking), the same
+	// AssistantMessageContent the RPC snapshot carries -- one definition, so
+	// the persisted fold and the contract fold cannot drift. See
+	// @acepe/contracts assistantMessageContent.ts.
+	content: AssistantMessageContent
 })
 export type AssistantProjectedMessage = typeof AssistantProjectedMessage.Type
 
@@ -106,6 +114,12 @@ export const decodeProjectionSessionMessageStoredRows = Schema.decodeUnknownEffe
 )
 
 const encodeTextContentJson = Schema.encodeEffect(Schema.fromJsonString(TextContent))
+const encodeAssistantContentJson = Schema.encodeEffect(
+	Schema.fromJsonString(AssistantMessageContent)
+)
+const decodeStoredAssistantContentJson = Schema.decodeUnknownEffect(
+	Schema.fromJsonString(StoredAssistantMessageContent)
+)
 const encodeCompactionContentJson = Schema.encodeEffect(Schema.fromJsonString(CompactionSeamContent))
 const decodeTextContentJson = Schema.decodeUnknownEffect(Schema.fromJsonString(TextContent))
 const decodeCompactionContentJson = Schema.decodeUnknownEffect(
@@ -134,16 +148,14 @@ export const assistantMessageRow = (input: {
 	readonly sequence: Sequence
 	readonly messageId: TrimmedNonEmptyString
 	readonly turnId: TurnId | null
-	readonly text: TranscriptText
+	readonly content: AssistantMessageContent
 }): AssistantProjectedMessage => ({
 	sessionId: input.sessionId,
 	sequence: input.sequence,
 	messageId: input.messageId,
 	turnId: input.turnId,
 	rowType: "assistant",
-	content: {
-		text: input.text
-	}
+	content: input.content
 })
 
 export const compactionSeamRow = (input: {
@@ -186,11 +198,10 @@ export const rowFromEvent = (
 						text: sent.payload.text
 					})
 				),
+			// Streamed assistant slices grow an existing row rather than
+			// creating one per event, so the Layers fold handles them via
+			// nextAssistantFromStream, not this per-event mapping.
 			TokenAppended: ignoreEvent,
-			// Thought deltas are transcript-bearing on the LIVE path only (the
-			// desktop bridge appends them as "thought" segments). The persisted
-			// message projection has no thought row kind yet, so a reopened
-			// session's snapshot does not carry thinking content.
 			ThoughtAppended: ignoreEvent,
 			ProjectCreated: ignoreEvent,
 			ProjectMetaUpdated: ignoreEvent,
@@ -263,10 +274,15 @@ export const rowFromEvent = (
 		})
 	)(event)
 
-export const nextAssistantFromToken = Effect.fn("nextAssistantFromToken")(function*(
-	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>,
+// One fold for both streamed slices of an assistant row: reply text
+// (TokenAppended) and extended thinking (ThoughtAppended) differ only in
+// which part kind they grow, and appendAssistantPart keeps the streamed
+// interleave order the live transcript rendered.
+export const nextAssistantFromStream = Effect.fn("nextAssistantFromStream")(function*(
+	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" | "ThoughtAppended" }>,
 	current: Option.Option<ProjectionSessionMessage>
 ) {
+	const kind = event.type === "ThoughtAppended" ? ("thought" as const) : ("text" as const)
 	// TranscriptText, not TrimmedNonEmptyString: the row grows one token at a
 	// time, so a trimming schema here ate the trailing space of the token
 	// before it and glued the next one on ("I'll runall three steps.").
@@ -279,7 +295,7 @@ export const nextAssistantFromToken = Effect.fn("nextAssistantFromToken")(functi
 			sequence: current.value.sequence,
 			messageId: current.value.messageId,
 			turnId: current.value.turnId,
-			text: `${current.value.content.text}${token}`
+			content: appendAssistantPart(current.value.content, kind, token)
 		})
 	}
 	return assistantMessageRow({
@@ -287,7 +303,7 @@ export const nextAssistantFromToken = Effect.fn("nextAssistantFromToken")(functi
 		sequence: event.sequence,
 		messageId: event.payload.messageId,
 		turnId: null,
-		text: token
+		content: { parts: [{ kind, text: token }] }
 	})
 })
 
@@ -296,7 +312,7 @@ export const encodeContentJson = Effect.fn("encodeContentJson")(
 		Match.value(message).pipe(
 			Match.discriminatorsExhaustive("rowType")({
 				user: (row) => encodeTextContentJson(row.content),
-				assistant: (row) => encodeTextContentJson(row.content),
+				assistant: (row) => encodeAssistantContentJson(row.content),
 				compaction: (row) => encodeCompactionContentJson(row.content)
 			})
 		)
@@ -317,15 +333,18 @@ export const decodeProjectedMessage = Effect.fn("decodeProjectedMessage")(
 					}))
 				)
 			),
+			// Versioned decode at the storage boundary: rows written before
+			// parts existed hold {"text": "..."} and normalize to a single
+			// text part, so no reader past this seam ever sees two shapes.
 			Match.when("assistant", () =>
-				decodeTextContentJson(row.content).pipe(
-					Effect.map((content): ProjectionSessionMessage => ({
+				decodeStoredAssistantContentJson(row.content).pipe(
+					Effect.map((stored): ProjectionSessionMessage => ({
 						sessionId: row.session_id,
 						sequence: row.sequence,
 						messageId: row.message_id,
 						turnId: row.turn_id,
 						rowType: "assistant",
-						content
+						content: normalizeAssistantContent(stored)
 					}))
 				)
 			),

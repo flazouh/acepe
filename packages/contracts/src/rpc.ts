@@ -1,4 +1,5 @@
 import { AgentCallRequest, AgentCallResult } from "./agentCall.ts"
+import { AssistantMessageContent } from "./assistantMessageContent.ts"
 import {
 	CheckpointFileCount,
 	CheckpointNumber,
@@ -37,6 +38,7 @@ import {
 	ListProviderProjectsRequest,
 	ListProviderSessionsRequest,
 } from "./providerDiscovery.ts"
+import { SessionConfigOptionValues } from "./sessionConfigOptions.ts"
 import { SessionModelCatalog } from "./sessionModels.ts"
 import { ProjectedSessionReviewState } from "./sessionReview.ts"
 import { ProjectedTerminal } from "./terminal.ts"
@@ -360,6 +362,12 @@ export const RpcProjectedSession = Schema.Struct({
 	// was never asked or never answered, and then the session offers no
 	// models -- never a hardcoded list standing in for the provider's answer.
 	availableModels: SessionModelCatalog.pipe(Schema.NullOr, Schema.optionalKey),
+	// The canonical config option values, folded from SessionConfigOptionSet
+	// events so the last value per key wins -- same precedence rule as
+	// currentModeId. Null means none ever fired, and only then does the
+	// provider catalog's own default stand. The option catalog (names, values,
+	// presentation) stays provider-owned; this carries only the chosen values.
+	configOptions: SessionConfigOptionValues.pipe(Schema.NullOr, Schema.optionalKey),
 })
 export type RpcProjectedSession = typeof RpcProjectedSession.Type
 
@@ -379,7 +387,9 @@ export const RpcAssistantProjectedMessage = Schema.Struct({
 	messageId: TrimmedNonEmptyString,
 	turnId: Schema.NullOr(TurnId),
 	rowType: Schema.Literal("assistant"),
-	content: RpcTextContent,
+	// Ordered streamed slices (reply text and extended thinking), not a flat
+	// text string -- see assistantMessageContent.ts.
+	content: AssistantMessageContent,
 })
 export type RpcAssistantProjectedMessage = typeof RpcAssistantProjectedMessage.Type
 

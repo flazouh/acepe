@@ -6,6 +6,8 @@ import {
 	ProjectId,
 	ProviderSessionFailedPayload,
 	SessionArchivedPayload,
+	SessionConfigOptionSetPayload,
+	SessionConfigOptionValues,
 	SessionCreatedPayload,
 	SessionDeletedPayload,
 	SessionId,
@@ -17,6 +19,7 @@ import {
 	SessionPrLinkMode,
 	SessionPrNumber,
 	SessionUnarchivedPayload,
+	StoredSessionConfigOptionValues,
 	StoredSessionModelCatalog,
 	TokenAppendedPayload,
 	ThoughtAppendedPayload,
@@ -122,7 +125,19 @@ export const ProjectedSession = Schema.Struct({
 	// Null, not an empty list, for a session whose provider was never asked or
 	// could not answer. A provider with no catalog publishes none and the
 	// picker honestly offers nothing -- there is no constant to fall back to.
-	availableModels: SessionModelCatalog.pipe(Schema.NullOr, Schema.optionalKey)
+	availableModels: SessionModelCatalog.pipe(Schema.NullOr, Schema.optionalKey),
+	// The config option values this session chose, folded from canonical
+	// SessionConfigOptionSet events so the last value per key wins -- the same
+	// precedence rule as currentModeId and currentModelId, and for the same
+	// reason: the provider's catalog reports its own default at every (re)open,
+	// so a reasoning effort chosen before a restart would silently read as
+	// "auto" again. Null means no SessionConfigOptionSet ever fired, and only
+	// then does the provider catalog's default stand. The catalog itself
+	// (names, values, presentation) stays provider-owned; this pairs canonical
+	// chosen values with that catalog, never two answers to the same question.
+	//
+	// Optional for a row written before the config_options column existed.
+	configOptions: SessionConfigOptionValues.pipe(Schema.NullOr, Schema.optionalKey)
 })
 export type ProjectedSession = typeof ProjectedSession.Type
 
@@ -147,7 +162,8 @@ const ProjectionSessionRow = Schema.Struct({
 	current_model_id: TrimmedNonEmptyString.pipe(Schema.NullOr, Schema.optionalKey),
 	// JSON text through the same schema that wrote it, the way
 	// ProjectedSessionActivity stores its input and output payloads.
-	available_models: StoredSessionModelCatalog.pipe(Schema.optionalKey)
+	available_models: StoredSessionModelCatalog.pipe(Schema.optionalKey),
+	config_options: StoredSessionConfigOptionValues.pipe(Schema.optionalKey)
 })
 
 export interface ProjectionSessionsShape {
@@ -195,7 +211,8 @@ const projectedSessionFromRow = (
 	ephemeral: row.ephemeral === 1,
 	currentModeId: row.current_mode_id ?? null,
 	currentModelId: row.current_model_id ?? null,
-	availableModels: row.available_models ?? null
+	availableModels: row.available_models ?? null,
+	configOptions: row.config_options ?? null
 })
 
 const decodeRow = Schema.decodeUnknownEffect(ProjectionSessionRow)
@@ -312,6 +329,10 @@ const availableModelsOf = (
 	session: ProjectedSession
 ): SessionModelCatalog | null => session.availableModels ?? null
 
+const configOptionsOf = (
+	session: ProjectedSession
+): SessionConfigOptionValues | null => session.configOptions ?? null
+
 const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSession => ({
 	sessionId: session.sessionId,
 	projectId: session.projectId,
@@ -329,7 +350,8 @@ const touch = (session: ProjectedSession, occurredAt: IsoDateTime): ProjectedSes
 	ephemeral: session.ephemeral,
 	currentModeId: currentModeIdOf(session),
 	currentModelId: currentModelIdOf(session),
-	availableModels: availableModelsOf(session)
+	availableModels: availableModelsOf(session),
+	configOptions: configOptionsOf(session)
 })
 
 const projectSessionCreated = (
@@ -354,7 +376,8 @@ const projectSessionCreated = (
 				ephemeral: payload.ephemeral ?? false,
 				currentModeId: null,
 				currentModelId: null,
-				availableModels: null
+				availableModels: null,
+				configOptions: null
 			})
 		)
 	)
@@ -524,6 +547,29 @@ const projectSessionModelSet = (
 		)
 	)
 
+// The canonical config option values, folded like projectSessionModeSet above
+// so the LAST SessionConfigOptionSet per key wins. Until this existed the
+// event was committed, applied to the SDK query at the next (re)open
+// (ProviderBridge.sessionConfigOptions), and read by no projection -- so the
+// composer's Reasoning Effort widget fell back to the provider catalog's
+// "auto" default after every restart while the session actually ran at the
+// chosen effort.
+const projectSessionConfigOptionSet = (
+	current: Option.Option<ProjectedSession>,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionConfigOptionSet" }>
+): Effect.Effect<Option.Option<ProjectedSession>, Schema.SchemaError> =>
+	decodePayload(SessionConfigOptionSetPayload, event.payload).pipe(
+		Effect.map((payload) =>
+			mapExisting(current, (session) => ({
+				...touch(session, event.occurredAt),
+				configOptions: {
+					...(session.configOptions ?? {}),
+					[payload.key]: payload.value
+				}
+			}))
+		)
+	)
+
 // A session that fails before ever learning its providerSessionId (no
 // on-disk history to fall back to) is a "ghost row": it sits in the
 // library listing forever, unopenable. Marking it here lets the desktop
@@ -589,7 +635,7 @@ export const evolveProjectedSession = (
 			SessionModelSet: (modelSet) => projectSessionModelSet(current, modelSet),
 			SessionModeSet: (modeSet) => projectSessionModeSet(current, modeSet),
 			SessionAutonomousSet: () => Effect.succeed(current),
-			SessionConfigOptionSet: () => Effect.succeed(current),
+			SessionConfigOptionSet: (optionSet) => projectSessionConfigOptionSet(current, optionSet),
 			InteractionReplied: () => Effect.succeed(current),
 			InboundResponded: () => Effect.succeed(current),
 			AgentInitialized: () => Effect.succeed(current),

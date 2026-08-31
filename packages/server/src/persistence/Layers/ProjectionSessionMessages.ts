@@ -8,14 +8,15 @@ import {
 	decodeProjectedMessage,
 	decodeProjectionSessionMessageStoredRows,
 	encodeContentJson,
-	nextAssistantFromToken,
+	nextAssistantFromStream,
 	type ProjectionSessionMessage,
 	ProjectionSessionMessages,
 	rowFromEvent
 } from "../Services/ProjectionSessionMessages.ts"
 
 // The stored assistant row plus how far its fold has got: `lastSequence` is
-// the highest TokenAppended sequence already appended to `message`.
+// the highest streamed-slice (TokenAppended/ThoughtAppended) sequence
+// already appended to `message`.
 type AssistantFold = {
 	readonly message: ProjectionSessionMessage
 	readonly lastSequence: Sequence
@@ -102,8 +103,8 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 			})
 		})
 
-		const applyToken = Effect.fn("ProjectionSessionMessages.applyToken")(function*(
-			event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>,
+		const applyStream = Effect.fn("ProjectionSessionMessages.applyStream")(function*(
+			event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" | "ThoughtAppended" }>,
 			tx: SqlClient.SqlClient
 		) {
 			const current = yield* findAssistantFold(event.payload.sessionId, event.payload.messageId, tx)
@@ -117,7 +118,7 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 			if (Option.isSome(current) && event.sequence <= current.value.lastSequence) {
 				return
 			}
-			const row = yield* nextAssistantFromToken(
+			const row = yield* nextAssistantFromStream(
 				event,
 				Option.map(current, (fold) => fold.message)
 			)
@@ -126,8 +127,8 @@ export const ProjectionSessionMessagesLive = Layer.effect(ProjectionSessionMessa
 
 		const apply = Effect.fn("ProjectionSessionMessages.apply")(
 			(event: OrchestrationEvent, tx: SqlClient.SqlClient) => {
-				if (event.type === "TokenAppended") {
-					return applyToken(event, tx)
+				if (event.type === "TokenAppended" || event.type === "ThoughtAppended") {
+					return applyStream(event, tx)
 				}
 				return Option.match(rowFromEvent(event), {
 					onNone: () => Effect.void,

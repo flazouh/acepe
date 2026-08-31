@@ -4,6 +4,10 @@ import * as Order from "effect/Order"
 import * as Schema from "effect/Schema"
 import * as Str from "effect/String"
 
+import {
+	type AssistantMessagePartKind,
+	appendAssistantPart,
+} from "./assistantMessageContent.ts"
 import { type Sequence, TranscriptText, TrimmedNonEmptyString } from "./baseSchemas.ts"
 import type { OrchestrationEvent } from "./events.ts"
 import {
@@ -106,6 +110,7 @@ const touchSession = (
 		currentModeId: session.currentModeId ?? null,
 		currentModelId: session.currentModelId ?? null,
 		availableModels: session.availableModels ?? null,
+		configOptions: session.configOptions ?? null,
 	}
 }
 
@@ -132,10 +137,15 @@ const recordedToolOutput = (
 	return recorded
 }
 
+// One fold for both streamed slices of an assistant message: reply text
+// (TokenAppended) and extended thinking (ThoughtAppended) differ only in
+// which part kind they grow, and appendAssistantPart keeps the streamed
+// interleave order -- see assistantMessageContent.ts.
 const upsertAssistant = (
 	messages: ReadonlyArray<RpcProjectedMessage>,
-	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" }>,
+	event: Extract<OrchestrationEvent, { readonly type: "TokenAppended" | "ThoughtAppended" }>,
 ): ReadonlyArray<RpcProjectedMessage> => {
+	const kind: AssistantMessagePartKind = event.type === "ThoughtAppended" ? "thought" : "text"
 	const existing = Arr.findFirst(
 		messages,
 		(row) => row.rowType === "assistant" && row.messageId === event.payload.messageId,
@@ -151,7 +161,7 @@ const upsertAssistant = (
 			turnId: null,
 			rowType: "assistant",
 			content: {
-				text: token,
+				parts: [{ kind, text: token }],
 			},
 		}
 		return Arr.append(messages, created)
@@ -166,9 +176,7 @@ const upsertAssistant = (
 		messageId: current.messageId,
 		turnId: current.turnId,
 		rowType: "assistant",
-		content: {
-			text: `${current.content.text}${token}`,
-		},
+		content: appendAssistantPart(current.content, kind, token),
 	}
 	return Arr.map(messages, (row) =>
 		row.rowType === "assistant" && row.messageId === event.payload.messageId ? updated : row,
@@ -223,6 +231,7 @@ const applySessionCreated = (
 		currentModeId: null,
 		currentModelId: null,
 		availableModels: null,
+		configOptions: null,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -279,6 +288,7 @@ const applySessionMetaUpdated = (
 		currentModelId: current.currentModelId ?? null,
 		availableModels:
 			publishedModels !== null ? publishedModels : (current.availableModels ?? null),
+		configOptions: current.configOptions ?? null,
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -319,6 +329,29 @@ const applySessionModelSet = (
 		updatedAt: event.occurredAt,
 		lastActivityAt: event.occurredAt,
 		currentModelId: event.payload.modelId,
+	}
+	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
+}
+
+// Mirrors the server's projectSessionConfigOptionSet: the last value per key
+// wins, and the provider catalog's own default can never overwrite a value
+// the user already chose.
+const applySessionConfigOptionSet = (
+	snapshot: RpcSessionSnapshot,
+	event: Extract<OrchestrationEvent, { readonly type: "SessionConfigOptionSet" }>,
+): RpcSessionSnapshot => {
+	if (!isThisSession(snapshot, event.payload.sessionId) || snapshot.session === null) {
+		return withSequence(snapshot, event.sequence)
+	}
+	const current = snapshot.session
+	const session: RpcProjectedSession = {
+		...current,
+		updatedAt: event.occurredAt,
+		lastActivityAt: event.occurredAt,
+		configOptions: {
+			...(current.configOptions ?? {}),
+			[event.payload.key]: event.payload.value,
+		},
 	}
 	return replaceMessages(snapshot, event.sequence, snapshot.messages, session)
 }
@@ -1285,7 +1318,8 @@ export const applyEventToRpcSessionSnapshot = (
 				turns,
 			}
 		}
-		case "TokenAppended": {
+		case "TokenAppended":
+		case "ThoughtAppended": {
 			if (!isThisSession(snapshot, event.payload.sessionId)) {
 				return withSequence(snapshot, event.sequence)
 			}
@@ -1428,6 +1462,8 @@ export const applyEventToRpcSessionSnapshot = (
 			return applySessionModeSet(snapshot, event)
 		case "SessionModelSet":
 			return applySessionModelSet(snapshot, event)
+		case "SessionConfigOptionSet":
+			return applySessionConfigOptionSet(snapshot, event)
 		default:
 			return withSequence(snapshot, event.sequence)
 	}

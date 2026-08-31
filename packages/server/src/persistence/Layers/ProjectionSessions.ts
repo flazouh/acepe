@@ -1,4 +1,5 @@
 import {
+	encodeStoredSessionConfigOptionValues,
 	encodeStoredSessionModelCatalog,
 	type OrchestrationEvent,
 	ProjectId,
@@ -44,7 +45,8 @@ const readById = Effect.fn("ProjectionSessions.readById")(function*(
 			ephemeral,
 			current_mode_id,
 			current_model_id,
-			available_models
+			available_models,
+			config_options
 		FROM projection_sessions
 		WHERE session_id = ${sessionId}
 	`.withoutTransform
@@ -71,6 +73,9 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 	// JSON text through the schema that reads it back, not JSON.stringify --
 	// the same encoder ProjectionSessionActivities uses for its payloads.
 	const storedModels = yield* encodeStoredSessionModelCatalog(session.availableModels ?? null)
+	const storedConfigOptions = yield* encodeStoredSessionConfigOptionValues(
+		session.configOptions ?? null
+	)
 	yield* tx`
 		INSERT INTO projection_sessions (
 			session_id,
@@ -89,7 +94,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			ephemeral,
 			current_mode_id,
 			current_model_id,
-			available_models
+			available_models,
+			config_options
 		) VALUES (
 			${session.sessionId},
 			${session.projectId},
@@ -107,7 +113,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			${sqliteFlag(session.ephemeral)},
 			${session.currentModeId ?? null},
 			${session.currentModelId ?? null},
-			${storedModels}
+			${storedModels},
+			${storedConfigOptions}
 		)
 		ON CONFLICT(session_id) DO UPDATE SET
 			project_id = excluded.project_id,
@@ -125,7 +132,8 @@ const upsert = Effect.fn("ProjectionSessions.upsert")(function*(
 			ephemeral = excluded.ephemeral,
 			current_mode_id = excluded.current_mode_id,
 			current_model_id = excluded.current_model_id,
-			available_models = excluded.available_models
+			available_models = excluded.available_models,
+			config_options = excluded.config_options
 	`.withoutTransform.pipe(Effect.asVoid)
 })
 
@@ -173,7 +181,8 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							ephemeral,
 							current_mode_id,
 							current_model_id,
-							available_models
+							available_models,
+							config_options
 						FROM projection_sessions
 						ORDER BY last_activity_at DESC, session_id ASC
 					`.withoutTransform
@@ -195,7 +204,8 @@ export const ProjectionSessionsLive = Layer.effect(ProjectionSessions)(
 							ephemeral,
 							current_mode_id,
 							current_model_id,
-							available_models
+							available_models,
+							config_options
 						FROM projection_sessions
 						WHERE project_id = ${projectId}
 						ORDER BY last_activity_at DESC, session_id ASC

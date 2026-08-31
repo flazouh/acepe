@@ -86,6 +86,24 @@ const tokenAt = (sequence: number, token: string) => ({
 	},
 })
 
+const thoughtAt = (sequence: number, token: string) => ({
+	sequence,
+	eventId: EventId.make(`event-${sequence}`),
+	aggregateKind: "session" as const,
+	aggregateId: sessionId,
+	occurredAt,
+	commandId,
+	causationEventId: null,
+	correlationId: commandId,
+	metadata: {},
+	type: "ThoughtAppended" as const,
+	payload: {
+		sessionId,
+		messageId: assistantMessageId,
+		token,
+	},
+})
+
 const userTurnId = TurnId.make(userMessageId)
 
 const turnCompleted = (sequence: number, occurredAtOverride = occurredAt) => ({
@@ -275,7 +293,42 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(afterTokens.messages.map((row) => row.rowType)).toEqual(["user", "assistant"])
 		expect(afterTokens.messages.map((row) => row.sequence)).toEqual([3, 4])
 		expect(afterTokens.messages[0]?.content).toEqual({ text: "Ping" })
-		expect(afterTokens.messages[1]?.content).toEqual({ text: TRACER_REPLY_TEXT })
+		expect(afterTokens.messages[1]?.content).toEqual({
+			parts: [{ kind: "text", text: TRACER_REPLY_TEXT }],
+		})
+	})
+
+	// The canonical assistant shape is an ordered parts sequence: thought and
+	// text deltas interleave inside one assistant message, and a reopened
+	// session must replay them in streamed order -- all-thinking-first would
+	// misrepresent an interleaved turn.
+	it("folds thought deltas into ordered parts around the reply", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterStream = [
+			thoughtAt(4, "Weighing "),
+			thoughtAt(5, "the options."),
+			tokenAt(6, "Here is "),
+			tokenAt(7, "the answer."),
+			thoughtAt(8, "Wait, checking once more."),
+		].reduce(applyEventToRpcSessionSnapshot, afterUser)
+		expect(afterStream.messages.map((row) => row.rowType)).toEqual(["user", "assistant"])
+		expect(afterStream.messages[1]?.content).toEqual({
+			parts: [
+				{ kind: "thought", text: "Weighing the options." },
+				{ kind: "text", text: "Here is the answer." },
+				{ kind: "thought", text: "Wait, checking once more." },
+			],
+		})
+	})
+
+	it("starts an assistant row from a thought delta alone", () => {
+		const afterSession = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const afterUser = applyEventToRpcSessionSnapshot(afterSession, messageSent)
+		const afterThought = applyEventToRpcSessionSnapshot(afterUser, thoughtAt(4, "Considering."))
+		expect(afterThought.messages[1]?.content).toEqual({
+			parts: [{ kind: "thought", text: "Considering." }],
+		})
 	})
 
 	// Real provider deltas often end in a space. The client-side fold used to
@@ -289,7 +342,7 @@ describe("applyEventToRpcSessionSnapshot", () => {
 			afterUser,
 		)
 		expect(afterTokens.messages[1]?.content).toEqual({
-			text: "I'll run all three\n\nsteps.",
+			parts: [{ kind: "text", text: "I'll run all three\n\nsteps." }],
 		})
 	})
 
@@ -436,6 +489,70 @@ describe("applyEventToRpcSessionSnapshot", () => {
 		expect(opus.session?.currentModelId).toBe("claude-opus-5")
 		const haiku = modelSet(modelSet(opus, 4, "claude-sonnet-5"), 5, "claude-haiku-4-5")
 		expect(haiku.session?.currentModelId).toBe("claude-haiku-4-5")
+	})
+
+	it("folds SessionConfigOptionSet onto the last value per key", () => {
+		const created = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		expect(created.session?.configOptions).toBe(null)
+		const optionSet = (snapshot: typeof created, sequence: number, key: string, value: string) =>
+			applyEventToRpcSessionSnapshot(snapshot, {
+				sequence,
+				eventId: EventId.make(`event-${sequence}`),
+				aggregateKind: "session",
+				aggregateId: sessionId,
+				occurredAt,
+				commandId,
+				causationEventId: null,
+				correlationId: commandId,
+				metadata: {},
+				type: "SessionConfigOptionSet",
+				payload: {
+					sessionId,
+					key,
+					value,
+				},
+			})
+		const low = optionSet(created, 3, "reasoning_effort", "low")
+		expect(low.session?.configOptions).toEqual({ reasoning_effort: "low" })
+		const high = optionSet(optionSet(low, 4, "reasoning_effort", "max"), 5, "reasoning_effort", "high")
+		expect(high.session?.configOptions).toEqual({ reasoning_effort: "high" })
+	})
+
+	it("keeps chosen config option values through a later SessionMetaUpdated touch", () => {
+		const created = applyEventToRpcSessionSnapshot(emptyRpcSessionSnapshot(0), sessionCreated)
+		const chosen = applyEventToRpcSessionSnapshot(created, {
+			sequence: 3,
+			eventId: EventId.make("event-3"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionConfigOptionSet",
+			payload: {
+				sessionId,
+				key: "reasoning_effort",
+				value: "high",
+			},
+		})
+		const touched = applyEventToRpcSessionSnapshot(chosen, {
+			sequence: 4,
+			eventId: EventId.make("event-4"),
+			aggregateKind: "session",
+			aggregateId: sessionId,
+			occurredAt,
+			commandId,
+			causationEventId: null,
+			correlationId: commandId,
+			metadata: {},
+			type: "SessionMetaUpdated",
+			payload: {
+				sessionId,
+			},
+		})
+		expect(touched.session?.configOptions).toEqual({ reasoning_effort: "high" })
 	})
 
 	it("captures a provider's model catalog from a session_models SessionMetaUpdated fact", () => {

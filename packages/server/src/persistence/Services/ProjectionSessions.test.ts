@@ -42,6 +42,7 @@ type SessionEventType = Extract<
 	| "ProviderSessionFailed"
 	| "SessionModeSet"
 	| "SessionModelSet"
+	| "SessionConfigOptionSet"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -224,7 +225,8 @@ Vitest.describe("evolveProjectedSession", () => {
 				ephemeral: false,
 				currentModeId: null,
 				currentModelId: null,
-				availableModels: null
+				availableModels: null,
+				configOptions: null
 			})
 		})
 	)
@@ -746,6 +748,112 @@ Vitest.describe("evolveProjectedSession", () => {
 				])
 			)
 			Vitest.assert.strictEqual(row.currentModelId, null)
+		})
+	)
+
+	// The config-option half of the same bug: SessionConfigOptionSet was
+	// committed, applied to the SDK query at the next (re)open, and read by no
+	// projection -- so the composer's Reasoning Effort widget fell back to the
+	// provider catalog's "auto" default after every restart. See configOptions
+	// on ProjectedSession.
+	Vitest.it.effect("projects the value a SessionConfigOptionSet chose", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "SessionConfigOptionSet", LATER, {
+						sessionId,
+						key: "reasoning_effort",
+						value: "high"
+					})
+				])
+			)
+			Vitest.assert.deepStrictEqual(row.configOptions, { reasoning_effort: "high" })
+		})
+	)
+
+	Vitest.it.effect("replays three config option changes onto the last value per key", () =>
+		Effect.gen(function*() {
+			const events: ReadonlyArray<OrchestrationEvent> = [
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				}),
+				sessionEvent(2, "SessionConfigOptionSet", LATER, {
+					sessionId,
+					key: "reasoning_effort",
+					value: "low"
+				}),
+				sessionEvent(3, "SessionConfigOptionSet", LATER, {
+					sessionId,
+					key: "reasoning_effort",
+					value: "max"
+				}),
+				sessionEvent(4, "SessionConfigOptionSet", LATER, {
+					sessionId,
+					key: "reasoning_effort",
+					value: "xhigh"
+				})
+			]
+			const first = yield* fold(events)
+			const second = yield* fold(events)
+			Vitest.assert.deepStrictEqual(first, second)
+			Vitest.assert.deepStrictEqual(requireSession(first).configOptions, {
+				reasoning_effort: "xhigh"
+			})
+		})
+	)
+
+	Vitest.it.effect("leaves config options null when no SessionConfigOptionSet ever fired", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "MessageSent", LATER, {
+						sessionId,
+						messageId,
+						text: "Ship the lifecycle slice"
+					})
+				])
+			)
+			Vitest.assert.strictEqual(row.configOptions, null)
+		})
+	)
+
+	// A later touch (any activity event) must not drop the folded values: touch
+	// rebuilds the row with an explicit field list, so a field it forgets dies
+	// on the very next event.
+	Vitest.it.effect("keeps the chosen value across later session activity", () =>
+		Effect.gen(function*() {
+			const row = requireSession(
+				yield* fold([
+					sessionEvent(1, "SessionCreated", NOW, {
+						sessionId,
+						projectId,
+						title: "First session"
+					}),
+					sessionEvent(2, "SessionConfigOptionSet", LATER, {
+						sessionId,
+						key: "reasoning_effort",
+						value: "high"
+					}),
+					sessionEvent(3, "MessageSent", LATER, {
+						sessionId,
+						messageId,
+						text: "Ship the lifecycle slice"
+					})
+				])
+			)
+			Vitest.assert.deepStrictEqual(row.configOptions, { reasoning_effort: "high" })
 		})
 	)
 

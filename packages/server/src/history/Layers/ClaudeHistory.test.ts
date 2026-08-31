@@ -60,7 +60,10 @@ const oracle = {
 		// Nor a session_models fact: history parsing restores transcript
 		// content, and only a live provider can be asked for its catalog.
 		currentModelId: null,
-		availableModels: null
+		availableModels: null,
+		// Nor a SessionConfigOptionSet: no config option was ever chosen, so the
+		// provider catalog's own defaults stand.
+		configOptions: null
 	},
 	messages: [
 		{
@@ -77,7 +80,7 @@ const oracle = {
 			messageId: "sess-claude-1:assistant:0",
 			turnId: null,
 			rowType: "assistant",
-			content: { text: "Hi there" }
+			content: { parts: [{ kind: "text", text: "Hi there" }] }
 		}
 	],
 	turns: [],

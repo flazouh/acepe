@@ -1,4 +1,5 @@
 import {
+	assistantReplyText,
 	CommandId,
 	EventId,
 	MessageId,
@@ -27,8 +28,6 @@ import {
 	OrchestrationEventStore
 } from "../Services/OrchestrationEventStore.ts"
 import {
-	assistantMessageRow,
-	encodeContentJson,
 	PROJECTION_SESSION_MESSAGES_NAME,
 	ProjectionSessionMessages
 } from "../Services/ProjectionSessionMessages.ts"
@@ -106,17 +105,11 @@ const seedCorruptedInstall = Effect.fn("seedCorruptedInstall")(function*() {
 	const lastSequence = yield* store.append(
 		TOKENS.map((token, index) => tokenAppended(index + 1, token))
 	)
-	// Encoded exactly as the projector writes content, so the seeded row is
-	// the row a pre-fix install actually holds.
-	const content = yield* encodeContentJson(
-		assistantMessageRow({
-			sessionId,
-			sequence: 1,
-			messageId: assistantMessageId,
-			turnId: null,
-			text: CORRUPTED_TEXT
-		})
-	)
+	// The literal JSON a pre-fix install actually holds: the legacy flat-text
+	// shape, written before assistant content became an ordered parts array.
+	// Seeding it verbatim also exercises the versioned decode that lifts a
+	// legacy row into a single text part.
+	const content = JSON.stringify({ text: CORRUPTED_TEXT })
 	yield* sql`
 		INSERT INTO projection_session_messages (
 			session_id,
@@ -147,7 +140,7 @@ const readAssistantText = Effect.fn("readAssistantText")(function*() {
 	if (row === undefined || row.rowType !== "assistant") {
 		return null
 	}
-	return row.content.text
+	return assistantReplyText(row.content)
 })
 
 const waitForSequence = Effect.fn("waitForSequence")(function*(

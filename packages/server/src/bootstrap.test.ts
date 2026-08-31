@@ -1,5 +1,6 @@
 import {
 	AcepeRpc,
+	assistantReplyText,
 	CommandId,
 	MessageId,
 	MessageSendCommand,
@@ -76,7 +77,7 @@ const waitForAssistant = Effect.fn("waitForAssistant")(function*() {
 		if (
 			Option.isSome(assistant) &&
 			assistant.value.rowType === "assistant" &&
-			assistant.value.content.text === TRACER_REPLY_TEXT
+			assistantReplyText(assistant.value.content) === TRACER_REPLY_TEXT
 		) {
 			return snapshot
 		}
@@ -114,7 +115,7 @@ Vitest.layer(isolated())("tracer bullet rpc path", (it) => {
 				Vitest.assert.strictEqual(user.content.text, "Ping")
 			}
 			if (assistant?.rowType === "assistant") {
-				Vitest.assert.strictEqual(assistant.content.text, TRACER_REPLY_TEXT)
+				Vitest.assert.strictEqual(assistantReplyText(assistant.content), TRACER_REPLY_TEXT)
 				Vitest.assert.strictEqual(assistant.sequence, 4)
 			}
 		})
@@ -188,7 +189,7 @@ Vitest.it.live("recovers one assistant message after a mid-stream restart", () =
 					if (
 						Option.isSome(assistant) &&
 						assistant.value.rowType === "assistant" &&
-						assistant.value.content.text === TRACER_REPLY_TEXT
+						assistantReplyText(assistant.value.content) === TRACER_REPLY_TEXT
 					) {
 						break
 					}
@@ -202,7 +203,7 @@ Vitest.it.live("recovers one assistant message after a mid-stream restart", () =
 				const assistant = snapshot.messages[1]
 				Vitest.assert.strictEqual(assistant?.rowType, "assistant")
 				if (assistant?.rowType === "assistant") {
-					Vitest.assert.strictEqual(assistant.content.text, TRACER_REPLY_TEXT)
+					Vitest.assert.strictEqual(assistantReplyText(assistant.content), TRACER_REPLY_TEXT)
 				}
 			}).pipe(
 				// @effect-diagnostics-next-line strictEffectProvide:off

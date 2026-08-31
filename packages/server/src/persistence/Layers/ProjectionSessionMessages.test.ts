@@ -209,7 +209,9 @@ Vitest.layer(isolatedMessages())("apply TokenAppended", (it) => {
 				listed.map((row) => row.sequence),
 				[3, 4]
 			)
-			Vitest.assert.deepStrictEqual(listed[1]?.content, { text: "Hello from Acepe." })
+			Vitest.assert.deepStrictEqual(listed[1]?.content, {
+				parts: [{ kind: "text", text: "Hello from Acepe." }]
+			})
 		})
 	)
 })
@@ -292,7 +294,7 @@ Vitest.layer(isolatedMessages())("assistant role and turn linkage", (it) => {
 					sequence: 8,
 					messageId: "assistant-8",
 					turnId,
-					text: "Done"
+					content: { parts: [{ kind: "text", text: "Done" }] }
 				}),
 				sql
 			)
@@ -305,7 +307,7 @@ Vitest.layer(isolatedMessages())("assistant role and turn linkage", (it) => {
 					turnId,
 					rowType: "assistant",
 					content: {
-						text: "Done"
+						parts: [{ kind: "text", text: "Done" }]
 					}
 				}
 			])
@@ -368,7 +370,9 @@ Vitest.layer(isolatedMessages())("re-applied TokenAppended", (it) => {
 			yield* Effect.forEach(events, (event) => messages.apply(event, sql), { discard: true })
 			const listed = yield* messages.listBySession(sessionId)
 			Vitest.assert.strictEqual(listed.length, 1)
-			Vitest.assert.deepStrictEqual(listed[0]?.content, { text: "I'll run all three steps." })
+			Vitest.assert.deepStrictEqual(listed[0]?.content, {
+				parts: [{ kind: "text", text: "I'll run all three steps." }]
+			})
 		})
 	)
 })
@@ -400,7 +404,9 @@ Vitest.layer(isolatedMessages())("TokenAppended whitespace", (it) => {
 			yield* messages.apply(tokenAppended(4, "I'll run "), sql)
 			yield* messages.apply(tokenAppended(5, "all three steps."), sql)
 			const listed = yield* messages.listBySession(sessionId)
-			Vitest.assert.deepStrictEqual(listed[0]?.content, { text: "I'll run all three steps." })
+			Vitest.assert.deepStrictEqual(listed[0]?.content, {
+				parts: [{ kind: "text", text: "I'll run all three steps." }]
+			})
 		})
 	)
 
@@ -415,7 +421,9 @@ Vitest.layer(isolatedMessages())("TokenAppended whitespace-only token", (it) => 
 			yield* messages.apply(tokenAppended(5, "\n\n"), sql)
 			yield* messages.apply(tokenAppended(6, "Line two"), sql)
 			const listed = yield* messages.listBySession(sessionId)
-			Vitest.assert.deepStrictEqual(listed[0]?.content, { text: "Line one\n\nLine two" })
+			Vitest.assert.deepStrictEqual(listed[0]?.content, {
+				parts: [{ kind: "text", text: "Line one\n\nLine two" }]
+			})
 		})
 	)
 })

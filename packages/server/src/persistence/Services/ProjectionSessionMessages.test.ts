@@ -14,8 +14,9 @@ import {
 	compactionSeamRow,
 	decodeProjectedMessage,
 	encodeContentJson,
-	nextAssistantFromToken,
+	nextAssistantFromStream,
 	PROJECTION_SESSION_MESSAGES_NAME,
+	type ProjectionSessionMessage,
 	ProjectionSessionMessages,
 	rowFromEvent,
 	userMessageRow
@@ -110,11 +111,12 @@ Vitest.describe("rowFromEvent", () => {
 	})
 })
 
-Vitest.describe("nextAssistantFromToken", () => {
-	const tokenEvent = (
+Vitest.describe("nextAssistantFromStream", () => {
+	const streamEvent = (
+		type: "TokenAppended" | "ThoughtAppended",
 		sequence: number,
 		token: string
-	): Extract<OrchestrationEvent, { readonly type: "TokenAppended" }> => ({
+	): Extract<OrchestrationEvent, { readonly type: "TokenAppended" | "ThoughtAppended" }> => ({
 		sequence,
 		eventId: EventId.make(`event-${sequence}`),
 		aggregateKind: "session",
@@ -124,7 +126,7 @@ Vitest.describe("nextAssistantFromToken", () => {
 		causationEventId: null,
 		correlationId: commandId,
 		metadata: {},
-		type: "TokenAppended",
+		type,
 		payload: {
 			sessionId,
 			messageId,
@@ -132,21 +134,68 @@ Vitest.describe("nextAssistantFromToken", () => {
 		}
 	})
 
+	const tokenEvent = (sequence: number, token: string) =>
+		streamEvent("TokenAppended", sequence, token)
+	const thoughtEvent = (sequence: number, token: string) =>
+		streamEvent("ThoughtAppended", sequence, token)
+
 	Vitest.it.effect("creates an assistant row from the first token", () =>
 		Effect.gen(function*() {
-			const row = yield* nextAssistantFromToken(tokenEvent(4, "Hello"), Option.none())
+			const row = yield* nextAssistantFromStream(tokenEvent(4, "Hello"), Option.none())
 			Vitest.assert.strictEqual(row.rowType, "assistant")
 			Vitest.assert.strictEqual(row.sequence, 4)
-			Vitest.assert.strictEqual(row.content.text, "Hello")
+			Vitest.assert.deepStrictEqual(row.content, { parts: [{ kind: "text", text: "Hello" }] })
 		})
 	)
 
 	Vitest.it.effect("concatenates onto the first token sequence", () =>
 		Effect.gen(function*() {
-			const first = yield* nextAssistantFromToken(tokenEvent(4, "Hello"), Option.none())
-			const second = yield* nextAssistantFromToken(tokenEvent(5, " from"), Option.some(first))
+			const first = yield* nextAssistantFromStream(tokenEvent(4, "Hello"), Option.none())
+			const second = yield* nextAssistantFromStream(tokenEvent(5, " from"), Option.some(first))
 			Vitest.assert.strictEqual(second.sequence, 4)
-			Vitest.assert.strictEqual(second.content.text, "Hello from")
+			Vitest.assert.deepStrictEqual(second.content, {
+				parts: [{ kind: "text", text: "Hello from" }]
+			})
+		})
+	)
+
+	Vitest.it.effect("creates an assistant row from the first thought delta", () =>
+		Effect.gen(function*() {
+			const row = yield* nextAssistantFromStream(thoughtEvent(4, "Considering."), Option.none())
+			Vitest.assert.strictEqual(row.rowType, "assistant")
+			Vitest.assert.deepStrictEqual(row.content, {
+				parts: [{ kind: "thought", text: "Considering." }]
+			})
+		})
+	)
+
+	// Thought and text deltas interleave inside one assistant message; the
+	// persisted row must keep the streamed order, not sort thinking first.
+	Vitest.it.effect("keeps thought and text slices in streamed order", () =>
+		Effect.gen(function*() {
+			const events = [
+				thoughtEvent(4, "Weighing "),
+				thoughtEvent(5, "the options."),
+				tokenEvent(6, "Here is "),
+				tokenEvent(7, "the answer."),
+				thoughtEvent(8, "Wait, once more.")
+			]
+			let current: Option.Option<ProjectionSessionMessage> = Option.none()
+			for (const event of events) {
+				current = Option.some(yield* nextAssistantFromStream(event, current))
+			}
+			Vitest.assert.isTrue(Option.isSome(current))
+			if (Option.isNone(current)) {
+				return
+			}
+			Vitest.assert.strictEqual(current.value.rowType, "assistant")
+			Vitest.assert.deepStrictEqual(current.value.content, {
+				parts: [
+					{ kind: "thought", text: "Weighing the options." },
+					{ kind: "text", text: "Here is the answer." },
+					{ kind: "thought", text: "Wait, once more." }
+				]
+			})
 		})
 	)
 })
