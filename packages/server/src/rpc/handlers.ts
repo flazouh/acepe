@@ -460,7 +460,7 @@ type EventStoreShape = {
 	) => Stream.Stream<OrchestrationEvent, SqlError | Schema.SchemaError>;
 };
 
-const readAllFrom = Effect.fn("readAllFrom")(function* (
+export const readAllFrom = Effect.fn("readAllFrom")(function* (
 	store: EventStoreShape,
 	fromSequence: Sequence,
 ) {

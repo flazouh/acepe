@@ -28,6 +28,7 @@ import * as Arr from "effect/Array"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -44,7 +45,9 @@ import {
 	encodedListProviderSessions,
 	encodedReadTextFile,
 	encodedSnapshot,
-	encodedWriteTextFile
+	encodedWriteTextFile,
+	pushEventsReplay,
+	pushLiveEvents
 } from "./encodedBoundary.ts"
 import { AppDataDir } from "./fsPathGuard.ts"
 
@@ -372,6 +375,106 @@ Vitest.layer(isolated())("fs path confinement over the encoded boundary", (it) =
 			const decoded = yield* decodeWriteTextFileExit(writeExit)
 			const error = yield* exitToEffect(decoded).pipe(Effect.flip)
 			Vitest.assert.strictEqual(error._tag, "RpcFsPathDeniedError")
+		})
+	)
+})
+
+/**
+ * The desktop shell forks one push task per `events` request into the one
+ * broadcast channel. The old shape (pushEvents: replay + live queue in one
+ * infinite stream) never terminated, so every webview page reload and every
+ * consumer subscription leaked a fiber that kept pushing forever -- measured
+ * live 2026-08-31 as 1.07M push log lines, each live event duplicated once
+ * per leaked fiber. The split below makes leak-freedom structural: the
+ * per-request replay is BOUNDED (terminates on its own), and live pushing is
+ * one process-lifetime fiber that emits every event exactly once.
+ */
+Vitest.layer(isolated())("events push lifecycle", (it) => {
+	it.effect("a replay push emits the persisted history and completes on its own", () =>
+		Effect.gen(function*() {
+			yield* encodedDispatch(createProject)
+			yield* encodedDispatch(
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId: CommandId.make("cmd-session-replay"),
+					sessionId: SessionId.make("session-replay"),
+					projectId: ProjectId.make("project-1"),
+					title: "Replay session"
+				})
+			)
+			const emitted: Array<unknown> = []
+			// The contract under test: this effect RETURNS. The old pushEvents
+			// concatenated an endless live queue after the replay, so awaiting
+			// it here would hang the test.
+			yield* pushEventsReplay({ fromSequence: 0 }, (payload) => {
+				emitted.push(payload)
+			})
+			Vitest.assert.strictEqual(emitted.length, 2)
+			const sequences = emitted.map((payload) => (payload as { sequence: number }).sequence)
+			Vitest.assert.deepStrictEqual(sequences, [1, 2])
+		})
+	)
+
+	it.effect("a replay push starts after the requested sequence", () =>
+		Effect.gen(function*() {
+			yield* encodedDispatch(
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId: CommandId.make("cmd-session-tail"),
+					sessionId: SessionId.make("session-tail"),
+					projectId: ProjectId.make("project-1"),
+					title: "Tail session"
+				})
+			)
+			// The layer is shared across this block, so derive the expectation
+			// from a full replay instead of assuming an empty store.
+			const full: Array<unknown> = []
+			yield* pushEventsReplay({ fromSequence: 0 }, (payload) => {
+				full.push(payload)
+			})
+			const fullSequences = full.map((payload) => (payload as { sequence: number }).sequence)
+			const emitted: Array<unknown> = []
+			yield* pushEventsReplay({ fromSequence: fullSequences[0] }, (payload) => {
+				emitted.push(payload)
+			})
+			const sequences = emitted.map((payload) => (payload as { sequence: number }).sequence)
+			Vitest.assert.deepStrictEqual(sequences, fullSequences.slice(1))
+		})
+	)
+
+	it.effect("the live pusher emits an event committed after it started", () =>
+		Effect.gen(function*() {
+			const emitted: Array<unknown> = []
+			const before: Array<unknown> = []
+			yield* pushEventsReplay({ fromSequence: 0 }, (payload) => {
+				before.push(payload)
+			})
+			const pusher = yield* pushLiveEvents((payload) => {
+				emitted.push(payload)
+			}).pipe(Effect.forkDetach)
+			yield* Effect.yieldNow
+			yield* encodedDispatch(
+				SessionCreateCommand.make({
+					type: "session.create",
+					commandId: CommandId.make("cmd-session-live"),
+					sessionId: SessionId.make("session-live"),
+					projectId: ProjectId.make("project-1"),
+					title: "Live session"
+				})
+			)
+			for (const _step of Arr.range(0, 199)) {
+				if (emitted.length > 0) {
+					break
+				}
+				yield* TestClock.adjust(Duration.millis(1))
+				yield* Effect.yieldNow
+			}
+			Vitest.assert.strictEqual(emitted.length, 1)
+			Vitest.assert.strictEqual(
+				(emitted[0] as { sequence: number }).sequence,
+				before.length + 1
+			)
+			yield* Fiber.interrupt(pusher)
 		})
 	)
 })

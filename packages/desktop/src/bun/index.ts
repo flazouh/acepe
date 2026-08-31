@@ -35,7 +35,8 @@ import {
 	encodedReadTextFile,
 	encodedSnapshot,
 	encodedWriteTextFile,
-	pushEvents,
+	pushEventsReplay,
+	pushLiveEvents,
 } from "@acepe/server/rpc/encodedBoundary";
 import * as Config from "effect/Config";
 import * as Duration from "effect/Duration";
@@ -232,21 +233,40 @@ launched.attach({
 	importProviderSession: (params) => runtime.runPromise(encodedImportProviderSession(params)),
 	events: (params) => {
 		writeLine(`acepe-events-stream: requested ${JSON.stringify(params).slice(0, 80)}`);
-		runtime.runFork(
-			pushEvents(params, (payload) => {
-				// acepe#261 diagnostic: prove the payload handed to sendEvents is
-				// JSON-safe (both electrobun transport fallbacks silently drop
-				// anything JSON.stringify can't serialize) before it leaves bun.
-				const { jsonSafe, jsonLength } = describeJsonSafety(payload);
-				writeLine(
-					`acepe-events-stream: push type=${typeof payload} jsonSafe=${jsonSafe} jsonLength=${jsonLength}`
-				);
-				launched.sendEvents(payload);
-			})
-		);
+		ensureLiveEventsPusher();
+		// Bounded: the replay fiber emits the requested history and exits on
+		// its own. The old pushEvents concatenated an endless live queue after
+		// the replay, so every request (each page reload, each of the
+		// webview's concurrent subscriptions) leaked a fiber that kept pushing
+		// duplicates into the one broadcast channel forever.
+		runtime.runFork(pushEventsReplay(params, pushEventPayload));
 		return undefined;
 	},
 });
+
+function pushEventPayload(payload: unknown): void {
+	// acepe#261 diagnostic: prove the payload handed to sendEvents is
+	// JSON-safe (both electrobun transport fallbacks silently drop
+	// anything JSON.stringify can't serialize) before it leaves bun.
+	const { jsonSafe, jsonLength } = describeJsonSafety(payload);
+	writeLine(
+		`acepe-events-stream: push type=${typeof payload} jsonSafe=${jsonSafe} jsonLength=${jsonLength}`
+	);
+	launched.sendEvents(payload);
+}
+
+// One live pusher for the process lifetime: every domain event reaches the
+// window exactly once, whatever number of subscriptions ride the channel.
+// Started lazily on the first events request so a window that never
+// subscribes costs nothing.
+let liveEventsPusherStarted = false;
+function ensureLiveEventsPusher(): void {
+	if (liveEventsPusherStarted) {
+		return;
+	}
+	liveEventsPusherStarted = true;
+	runtime.runFork(pushLiveEvents(pushEventPayload));
+}
 
 if (qaEnabled === true) {
 	const qaSocket = Effect.runSync(loadQaSocketPath());

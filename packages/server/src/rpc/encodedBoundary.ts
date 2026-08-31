@@ -54,8 +54,8 @@ import { ProviderUsageService } from "../providerUsage/Services/ProviderUsageSer
 import { OrchestrationEngine } from "../orchestration/Services/OrchestrationEngine.ts"
 import {
 	dispatchOrchestrationCommand,
-	eventsFromSequence,
 	importProviderSessionHandler,
+	readAllFrom,
 	rpcSnapshotForRequest,
 	toFileIndexRpcError,
 	toHistoryImportRpcError,
@@ -285,19 +285,55 @@ export const encodedImportProviderSession = Effect.fn("encodedImportProviderSess
 	return yield* encodeImportProviderSessionExit(Exit.succeed(outcome.success))
 })
 
-export const pushEvents = Effect.fn("pushEvents")(function*(
-	params: unknown,
+// The desktop shell's events push, split so leak-freedom is structural.
+//
+// The old shape (pushEvents: a replay concatenated with an endless live
+// queue) never terminated, and the shell forked one per `events` request:
+// every webview page reload and every consumer subscription leaked a fiber
+// that kept pushing into the one broadcast channel forever -- measured live
+// 2026-08-31 as 1.07M push log lines, each live event duplicated once per
+// leaked fiber. Naively interrupting the previous fiber per request is NOT
+// the fix either: the webview legitimately holds many concurrent cursored
+// subscriptions (six tail stores plus the ACP bridge), and superseding them
+// starved each other into reconnect loops.
+//
+// Split instead: pushLiveEvents runs ONCE for the process lifetime and emits
+// every domain event exactly once; pushEventsReplay serves one request's
+// bounded history and terminates on its own. A subscriber misses nothing --
+// its listener is registered before the request, the replay covers
+// everything committed up to its read, and the live pusher covers everything
+// after -- and the client's cursor drops the overlap as duplicates.
+
+export const pushLiveEvents = Effect.fn("pushLiveEvents")(function*(
 	emit: (payload: unknown) => void
 ) {
 	const engine = yield* OrchestrationEngine
-	const store = yield* OrchestrationEventStore
-	const request = yield* decodeEventsRequest(params)
-	yield* eventsFromSequence(store, engine, request.fromSequence).pipe(
+	yield* engine.streamDomainEvents.pipe(
 		Stream.runForEach((event) =>
 			encodeOrchestrationEvent(event).pipe(
 				Effect.mapError(toRpcError),
 				Effect.flatMap((payload) => Effect.sync(() => emit(payload)))
 			)
 		)
+	)
+})
+
+export const pushEventsReplay = Effect.fn("pushEventsReplay")(function*(
+	params: unknown,
+	emit: (payload: unknown) => void
+) {
+	const store = yield* OrchestrationEventStore
+	const request = yield* decodeEventsRequest(params)
+	const replayed = yield* readAllFrom(store, request.fromSequence).pipe(
+		Effect.mapError(toRpcError)
+	)
+	yield* Effect.forEach(
+		replayed,
+		(event) =>
+			encodeOrchestrationEvent(event).pipe(
+				Effect.mapError(toRpcError),
+				Effect.flatMap((payload) => Effect.sync(() => emit(payload)))
+			),
+		{ discard: true }
 	)
 })
