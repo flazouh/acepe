@@ -6,7 +6,9 @@ import {
 	MessageSentEvent,
 	type OrchestrationEvent,
 	SessionId,
+	type SessionModelCatalog,
 	SessionMetaUpdatedEvent,
+	sessionModelsListedFact,
 	TokenAppendedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
@@ -25,6 +27,7 @@ import type {
 	SendPromptRequest
 } from "../../Services/ProviderAdapter.ts"
 import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
+import { encodeSessionModelsFact } from "../SessionModelsFact.ts"
 import {
 	approvalAnsweredEvent,
 	approvalRequestedEvent,
@@ -129,6 +132,38 @@ const makeMetaEvent = Effect.fn("GrokAdapter.makeMetaEvent")(function*(
 		}
 	})
 })
+
+/**
+ * The catalog the provider itself reported, as a canonical session fact.
+ *
+ * Same SessionMetaUpdated envelope every other provider fact uses, through
+ * the shared codec rather than Grok's own fact union — see
+ * Layers/SessionModelsFact.ts.
+ */
+export const makeSessionModelsEvent = Effect.fn("GrokAdapter.makeSessionModelsEvent")(
+	function*(runtime: SessionRuntime, models: SessionModelCatalog) {
+		const header = yield* stamp(runtime)
+		const metadata = Option.getOrElse(
+			encodeSessionModelsFact(sessionModelsListedFact(models)),
+			() => EMPTY_JSON_OBJECT
+		)
+		return SessionMetaUpdatedEvent.make({
+			sequence: header.sequence,
+			eventId: header.eventId,
+			aggregateKind: "session",
+			aggregateId: runtime.sessionId,
+			occurredAt: header.occurredAt,
+			commandId: header.commandId,
+			causationEventId: null,
+			correlationId: header.commandId,
+			metadata,
+			type: "SessionMetaUpdated",
+			payload: {
+				sessionId: runtime.sessionId
+			}
+		})
+	}
+)
 
 export const makeMessageSent = Effect.fn("GrokAdapter.makeMessageSent")(function*(
 	runtime: SessionRuntime,

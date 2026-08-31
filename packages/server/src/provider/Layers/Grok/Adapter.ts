@@ -25,11 +25,13 @@ import type {
 	ProviderPresence,
 	SendPromptRequest,
 	SetModeRequest,
+	SetModelRequest,
 	StartSessionRequest
 } from "../../Services/ProviderAdapter.ts"
 import { bindPresence, bindProbe } from "../ExecutableProbe.ts"
 import type { OpenToolCallInfo } from "../SessionEvents.ts"
 import { providerSessionFact } from "./Facts.ts"
+import { grokModelsFromInitialize } from "./Map.ts"
 import {
 	type GrokRespondToPermissionInput,
 	decidePermission,
@@ -57,6 +59,7 @@ import {
 import {
 	makeCancelled,
 	makeMessageSent,
+	makeSessionModelsEvent,
 	offerOutbound,
 	publishFact,
 	publishSessionUpdate,
@@ -73,6 +76,10 @@ export type GrokAdapter = ProviderAdapter & {
 	// ACP's session/set_mode, reached through the same connection every
 	// other Grok call uses — see setMode in Process.ts.
 	readonly setMode: (request: SetModeRequest) => Effect.Effect<void, ProviderAdapterError>
+	// ACP session/set_model. ProviderBridge forwards a chosen model only
+	// when this method exists; without it the composer shows the new model
+	// and Grok keeps running the old one.
+	readonly setModel: (request: SetModelRequest) => Effect.Effect<void, ProviderAdapterError>
 	readonly respondToPermission: (
 		input: GrokRespondToPermissionInput
 	) => Effect.Effect<void, ProviderAdapterError>
@@ -135,12 +142,17 @@ export const makeGrokAdapter = Effect.fn("makeGrokAdapter")(function*(
 		}
 		yield* Ref.set(runtimeHolder, Option.some(runtime))
 		yield* Ref.update(sessions, (current) => HashMap.set(current, request.sessionId, runtime))
-		yield* handle.initialize
+		const initializeResult = yield* handle.initialize
 		const authenticate = yield* options.resolveAuthenticate
 		yield* handle.authenticate(authenticate)
 		const openedId = yield* handle.newSession(request.workspaceRoot)
 		yield* Ref.set(providerSessionId, Option.some(openedId))
 		yield* publishFact(runtime, providerSessionFact(openedId))
+		const models = grokModelsFromInitialize(initializeResult)
+		if (Option.isSome(models)) {
+			const event = yield* makeSessionModelsEvent(runtime, models.value)
+			yield* offerOutbound(runtime, event)
+		}
 		return runtime
 	})
 
@@ -182,6 +194,12 @@ export const makeGrokAdapter = Effect.fn("makeGrokAdapter")(function*(
 		const runtime = yield* requireSession(sessions, request.sessionId, "setMode")
 		const acpSessionId = yield* requireProviderSessionId(runtime, "setMode")
 		yield* runtime.handle.setMode(acpSessionId, request.modeId)
+	})
+
+	const setModel = Effect.fn("GrokAdapter.setModel")(function*(request: SetModelRequest) {
+		const runtime = yield* requireSession(sessions, request.sessionId, "setModel")
+		const acpSessionId = yield* requireProviderSessionId(runtime, "setModel")
+		yield* runtime.handle.setModel(acpSessionId, request.modelId)
 	})
 
 	const cancelTurn = Effect.fn("GrokAdapter.cancelTurn")(function*(request: CancelTurnRequest) {
@@ -234,6 +252,7 @@ export const makeGrokAdapter = Effect.fn("makeGrokAdapter")(function*(
 		sendPrompt,
 		cancelTurn,
 		setMode,
+		setModel,
 		respondToPermission: (input: GrokRespondToPermissionInput) =>
 			respondToPermission(sessions, input),
 		shutdown

@@ -27,7 +27,8 @@ import {
 	evolveProjectedPendingApprovals,
 	type ProjectedPendingApproval
 } from "../../../persistence/Services/ProjectionPendingApprovals.ts"
-import type { Json } from "../Json.ts"
+import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
+import { decodeSessionModelsFact } from "../SessionModelsFact.ts"
 import {
 	GROK_ACP_PROTOCOL_VERSION,
 	GROK_ACP_SDK_MODULE,
@@ -82,13 +83,34 @@ type HandshakeCall =
 const recordCall = (handshake: Ref.Ref<ReadonlyArray<HandshakeCall>>, call: HandshakeCall) =>
 	Ref.update(handshake, (current) => Arr.append(current, call))
 
+const grokInitializeWithModels: Json = {
+	protocolVersion: 1,
+	_meta: {
+		modelState: {
+			currentModelId: "grok-4.6",
+			availableModels: [
+				{
+					modelId: "grok-4.6",
+					name: "Grok 4.6",
+					description: "SpaceXAI's latest frontier model"
+				},
+				{
+					modelId: "grok-4.5",
+					name: "Grok 4.5"
+				}
+			]
+		}
+	}
+}
+
 const fakeHandle = (
 	inbound: Queue.Queue<Json, Done>,
 	cancels: Ref.Ref<number>,
 	cwds: Ref.Ref<ReadonlyArray<string>>,
-	handshake: Ref.Ref<ReadonlyArray<HandshakeCall>>
+	handshake: Ref.Ref<ReadonlyArray<HandshakeCall>>,
+	initializeResult: Json = EMPTY_JSON_OBJECT
 ): GrokAcpHandle => ({
-	initialize: recordCall(handshake, { method: "initialize" }),
+	initialize: recordCall(handshake, { method: "initialize" }).pipe(Effect.as(initializeResult)),
 	authenticate: (params: GrokAuthenticateParams) =>
 		recordCall(handshake, { method: "authenticate", params }),
 	newSession: (cwd: string) =>
@@ -99,6 +121,7 @@ const fakeHandle = (
 	prompt: () => Effect.succeed(Option.none()),
 	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
 	setMode: () => Effect.void,
+	setModel: () => Effect.void,
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -110,7 +133,7 @@ const stoppingHandle = (
 	cwds: Ref.Ref<ReadonlyArray<string>>,
 	stopReason: GrokStopReason
 ): GrokAcpHandle => ({
-	initialize: Effect.void,
+	initialize: Effect.succeed(EMPTY_JSON_OBJECT),
 	authenticate: () => Effect.void,
 	newSession: (cwd: string) =>
 		Ref.update(cwds, (current) => Arr.append(current, cwd)).pipe(
@@ -119,6 +142,7 @@ const stoppingHandle = (
 	prompt: () => Effect.succeed(Option.some(stopReason)),
 	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
 	setMode: () => Effect.void,
+	setModel: () => Effect.void,
 	close: Queue.end(inbound).pipe(Effect.asVoid)
 })
 
@@ -131,7 +155,7 @@ const modeRecordingHandle = (
 	cwds: Ref.Ref<ReadonlyArray<string>>,
 	modes: Ref.Ref<ReadonlyArray<{ readonly providerSessionId: string; readonly modeId: string }>>
 ): GrokAcpHandle => ({
-	initialize: Effect.void,
+	initialize: Effect.succeed(EMPTY_JSON_OBJECT),
 	authenticate: () => Effect.void,
 	newSession: (cwd: string) =>
 		Ref.update(cwds, (current) => Arr.append(current, cwd)).pipe(
@@ -141,6 +165,29 @@ const modeRecordingHandle = (
 	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
 	setMode: (providerSessionId: string, modeId: string) =>
 		Ref.update(modes, (current) => Arr.append(current, { providerSessionId, modeId })).pipe(
+			Effect.asVoid
+		),
+	setModel: () => Effect.void,
+	close: Queue.end(inbound).pipe(Effect.asVoid)
+})
+
+const modelRecordingHandle = (
+	inbound: Queue.Queue<Json, Done>,
+	cancels: Ref.Ref<number>,
+	cwds: Ref.Ref<ReadonlyArray<string>>,
+	models: Ref.Ref<
+		ReadonlyArray<{ readonly providerSessionId: string; readonly modelId: string }>
+	>
+): GrokAcpHandle => ({
+	initialize: Effect.succeed(EMPTY_JSON_OBJECT),
+	authenticate: () => Effect.void,
+	newSession: (cwd: string) =>
+		Ref.update(cwds, (current) => Arr.append(current, cwd)).pipe(Effect.as("acp-session-1")),
+	prompt: () => Effect.succeed(Option.none()),
+	cancel: () => Ref.update(cancels, (count) => count + 1).pipe(Effect.asVoid),
+	setMode: () => Effect.void,
+	setModel: (providerSessionId: string, modelId: string) =>
+		Ref.update(models, (current) => Arr.append(current, { providerSessionId, modelId })).pipe(
 			Effect.asVoid
 		),
 	close: Queue.end(inbound).pipe(Effect.asVoid)
@@ -384,6 +431,119 @@ Vitest.describe("GrokAdapter", () => {
 			Vitest.assert.strictEqual(error.operation, "startSession")
 			Vitest.assert.strictEqual(error.providerId, "grok-build")
 			Vitest.assert.isTrue(error.detail.includes("grok"))
+		})
+	)
+
+	// The picker used to show the agent name disabled. This is the catalog
+	// fact that replaces that fallback: Grok reports models on initialize
+	// `_meta.modelState`, and the adapter publishes them as session_models.
+	Vitest.it.effect("publishes the models Grok reports on initialize", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const launches = yield* Ref.make(Option.none<GrokLaunchConfig>())
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const handshake = yield* Ref.make<ReadonlyArray<HandshakeCall>>(Arr.empty())
+			const adapter = yield* makeGrokAdapter({
+				presence: Effect.succeed(grokPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				resolveAuthenticate: Effect.succeed(grokAuthenticateParams(false)),
+				connect: (input: GrokConnectInput) =>
+					Effect.gen(function*() {
+						yield* Ref.set(launches, Option.some(input.launch))
+						yield* Stream.fromQueue(inbound).pipe(
+							Stream.runForEach(input.onSessionUpdate),
+							Effect.forkChild({ startImmediately: true })
+						)
+						return fakeHandle(inbound, cancels, cwds, handshake, grokInitializeWithModels)
+					})
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			let catalog: ReadonlyArray<{
+				readonly modelId: string
+				readonly name: string
+				readonly description: string | null
+			}> | null = null
+			for (let attempt = 0; attempt < 8 && catalog === null; attempt++) {
+				const next = yield* Queue.take(events).pipe(
+					Effect.timeoutOption(Duration.millis(200)),
+					Effect.orElseSucceed(() => Option.none<OrchestrationEvent>())
+				)
+				if (Option.isNone(next)) {
+					break
+				}
+				if (next.value.type !== "SessionMetaUpdated") {
+					continue
+				}
+				const fact = decodeSessionModelsFact(next.value.metadata)
+				if (Option.isSome(fact)) {
+					catalog = fact.value.models
+				}
+			}
+			if (catalog === null) {
+				return Vitest.assert.fail("the adapter never published the models Grok reported")
+			}
+			Vitest.assert.deepStrictEqual(catalog, [
+				{
+					modelId: "grok-4.6",
+					name: "Grok 4.6",
+					description: "SpaceXAI's latest frontier model"
+				},
+				{
+					modelId: "grok-4.5",
+					name: "Grok 4.5",
+					description: null
+				}
+			])
+			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
+	// Same structural opt-in setMode uses: ProviderBridge only forwards a
+	// chosen model when the adapter exposes setModel. Grok's transport is
+	// session/set_model against the agent's own session id.
+	Vitest.it.effect("sends a set model as ACP session/set_model for the agent's session", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const cancels = yield* Ref.make(0)
+			const cwds = yield* Ref.make<ReadonlyArray<string>>(Arr.empty())
+			const models = yield* Ref.make<
+				ReadonlyArray<{ readonly providerSessionId: string; readonly modelId: string }>
+			>(Arr.empty())
+			const adapter = yield* makeGrokAdapter({
+				presence: Effect.succeed(grokPresence(true, true)),
+				resolveLaunch: Effect.succeed(registryLaunch),
+				resolveAuthenticate: Effect.succeed(grokAuthenticateParams(false)),
+				connect: () => Effect.succeed(modelRecordingHandle(inbound, cancels, cwds, models))
+			})
+			const events = yield* Queue.unbounded<OrchestrationEvent, Done>()
+			yield* adapter
+				.startSession({
+					sessionId,
+					projectId,
+					workspaceRoot: "/tmp/acepe",
+					envOverrides: {}
+				})
+				.pipe(
+					Stream.runForEach((event) => Queue.offer(events, event).pipe(Effect.asVoid)),
+					Effect.forkChild({ startImmediately: true })
+				)
+			yield* Queue.take(events)
+			yield* adapter.setModel({ sessionId, modelId: "grok-4.5" })
+			Vitest.assert.deepStrictEqual(yield* Ref.get(models), [
+				{ providerSessionId: "acp-session-1", modelId: "grok-4.5" }
+			])
 		})
 	)
 

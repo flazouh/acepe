@@ -1,6 +1,9 @@
+import type { SessionModelCatalog, SessionModelDescriptor } from "@acepe/contracts"
 import * as Arr from "effect/Array"
 import * as Filter from "effect/Filter"
 import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
+import * as Str from "effect/String"
 import { acpToolOutput } from "../AcpContent.ts"
 import {
 	applyOptional,
@@ -11,7 +14,8 @@ import {
 	type JsonObject,
 	jsonObjectOf,
 	objectField,
-	stringField
+	stringField,
+	stringFieldAny
 } from "../Json.ts"
 import type {
 	GrokContractFact,
@@ -131,6 +135,57 @@ const mapPlan = (update: JsonObject): Option.Option<GrokContractFact> => {
 		contractKind: "plan_proposal",
 		planMarkdown: Arr.join(lines, "\n")
 	})
+}
+
+const modelDescriptor = (item: Json): Option.Option<SessionModelDescriptor> => {
+	const record = jsonObjectOf(item)
+	if (Option.isNone(record)) {
+		if (Predicate.isString(item) && Str.isNonEmpty(Str.trim(item))) {
+			return Option.some({ modelId: item, name: item, description: null })
+		}
+		return Option.none()
+	}
+	const modelId = stringFieldAny(record.value, ["modelId", "id"])
+	if (Option.isNone(modelId)) {
+		return Option.none()
+	}
+	const name = Option.getOrElse(stringFieldAny(record.value, ["name", "displayName"]), () =>
+		modelId.value
+	)
+	return Option.some({
+		modelId: modelId.value,
+		name,
+		description: Option.getOrNull(stringField(record.value, "description"))
+	})
+}
+
+/**
+ * The catalog Grok reports on initialize `_meta.modelState`. session/new also
+ * carries `models`, but the ACP SDK strips that unknown field, so initialize
+ * is the source the adapter can actually keep.
+ */
+export const grokModelsFromInitialize = (value: Json): Option.Option<SessionModelCatalog> => {
+	const record = jsonObjectOf(value)
+	if (Option.isNone(record)) {
+		return Option.none()
+	}
+	const meta = objectField(record.value, "_meta")
+	if (Option.isNone(meta)) {
+		return Option.none()
+	}
+	const modelState = objectField(meta.value, "modelState")
+	if (Option.isNone(modelState)) {
+		return Option.none()
+	}
+	const available = arrayField(modelState.value, "availableModels")
+	if (Option.isNone(available)) {
+		return Option.none()
+	}
+	const models = Arr.filterMap(available.value, Filter.fromPredicateOption(modelDescriptor))
+	if (!Arr.isReadonlyArrayNonEmpty(models)) {
+		return Option.none()
+	}
+	return Option.some(models)
 }
 
 export const mapAcpSessionNotification = (value: Json): Option.Option<GrokContractFact> => {

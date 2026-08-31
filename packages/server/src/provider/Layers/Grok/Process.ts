@@ -26,7 +26,7 @@ import * as Str from "effect/String"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
-import type { Json } from "../Json.ts"
+import { EMPTY_JSON_OBJECT, type Json } from "../Json.ts"
 import { cancelledPermission, permissionResponse } from "./Permissions.ts"
 import {
 	adapterError,
@@ -58,8 +58,10 @@ export type GrokConnectInput = {
 	readonly onPermissionRequest: (request: Json) => Effect.Effect<GrokPermissionDecision>
 }
 
+export const GROK_ACP_SET_MODEL_METHOD = "session/set_model"
+
 export type GrokAcpHandle = {
-	readonly initialize: Effect.Effect<void, ProviderAdapterError>
+	readonly initialize: Effect.Effect<Json, ProviderAdapterError>
 	readonly authenticate: (
 		params: GrokAuthenticateParams
 	) => Effect.Effect<void, ProviderAdapterError>
@@ -71,6 +73,10 @@ export type GrokAcpHandle = {
 	readonly setMode: (
 		providerSessionId: string,
 		modeId: string
+	) => Effect.Effect<void, ProviderAdapterError>
+	readonly setModel: (
+		providerSessionId: string,
+		modelId: string
 	) => Effect.Effect<void, ProviderAdapterError>
 	readonly cancel: (providerSessionId: string) => Effect.Effect<void, ProviderAdapterError>
 	readonly close: Effect.Effect<void>
@@ -192,7 +198,9 @@ const acpHandleFromConnection = (
 				}
 			}),
 		catch: (cause) => adapterError("startSession", errorDetail(cause, "Grok ACP initialize failed"))
-	}).pipe(Effect.asVoid),
+	}).pipe(
+		Effect.map((response) => Option.getOrElse(jsonFromValue(response), () => EMPTY_JSON_OBJECT))
+	),
 	// Grok rejects session/new until authenticate has run. cached_token
 	// reads ~/.grok/auth.json inside the CLI. xai.api_key reads the child
 	// environment and needs _meta.headless so it does not open a browser.
@@ -239,6 +247,20 @@ const acpHandleFromConnection = (
 					modeId
 				}),
 			catch: (cause) => adapterError("setMode", errorDetail(cause, "Grok session/set_mode failed"))
+		}).pipe(Effect.asVoid),
+	// Grok's own mid-session model request. ACP SDK 1.4 has no session/set_model
+	// literal (only set_mode / set_config_option), and Grok answers set_model
+	// while rejecting set_config_option as method-not-found. The string method
+	// uses the SDK's custom-request overload.
+	setModel: (providerSessionId: string, modelId: string) =>
+		Effect.tryPromise({
+			try: () =>
+				connection.agent.request(GROK_ACP_SET_MODEL_METHOD, {
+					sessionId: providerSessionId,
+					modelId
+				}),
+			catch: (cause) =>
+				adapterError("setModel", errorDetail(cause, "Grok session/set_model failed"))
 		}).pipe(Effect.asVoid),
 	cancel: (providerSessionId: string) =>
 		Effect.tryPromise({

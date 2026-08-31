@@ -1,6 +1,30 @@
 import * as Vitest from "@effect/vitest"
 import * as Option from "effect/Option"
-import { mapAcpPermissionRequest, mapAcpSessionNotification } from "./Map.ts"
+import {
+	grokModelsFromInitialize,
+	mapAcpPermissionRequest,
+	mapAcpSessionNotification
+} from "./Map.ts"
+
+const grokInitializeWithModels = {
+	protocolVersion: 1,
+	_meta: {
+		modelState: {
+			currentModelId: "grok-4.6",
+			availableModels: [
+				{
+					modelId: "grok-4.6",
+					name: "Grok 4.6",
+					description: "SpaceXAI's latest frontier model"
+				},
+				{
+					modelId: "grok-4.5",
+					name: "Grok 4.5"
+				}
+			]
+		}
+	}
+}
 
 Vitest.describe("mapAcpSessionNotification", () => {
 	Vitest.it("maps an agent_message_chunk text payload to a text_delta", () => {
@@ -111,6 +135,31 @@ Vitest.describe("mapAcpSessionNotification", () => {
 			}
 		})
 		Vitest.assert.deepStrictEqual(fact, Option.none())
+	})
+})
+
+Vitest.describe("grokModelsFromInitialize", () => {
+	Vitest.it("reads the catalog Grok puts on initialize _meta.modelState", () => {
+		const models = grokModelsFromInitialize(grokInitializeWithModels)
+		Vitest.assert.deepStrictEqual(
+			models,
+			Option.some([
+				{
+					modelId: "grok-4.6",
+					name: "Grok 4.6",
+					description: "SpaceXAI's latest frontier model"
+				},
+				{
+					modelId: "grok-4.5",
+					name: "Grok 4.5",
+					description: null
+				}
+			])
+		)
+	})
+
+	Vitest.it("returns none when initialize carries no modelState", () => {
+		Vitest.assert.deepStrictEqual(grokModelsFromInitialize({ protocolVersion: 1 }), Option.none())
 	})
 })
 
