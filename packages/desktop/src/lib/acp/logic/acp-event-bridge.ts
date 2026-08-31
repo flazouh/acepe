@@ -116,9 +116,18 @@ let liveBridge: OrchestrationCanonicalBridge | null = null;
  * snapshot -- the server's own sequence -- while the bridge counts a session's
  * revisions from zero. Without this the two never met, and every event after a
  * reopen was refused as stale.
+ *
+ * `serverSequenceWatermark` is the snapshot's snapshotSequence: the last
+ * server event the hydrated graph already folds. The bridge skips replayed
+ * events at or below it, so the events(0) full replay cannot reset a session
+ * this reopen already moved (see OrchestrationCanonicalBridge.realignSession).
  */
-export function realignCanonicalSession(sessionId: string, revision: SessionGraphRevision): void {
-	liveBridge?.realignSession(sessionId, revision);
+export function realignCanonicalSession(
+	sessionId: string,
+	revision: SessionGraphRevision,
+	serverSequenceWatermark: number
+): void {
+	liveBridge?.realignSession(sessionId, revision, serverSequenceWatermark);
 }
 
 export function openAcpEventSource(

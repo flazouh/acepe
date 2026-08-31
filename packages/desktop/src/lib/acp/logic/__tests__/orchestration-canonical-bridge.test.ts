@@ -17,6 +17,7 @@ import type {
 } from "../../../services/acp-types.js";
 import { routeSessionStateEnvelope } from "../../session-state/session-state-command-router.js";
 import { buildCanonicalUsageTelemetry } from "../../store/envelope-reducer/canonical-usage-telemetry.js";
+import { isNewerGraphRevision } from "../../store/envelope-reducer/graph-revision-order.js";
 import type { AcpEventEnvelope } from "../acp-event-bridge.js";
 import { OrchestrationCanonicalBridge } from "../orchestration-canonical-bridge.js";
 
@@ -29,9 +30,20 @@ const usageEventId = "codex-token-usage:thread-1:turn-1:total=168:input=120:outp
 let eventSeq = 0;
 function makeEvent<Type extends string, Payload>(type: Type, payload: Payload): OrchestrationEvent {
 	eventSeq += 1;
+	return makeEventAt(eventSeq, type, payload);
+}
+
+// An event at an explicit server sequence -- for the reopen/replay tests,
+// where the position of an event relative to the snapshot watermark IS the
+// behavior under test. Does not advance the shared counter.
+function makeEventAt<Type extends string, Payload>(
+	sequence: number,
+	type: Type,
+	payload: Payload
+): OrchestrationEvent {
 	return {
-		sequence: eventSeq,
-		eventId: EventId.make(`event-${String(eventSeq)}`),
+		sequence,
+		eventId: EventId.make(`event-${String(sequence)}`),
 		aggregateKind: "session",
 		aggregateId: sessionId,
 		occurredAt,
@@ -1946,15 +1958,17 @@ describe("OrchestrationCanonicalBridge -> session-state-command-router (reopened
 			lastEventSeq: 1773,
 		};
 		currentRevision = reopened;
-		bridge.realignSession(sessionId, reopened);
+		bridge.realignSession(sessionId, reopened, 1773);
 
+		// Live events land above the snapshot watermark: the server's sequence
+		// is monotone and 1773 was the last event the snapshot folded.
 		for (const event of [
-			makeEvent("MessageSent", {
+			makeEventAt(1774, "MessageSent", {
 				sessionId,
 				messageId: MessageId.make("m-after-reopen"),
 				text: "create the file",
 			}),
-			makeEvent("ToolCallObserved", {
+			makeEventAt(1775, "ToolCallObserved", {
 				sessionId,
 				activityId: "tool-r:activity",
 				toolCallId: "tool-r",
@@ -1972,6 +1986,128 @@ describe("OrchestrationCanonicalBridge -> session-state-command-router (reopened
 
 		expect(refreshes).toBe(0);
 		expect(appended).toBe(2);
+	});
+
+	/**
+	 * The events(0) subscription replays the whole persisted log on every page
+	 * load (rpc/handlers.ts's eventsFromSequence), so after a reload the bridge
+	 * re-sees the reopened session's own history -- and the replay can land
+	 * AFTER the reopen already realigned the session to the snapshot's server
+	 * sequence. The replayed SessionCreated reset the session to a fresh
+	 * zero-counted state, every replayed delta advanced that counter, and every
+	 * LIVE event after the replay then started at a frontier the store had
+	 * never been at: the router refreshed (a lifecycle-only fetch under
+	 * Electrobun, so nothing was actually repaired) and dropped it.
+	 *
+	 * Live evidence (2026-08-31, tracer DB, session-create-1788199807537-5):
+	 * MessageSent 5108, ToolCallObserved 5113/5114 and ApprovalRequested 5116
+	 * were all committed server-side; the reopened panel rendered none of them
+	 * -- no tool card, no Deny/Allow bar -- until another full reload.
+	 */
+	it("skips replayed history at or below the reopen watermark and keeps applying live events", () => {
+		const bridge = makeBridge();
+		let currentRevision: SessionGraphRevision | null = null;
+		let refreshes = 0;
+		let appended = 0;
+		let pendingApprovalSeen = false;
+
+		function apply(envelope: SessionStateEnvelope): void {
+			for (const command of routeSessionStateEnvelope(sessionId, currentRevision, envelope)) {
+				if (command.kind === "replaceGraph") {
+					// Mirror reduceReplaceGraph's guard: a stale snapshot must not
+					// stomp the hydrated graph, exactly as in the real store.
+					if (isNewerGraphRevision(currentRevision, command.graph.revision)) {
+						currentRevision = command.graph.revision;
+					}
+				} else if (command.kind === "applyTranscriptDelta") {
+					currentRevision = command.revision;
+					appended += command.delta.operations.filter((op) => op.kind === "appendEntry").length;
+				} else if (command.kind === "applyGraphPatches") {
+					currentRevision = command.revision;
+					if (
+						command.interactionPatches.some((interaction) => interaction.state === "Pending")
+					) {
+						pendingApprovalSeen = true;
+					}
+				} else if (command.kind === "refreshSnapshot") {
+					refreshes += 1;
+				}
+			}
+		}
+
+		// The reopen hydration landed first: the store's graph was replaced at
+		// the snapshot's server-sequence revision (reopenGraphRevisionForApply's
+		// from-empty branch) and the bridge was realigned to it.
+		const reopened: SessionGraphRevision = {
+			graphRevision: 0,
+			transcriptRevision: 5100,
+			lastEventSeq: 5100,
+		};
+		currentRevision = reopened;
+		bridge.realignSession(sessionId, reopened, 5100);
+
+		// The events(0) replay then re-delivers the session's own history --
+		// everything at or below the snapshot watermark is already IN the
+		// hydrated graph.
+		for (const event of [
+			makeEventAt(4090, "SessionCreated", {
+				sessionId,
+				projectId,
+				title: "s",
+				providerId: "claude-code",
+			}),
+			makeEventAt(4095, "MessageSent", {
+				sessionId,
+				messageId: MessageId.make("m-replayed"),
+				text: "old prompt",
+			}),
+			makeEventAt(4099, "ToolCallObserved", {
+				sessionId,
+				activityId: "tool-old:activity",
+				toolCallId: "tool-old",
+				operationId: null,
+				status: "completed",
+				title: "Read",
+				path: "/tmp/old.txt",
+				kind: "read",
+			}),
+		]) {
+			for (const produced of runTranslate(bridge, event)) {
+				apply(produced.payload as SessionStateEnvelope);
+			}
+		}
+
+		// New live truth committed after the reopen.
+		for (const event of [
+			makeEventAt(5108, "MessageSent", {
+				sessionId,
+				messageId: MessageId.make("m-live"),
+				text: "create the file",
+			}),
+			makeEventAt(5113, "ToolCallObserved", {
+				sessionId,
+				activityId: "tool-live:activity",
+				toolCallId: "tool-live",
+				operationId: null,
+				status: "pending",
+				title: "Write",
+				path: "/tmp/x.txt",
+				kind: "edit",
+			}),
+			makeEventAt(5116, "ApprovalRequested", {
+				sessionId,
+				approvalRequestId: "perm-tool-live",
+				title: "Write /tmp/x.txt",
+			}),
+		]) {
+			for (const produced of runTranslate(bridge, event)) {
+				apply(produced.payload as SessionStateEnvelope);
+			}
+		}
+
+		expect(refreshes).toBe(0);
+		expect(appended).toBe(2);
+		expect(pendingApprovalSeen).toBe(true);
 	});
 
 	/**

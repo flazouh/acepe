@@ -110,6 +110,15 @@ type SessionCanonicalState = {
 	// not client Date.now(), so the timer is not skewed by request latency.
 	// Cleared on TurnCancelled/TurnCompleted.
 	turnStartedAtMs: number | null;
+	// The server's own event sequence this session's state already accounts
+	// for -- the canonical order authority, unlike the client-counted revision
+	// above. An event at or below it is history this state has already folded
+	// (or, after a reopen realign, history the hydrated snapshot already
+	// carries) and must not be translated again: the events(0) subscription
+	// replays the whole persisted log on every page load, and re-translating
+	// a reopened session's own past reset this state and desynced every LIVE
+	// event after it. See translate()'s guard and realignSession.
+	serverSequenceWatermark: number;
 };
 
 const KNOWN_AGENT_IDS: ReadonlySet<string> = new Set(Object.values(AGENT_IDS));
@@ -141,6 +150,7 @@ function freshSessionState(): SessionCanonicalState {
 		openOperations: new Map(),
 		authRequired: false,
 		turnStartedAtMs: null,
+		serverSequenceWatermark: 0,
 	};
 }
 
@@ -286,9 +296,28 @@ export class OrchestrationCanonicalBridge {
 	 * rest of the session's state is deliberately untouched: which tool calls
 	 * have been seen and which approvals are open are still true, and only the
 	 * revision moved.
+	 *
+	 * `serverSequenceWatermark` is the snapshot's own snapshotSequence: the
+	 * last server event the hydrated graph already folds. The events(0)
+	 * subscription replays the whole persisted log on every page load, and
+	 * that replay can arrive AFTER this realign -- re-translating the
+	 * session's own past (its SessionCreated included, which reset this state
+	 * to a fresh zero count) desynced every live event that followed, so
+	 * translate() skips anything at or below this watermark.
 	 */
-	realignSession(sessionId: string, revision: SessionGraphRevision): void {
-		this.stateFor(sessionId).revision = revision;
+	realignSession(
+		sessionId: string,
+		revision: SessionGraphRevision,
+		serverSequenceWatermark: number
+	): void {
+		const state = this.stateFor(sessionId);
+		state.revision = revision;
+		// Never move backward: a live event that raced in between the snapshot
+		// fetch and this realign has already raised the watermark past it.
+		state.serverSequenceWatermark = Math.max(
+			state.serverSequenceWatermark,
+			serverSequenceWatermark
+		);
 	}
 
 	private stateFor(sessionId: string): SessionCanonicalState {
@@ -302,12 +331,27 @@ export class OrchestrationCanonicalBridge {
 	}
 
 	translate(event: OrchestrationEvent): Effect.Effect<AcpEventEnvelope[], never> {
+		// Idempotence over the canonical log: the server's event sequence is
+		// the one order authority, and a session's state never folds the same
+		// sequence twice. This is what makes the events(0) full replay safe
+		// against a session a reopen already hydrated ahead of it -- everything
+		// at or below the realigned watermark is already in the store's graph.
+		if (event.aggregateKind === "session") {
+			const known = this.sessions.get(event.aggregateId);
+			if (known !== undefined) {
+				if (event.sequence <= known.serverSequenceWatermark) {
+					return Effect.succeed([]);
+				}
+				known.serverSequenceWatermark = event.sequence;
+			}
+		}
 		switch (event.type) {
 			case "SessionCreated":
 				return this.onSessionCreated(
 					event.payload.sessionId,
 					event.payload.projectId,
-					event.payload.providerId
+					event.payload.providerId,
+					event.sequence
 				);
 			case "MessageSent":
 				return Effect.succeed(
@@ -393,11 +437,15 @@ export class OrchestrationCanonicalBridge {
 	private onSessionCreated(
 		sessionId: SessionId,
 		projectId: string,
-		providerId: string | undefined
+		providerId: string | undefined,
+		sequence: number
 	): Effect.Effect<AcpEventEnvelope[], never> {
 		return this.resolveProjectPath(projectId).pipe(
 			Effect.map((projectPath) => {
 				const state = freshSessionState();
+				// The registration event itself is folded: the fresh state must
+				// not re-translate it (or anything before it) on a redelivery.
+				state.serverSequenceWatermark = sequence;
 				const revision = state.revision;
 				this.sessions.set(sessionId, state);
 				const envelope: SessionStateEnvelope = {
