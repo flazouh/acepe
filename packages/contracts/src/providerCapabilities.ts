@@ -104,7 +104,8 @@ export const CLAUDE_PROVIDER_CONFIG_OPTIONS: ReadonlyArray<ProviderConfigOptionD
 		name: "Reasoning Effort",
 		category: "reasoning_effort",
 		type: "select",
-		description: "Controls Claude reasoning depth.",
+		description:
+			"Controls Claude reasoning depth. A change applies when the session next connects.",
 		currentValue: "auto",
 		options: [
 			{ name: "Auto", value: "auto" },

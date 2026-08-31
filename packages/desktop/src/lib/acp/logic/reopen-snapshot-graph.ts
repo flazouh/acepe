@@ -31,9 +31,10 @@ import type {
 	RpcProjectedSessionActivity,
 	RpcSessionSnapshot,
 } from "@acepe/contracts";
-import { providerModes } from "@acepe/contracts";
+import { providerConfigOptions, providerModes } from "@acepe/contracts";
 import type {
 	CanonicalAgentId,
+	ConfigOptionData,
 	InteractionSnapshot,
 	OperationSnapshot,
 	SessionCompactionEvent,
@@ -100,12 +101,17 @@ function transcriptEntryFromMessage(message: RpcProjectedMessage): TranscriptEnt
 				],
 			};
 		case "assistant":
+			// One segment per persisted part, in streamed order: thought parts
+			// become "thought" segments so the reopened entry carries its
+			// thinking block exactly as the live bridge built it.
 			return {
 				entryId: message.messageId,
 				role: "assistant",
-				segments: [
-					{ kind: "text", segmentId: `${message.messageId}-text`, text: message.content.text },
-				],
+				segments: message.content.parts.map((part, index) => ({
+					kind: part.kind,
+					segmentId: `${message.messageId}-part-${String(index)}`,
+					text: part.text,
+				})),
 			};
 		case "compaction":
 			return {
@@ -481,6 +487,36 @@ function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCap
 						})),
 					}),
 		};
+	}
+	// Config option values are canonical the same way currentModeId is: the
+	// server folds every SessionConfigOptionSet into
+	// ProjectionSessions.config_options (last value per key wins) and hands the
+	// map over on the snapshot. The catalog those values select from stays a
+	// provider contract fact, so this pairs the two the way modes pair
+	// currentModeId with providerModes. Null means no SessionConfigOptionSet
+	// ever fired, and only then does the composer's contract-default catalog
+	// (currentValue "auto") stand -- so the empty capabilities stay the default
+	// here for the same reason they do for modes above.
+	const configOptionValues = snapshot.session?.configOptions ?? null;
+	if (configOptionValues !== null) {
+		const catalog = providerConfigOptions(snapshot.session?.provider);
+		if (catalog.length > 0) {
+			capabilities.configOptions = catalog.map(
+				(option): ConfigOptionData => ({
+					id: option.id,
+					name: option.name,
+					category: option.category,
+					type: option.type,
+					description: option.description,
+					currentValue: configOptionValues[option.id] ?? option.currentValue,
+					options: option.options.map((value) => ({
+						name: value.name,
+						value: value.value,
+					})),
+					presentation: option.presentation as ConfigOptionData["presentation"],
+				}),
+			);
+		}
 	}
 	return capabilities;
 }

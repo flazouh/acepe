@@ -54,6 +54,7 @@ type SessionEventType = Extract<
 	| "SessionDeleted"
 	| "MessageSent"
 	| "TurnCancelled"
+	| "SessionConfigOptionSet"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -335,6 +336,45 @@ Vitest.layer(isolatedSessions())("one row per session", (it) => {
 			)
 			Vitest.assert.strictEqual(rows[0]?.provider, null)
 			Vitest.assert.strictEqual(rows[0]?.project_id, "project-1")
+		})
+	)
+})
+
+Vitest.layer(isolatedSessions())("config option values", (it) => {
+	// The stored-value round trip through the real column: the fold writes
+	// config_options as JSON text through StoredSessionConfigOptionValues and
+	// get() must decode the same map back, or the snapshot serves nothing and
+	// the composer's Reasoning Effort widget falls back to "auto" after a
+	// restart.
+	it.effect("round-trips a chosen reasoning effort through the config_options column", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const sessions = yield* ProjectionSessions
+			yield* sessions.apply(
+				sessionEvent(1, "SessionCreated", NOW, {
+					sessionId,
+					projectId,
+					title: "First session"
+				}),
+				sql
+			)
+			yield* sessions.apply(
+				sessionEvent(2, "SessionConfigOptionSet", LATER, {
+					sessionId,
+					key: "reasoning_effort",
+					value: "high"
+				}),
+				sql
+			)
+			const row = yield* sessions.get(sessionId)
+			const session = Option.match(row, {
+				onNone: () => {
+					Vitest.assert.fail("expected a projected session")
+					return undefined as never
+				},
+				onSome: (value) => value
+			})
+			Vitest.assert.deepStrictEqual(session.configOptions, { reasoning_effort: "high" })
 		})
 	)
 })

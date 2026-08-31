@@ -63,7 +63,8 @@ export const buildClaudeReasoningConfigOptions = (
 		name: "Reasoning Effort",
 		category: CLAUDE_REASONING_CONFIG_ID,
 		type: "select",
-		description: "Controls Claude reasoning depth.",
+		description:
+			"Controls Claude reasoning depth. A change applies when the session next connects.",
 		currentValue,
 		options: Arr.map(CLAUDE_REASONING_OPTIONS, (row) => ({
 			name: row.name,

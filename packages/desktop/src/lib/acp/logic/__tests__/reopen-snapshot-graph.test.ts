@@ -81,6 +81,20 @@ function withModels(
 	};
 }
 
+function withConfigOptions(
+	snapshotSequence: number,
+	configOptions: Readonly<Record<string, string>> | null
+): RpcSessionSnapshot {
+	const snapshot = withMessages(snapshotSequence, []);
+	if (snapshot.session === null) {
+		throw new Error("expected a projected session");
+	}
+	return {
+		...snapshot,
+		session: { ...snapshot.session, configOptions },
+	};
+}
+
 function baseInput(snapshot: RpcSessionSnapshot) {
 	return {
 		requestedSessionId: SESSION_ID,
@@ -95,6 +109,54 @@ function baseInput(snapshot: RpcSessionSnapshot) {
 }
 
 describe("graphFromReopenSnapshot", () => {
+	// The persisted assistant content is an ordered parts array so a reopened
+	// session replays its thinking blocks: each part becomes its own segment,
+	// thought parts as kind "thought", in streamed order -- the same mixed
+	// entry shape the live bridge builds and the materializer splits into
+	// thinking block + reply.
+	it("replays thought parts as thought segments in streamed order", () => {
+		const snapshot = withMessages(3, [
+			{
+				sessionId: SESSION_ID,
+				sequence: 1,
+				messageId: "msg-user-1",
+				turnId: null,
+				rowType: "user",
+				content: { text: "Why?" },
+			},
+			{
+				sessionId: SESSION_ID,
+				sequence: 2,
+				messageId: "msg-assistant-1",
+				turnId: TURN_ID,
+				rowType: "assistant",
+				content: {
+					parts: [
+						{ kind: "thought", text: "Weighing the options." },
+						{ kind: "text", text: "Because of X." },
+						{ kind: "thought", text: "Wait, checking once more." },
+					],
+				},
+			},
+		]);
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.transcriptSnapshot.entries[1]).toEqual({
+			entryId: "msg-assistant-1",
+			role: "assistant",
+			segments: [
+				{ kind: "thought", segmentId: "msg-assistant-1-part-0", text: "Weighing the options." },
+				{ kind: "text", segmentId: "msg-assistant-1-part-1", text: "Because of X." },
+				{
+					kind: "thought",
+					segmentId: "msg-assistant-1-part-2",
+					text: "Wait, checking once more.",
+				},
+			],
+		});
+	});
+
 	it("maps user/assistant/compaction rows into canonical transcript entries, in snapshot order", () => {
 		const snapshot = withMessages(6, [
 			{
@@ -111,7 +173,7 @@ describe("graphFromReopenSnapshot", () => {
 				messageId: "msg-assistant-1",
 				turnId: TURN_ID,
 				rowType: "assistant",
-				content: { text: "REOPEN_42" },
+				content: { parts: [{ kind: "text", text: "REOPEN_42" }] },
 			},
 			{
 				sessionId: SESSION_ID,
@@ -144,7 +206,7 @@ describe("graphFromReopenSnapshot", () => {
 			{
 				entryId: "msg-assistant-1",
 				role: "assistant",
-				segments: [{ kind: "text", segmentId: "msg-assistant-1-text", text: "REOPEN_42" }],
+				segments: [{ kind: "text", segmentId: "msg-assistant-1-part-0", text: "REOPEN_42" }],
 			},
 			{
 				entryId: "msg-compaction-1",
@@ -201,7 +263,7 @@ describe("graphFromReopenSnapshot", () => {
 					messageId: "msg-assistant-1",
 					turnId: TURN_ID,
 					rowType: "assistant",
-					content: { text: "The name is acepe" },
+					content: { parts: [{ kind: "text", text: "The name is acepe" }] },
 				},
 			]),
 			activities: [
@@ -319,7 +381,12 @@ describe("graphFromReopenSnapshot", () => {
 					turnId: TURN_ID,
 					rowType: "assistant",
 					content: {
-						text: "I'll read the package.json file.The `name` field is **`verify-fixture-project`**.",
+						parts: [
+							{
+								kind: "text",
+								text: "I'll read the package.json file.The `name` field is **`verify-fixture-project`**.",
+							},
+						],
 					},
 				},
 			]),
@@ -348,7 +415,7 @@ describe("graphFromReopenSnapshot", () => {
 		expect(assistantEntry?.segments).toEqual([
 			{
 				kind: "text",
-				segmentId: "msg-assistant-1-text",
+				segmentId: "msg-assistant-1-part-0",
 				text: "I'll read the package.json file.The `name` field is **`verify-fixture-project`**.",
 			},
 		]);
@@ -588,5 +655,34 @@ describe("graphFromReopenSnapshot", () => {
 
 		expect(graph.capabilities.models).toBe(null);
 		expect(projectGraphCapabilities(graph.capabilities).availableModels).toBe(null);
+	});
+
+	// The config-option half of #272's mode fix: the server folds every
+	// SessionConfigOptionSet into ProjectionSessions.config_options and hands
+	// the map over as RpcProjectedSession.configOptions. A reopen that drops it
+	// showed "Auto" in the Reasoning Effort widget after every restart while
+	// the session actually reconnected at the chosen effort
+	// (ProviderBridge.sessionConfigOptions -> the SDK query's effort option).
+	it("seeds the canonical reasoning effort a reopened session already chose", () => {
+		const snapshot = withConfigOptions(4, { reasoning_effort: "high" });
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		const options = graph.capabilities.configOptions ?? [];
+		const reasoning = options.find((option) => option.id === "reasoning_effort");
+		expect(reasoning?.currentValue).toBe("high");
+		expect(reasoning?.presentation).toBe("compactReasoning");
+		expect((reasoning?.options ?? []).map((value) => value.value)).toContain("high");
+	});
+
+	// Null means no SessionConfigOptionSet ever fired: the capabilities stay
+	// empty and the composer's contract-default catalog ("auto") stands, the
+	// same way an unset canonical mode leaves the provider's opening mode.
+	it("leaves config options unset when the session never chose one", () => {
+		const snapshot = withConfigOptions(4, null);
+
+		const graph = graphFromReopenSnapshot(baseInput(snapshot));
+
+		expect(graph.capabilities.configOptions).toBe(null);
 	});
 });
