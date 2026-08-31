@@ -24,5 +24,11 @@ export const isQaSandboxed = (): boolean => {
 	if (typeof window === "undefined") {
 		return false;
 	}
-	return isQaSandboxedSearch(window.location.search);
+	return isQaDrivenWindow(window) || isQaSandboxedSearch(window.location.search);
 };
+
+// The QA driver opens the app through a preload that flips this flag, so a live-app
+// QA run (which loads the URL with no `?qa=`) still answers "is a human doing this?"
+// with no, and durable writes such as the workspace hot cache stay sandboxed.
+const isQaDrivenWindow = (window: Window): boolean =>
+	(window as unknown as { __acepeQaDriver?: boolean }).__acepeQaDriver === true;
