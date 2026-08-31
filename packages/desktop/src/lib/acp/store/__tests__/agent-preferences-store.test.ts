@@ -22,6 +22,7 @@ describe("deriveAgentPreferencesInitializationState", () => {
 		const result = deriveAgentPreferencesInitializationState({
 			persistedOnboardingCompleted: null,
 			persistedSelectedAgentIds: null,
+			persistedSeenAgentIds: null,
 			projectCount: 2,
 			availableAgentIds: ["claude-code", "cursor", "opencode"],
 		});
@@ -36,6 +37,7 @@ describe("deriveAgentPreferencesInitializationState", () => {
 		const result = deriveAgentPreferencesInitializationState({
 			persistedOnboardingCompleted: null,
 			persistedSelectedAgentIds: null,
+			persistedSeenAgentIds: null,
 			projectCount: 0,
 			availableAgentIds: ["claude-code", "cursor", "opencode"],
 		});
@@ -50,6 +52,7 @@ describe("deriveAgentPreferencesInitializationState", () => {
 		const result = deriveAgentPreferencesInitializationState({
 			persistedOnboardingCompleted: true,
 			persistedSelectedAgentIds: ["cursor", "claude-code"],
+			persistedSeenAgentIds: null,
 			projectCount: 1,
 			availableAgentIds: ["claude-code", "cursor", "opencode"],
 		});
@@ -64,6 +67,7 @@ describe("deriveAgentPreferencesInitializationState", () => {
 		const result = deriveAgentPreferencesInitializationState({
 			persistedOnboardingCompleted: true,
 			persistedSelectedAgentIds: ["cursor"],
+			persistedSeenAgentIds: null,
 			projectCount: 2,
 			availableAgentIds: ["claude-code", "cursor", "opencode"],
 		});
@@ -78,6 +82,7 @@ describe("deriveAgentPreferencesInitializationState", () => {
 		const result = deriveAgentPreferencesInitializationState({
 			persistedOnboardingCompleted: true,
 			persistedSelectedAgentIds: ["missing-agent"],
+			persistedSeenAgentIds: null,
 			projectCount: 3,
 			availableAgentIds: ["claude-code", "cursor"],
 		});
@@ -86,6 +91,44 @@ describe("deriveAgentPreferencesInitializationState", () => {
 		expect(result.selectedAgentIds).toEqual(["claude-code", "cursor"]);
 		expect(result.shouldPersistOnboardingCompleted).toBe(false);
 		expect(result.shouldPersistSelectedAgentIds).toBe(true);
+	});
+
+	it("auto-enables a newly listed agent that existing users have never seen", () => {
+		const result = deriveAgentPreferencesInitializationState({
+			persistedOnboardingCompleted: true,
+			persistedSelectedAgentIds: ["cursor", "claude-code"],
+			persistedSeenAgentIds: null,
+			projectCount: 1,
+			availableAgentIds: ["claude-code", "cursor", "opencode", "grok-build"],
+		});
+
+		expect(result.selectedAgentIds).toEqual(["cursor", "claude-code", "grok-build"]);
+		expect(result.seenAgentIds).toEqual([
+			"claude-code",
+			"copilot",
+			"cursor",
+			"opencode",
+			"codex",
+			"forge",
+			"grok-build",
+		]);
+		expect(result.shouldPersistSelectedAgentIds).toBe(true);
+		expect(result.shouldPersistSeenAgentIds).toBe(true);
+	});
+
+	it("does not re-enable an agent the user already disabled after seeing it", () => {
+		const result = deriveAgentPreferencesInitializationState({
+			persistedOnboardingCompleted: true,
+			persistedSelectedAgentIds: ["cursor"],
+			persistedSeenAgentIds: ["cursor", "claude-code", "grok-build"],
+			projectCount: 1,
+			availableAgentIds: ["claude-code", "cursor", "grok-build"],
+		});
+
+		expect(result.selectedAgentIds).toEqual(["cursor"]);
+		expect(result.seenAgentIds).toEqual(["cursor", "claude-code", "grok-build"]);
+		expect(result.shouldPersistSelectedAgentIds).toBe(false);
+		expect(result.shouldPersistSeenAgentIds).toBe(false);
 	});
 });
 

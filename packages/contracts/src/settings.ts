@@ -24,6 +24,7 @@ export const USER_SETTING_KEYS = [
 	"has_seen_splash",
 	"has_completed_onboarding",
 	"selected_agent_ids",
+	"seen_agent_ids",
 	"custom_agent_configs",
 	"agent_env_overrides",
 	"worktree_global_default_enabled",
