@@ -220,7 +220,9 @@ export function toggle() {
 			class={triggerButtonClass}
 			disabled={disabled}
 			aria-label={resolvedTriggerAriaLabel}
-			title={tooltipTitle ?? tooltipLabel ?? undefined}
+			title={tooltipLabel || tooltipDescription
+				? undefined
+				: (tooltipTitle ?? undefined)}
 		>
 			{#if triggerIcon === "dots"}
 				<HugeiconsIcon name="more" />
@@ -271,7 +273,7 @@ export function toggle() {
 
 <div class={embeddedInGroup ? "contents" : undefined}>
 	<DropdownMenu.Root bind:open {onOpenChange}>
-	{#if (tooltipLabel || tooltipDescription) && !embeddedInGroup}
+	{#if tooltipLabel || tooltipDescription}
 		<Tooltip.Root>
 			<Tooltip.Trigger>
 				{#snippet child({ props: tooltipProps })}

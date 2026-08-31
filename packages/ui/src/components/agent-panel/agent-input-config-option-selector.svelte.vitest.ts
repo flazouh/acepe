@@ -67,3 +67,56 @@ describe("AgentInputConfigOptionSelector fast mode button", () => {
 		expect(onValueChange).toHaveBeenCalledWith("service_tier", "true");
 	});
 });
+
+describe("AgentInputConfigOptionSelector reasoning trigger tooltip", () => {
+	function makeReasoningOption(): AgentInputConfigOption {
+		return {
+			id: "reasoning_effort",
+			name: "Reasoning Effort",
+			category: "reasoning_effort",
+			type: "select",
+			description:
+				"Controls Claude reasoning depth. A change applies when the session next connects.",
+			currentValue: "auto",
+			options: [
+				{ name: "Auto", value: "auto" },
+				{ name: "High", value: "high" },
+			],
+			presentation: "compactReasoning",
+		};
+	}
+
+	// The fused model+reasoning group passes embeddedInGroup, and the Selector
+	// used to suppress its rich tooltip there -- so the option's description
+	// (including "a change applies when the session next connects") was
+	// invisible in exactly the layout Claude sessions get. The trigger must
+	// carry the tooltip wiring, drop the redundant native title, and keep the
+	// fused segment styling.
+	it("wires the rich tooltip on the embedded trigger instead of a native title", () => {
+		const view = render(AgentInputConfigOptionSelector, {
+			props: {
+				configOption: makeReasoningOption(),
+				embeddedInGroup: true,
+				onValueChange: vi.fn(),
+			},
+		});
+
+		const button = view.container.querySelector("button");
+		expect(button).not.toBeNull();
+		expect(button?.hasAttribute("data-tooltip-trigger")).toBe(true);
+		expect(button?.hasAttribute("title")).toBe(false);
+		expect(button?.className).toContain("!rounded-none");
+	});
+
+	it("wires the rich tooltip on the standalone trigger too", () => {
+		const view = render(AgentInputConfigOptionSelector, {
+			props: {
+				configOption: makeReasoningOption(),
+				onValueChange: vi.fn(),
+			},
+		});
+
+		const button = view.container.querySelector("button");
+		expect(button?.hasAttribute("data-tooltip-trigger")).toBe(true);
+	});
+});
