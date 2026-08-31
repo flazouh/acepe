@@ -97,6 +97,113 @@ describe("OrchestrationCanonicalBridge", () => {
 		expect(delta.changedFields).toContain("activeStreamingTail");
 	});
 
+	/**
+	 * Measured against a real Claude thinking-heavy turn: the adapter's
+	 * thought_delta facts folded into SessionMetaUpdated metadata, which this
+	 * bridge decodes only for session_models and auth_required, so a long
+	 * thinking phase produced zero transcript content -- only the working
+	 * placeholder showed. Thought content is transcript product truth and now
+	 * arrives as its own ThoughtAppended event.
+	 */
+	it("appends a thought segment and names the tail as thought content", () => {
+		const bridge = makeBridge();
+		const messageId = MessageId.make("message-thought-tail");
+
+		runTranslate(bridge, makeEvent("MessageSent", { sessionId, messageId, text: "why?" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("ThoughtAppended", { sessionId, messageId, token: "Weighing " })
+		);
+
+		const payload = envelopes[0]?.payload as SessionStateEnvelope | undefined;
+		if (payload === undefined || payload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const delta = payload.payload.delta;
+
+		expect(delta.turnState).toBe("Running");
+		expect(delta.changedFields).toContain("transcriptSnapshot");
+		expect(delta.changedFields).toContain("activeStreamingTail");
+		expect(delta.activeStreamingTail?.contentKind).toBe("thought");
+		const operation = delta.transcriptOperations[0];
+		if (operation?.kind !== "appendEntry") {
+			throw new Error("expected an appendEntry operation");
+		}
+		expect(operation.entry.role).toBe("assistant");
+		expect(operation.entry.segments).toEqual([
+			{ kind: "thought", segmentId: "seg-message-thought-tail-0", text: "Weighing " },
+		]);
+	});
+
+	/**
+	 * Claude streams the thinking phase first, then the reply, inside one
+	 * assistant message. The materializer contract for restored sessions is a
+	 * single assistant entry with mixed thought/text segments (see
+	 * agent-panel-graph-materializer.test.ts "preserves canonical thought
+	 * segments as assistant thought chunks"), so the live path must build the
+	 * same shape: text after thought lands in the SAME entry, not a new row.
+	 */
+	it("interleaves thought and text segments into one assistant entry", () => {
+		const bridge = makeBridge();
+		const messageId = MessageId.make("message-thought-mixed");
+
+		runTranslate(bridge, makeEvent("MessageSent", { sessionId, messageId, text: "why?" }));
+		const first = runTranslate(
+			bridge,
+			makeEvent("ThoughtAppended", { sessionId, messageId, token: "Weighing " })
+		);
+		const second = runTranslate(
+			bridge,
+			makeEvent("TokenAppended", { sessionId, messageId, token: "Because " })
+		);
+		const third = runTranslate(
+			bridge,
+			makeEvent("ThoughtAppended", { sessionId, messageId, token: "hold on " })
+		);
+
+		const firstPayload = first[0]?.payload as SessionStateEnvelope | undefined;
+		if (firstPayload === undefined || firstPayload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const firstOperation = firstPayload.payload.delta.transcriptOperations[0];
+		if (firstOperation?.kind !== "appendEntry") {
+			throw new Error("expected an appendEntry operation");
+		}
+		const entryId = firstOperation.entry.entryId;
+
+		const secondPayload = second[0]?.payload as SessionStateEnvelope | undefined;
+		if (secondPayload === undefined || secondPayload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const secondOperation = secondPayload.payload.delta.transcriptOperations[0];
+		if (secondOperation?.kind !== "appendSegment") {
+			throw new Error("expected an appendSegment operation");
+		}
+		expect(secondOperation.entryId).toBe(entryId);
+		expect(secondOperation.segment).toEqual({
+			kind: "text",
+			segmentId: "seg-message-thought-mixed-1",
+			text: "Because ",
+		});
+		expect(secondPayload.payload.delta.activeStreamingTail?.contentKind).toBe("message");
+
+		const thirdPayload = third[0]?.payload as SessionStateEnvelope | undefined;
+		if (thirdPayload === undefined || thirdPayload.payload.kind !== "delta") {
+			throw new Error("expected a delta envelope");
+		}
+		const thirdOperation = thirdPayload.payload.delta.transcriptOperations[0];
+		if (thirdOperation?.kind !== "appendSegment") {
+			throw new Error("expected an appendSegment operation");
+		}
+		expect(thirdOperation.entryId).toBe(entryId);
+		expect(thirdOperation.segment).toEqual({
+			kind: "thought",
+			segmentId: "seg-message-thought-mixed-2",
+			text: "hold on ",
+		});
+		expect(thirdPayload.payload.delta.activeStreamingTail?.contentKind).toBe("thought");
+	});
+
 	it("stops naming a live tail once the turn completes", () => {
 		const bridge = makeBridge();
 		const messageId = MessageId.make("message-streaming-tail-done");

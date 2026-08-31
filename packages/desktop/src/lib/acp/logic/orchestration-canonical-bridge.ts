@@ -317,10 +317,20 @@ export class OrchestrationCanonicalBridge {
 				);
 			case "TokenAppended":
 				return Effect.succeed(
-					this.onTokenAppended(
+					this.onAssistantStreamAppended(
 						event.payload.sessionId,
 						event.payload.messageId,
-						event.payload.token
+						event.payload.token,
+						"text"
+					)
+				);
+			case "ThoughtAppended":
+				return Effect.succeed(
+					this.onAssistantStreamAppended(
+						event.payload.sessionId,
+						event.payload.messageId,
+						event.payload.token,
+						"thought"
 					)
 				);
 			case "ToolCallObserved":
@@ -479,7 +489,20 @@ export class OrchestrationCanonicalBridge {
 		return envelopes;
 	}
 
-	private onTokenAppended(sessionId: string, messageId: string, token: string): AcpEventEnvelope[] {
+	/**
+	 * One streamed slice of the assistant's output -- text (TokenAppended) and
+	 * extended thinking (ThoughtAppended) share this fold because they differ
+	 * only in segment kind: both grow the SAME assistant entry, matching the
+	 * restored-session materializer contract of a single assistant entry with
+	 * mixed thought/text segments (the assistant message component splits them
+	 * into the thinking block and the reply itself).
+	 */
+	private onAssistantStreamAppended(
+		sessionId: string,
+		messageId: string,
+		token: string,
+		segmentKind: "text" | "thought"
+	): AcpEventEnvelope[] {
 		const state = this.stateFor(sessionId);
 		const toRevision = nextRevision(state.revision, true);
 		const currentEntryId = state.assistantEntryId;
@@ -495,7 +518,7 @@ export class OrchestrationCanonicalBridge {
 							entry: {
 								entryId: newEntryId,
 								role: "assistant",
-								segments: [{ kind: "text", segmentId: `seg-${messageId}-0`, text: token }],
+								segments: [{ kind: segmentKind, segmentId: `seg-${messageId}-0`, text: token }],
 							},
 						},
 					]
@@ -505,7 +528,7 @@ export class OrchestrationCanonicalBridge {
 							entryId: currentEntryId,
 							role: "assistant",
 							segment: {
-								kind: "text",
+								kind: segmentKind,
 								segmentId: `seg-${messageId}-${String(state.assistantSegmentSeq)}`,
 								text: token,
 							},
@@ -514,14 +537,19 @@ export class OrchestrationCanonicalBridge {
 		// The entry this token lands in is the live tail. conversation-rebuild
 		// marks an entry streaming by matching it against this rowId, and the
 		// streaming reveal only animates that entry, so leaving it null makes
-		// every reveal mode inert while the reply is still arriving.
+		// every reveal mode inert while the reply is still arriving. The
+		// contentKind tells the reveal whether the tail is currently growing
+		// its thinking block or the reply itself.
 		const liveTailEntryId = currentEntryId ?? newEntryId;
 		const delta: SessionStateDelta = {
 			fromRevision: state.revision,
 			toRevision,
 			activity: awaitingModelActivityAt(state.turnStartedAtMs),
 			turnState: "Running",
-			activeStreamingTail: { rowId: liveTailEntryId, contentKind: "message" },
+			activeStreamingTail: {
+				rowId: liveTailEntryId,
+				contentKind: segmentKind === "thought" ? "thought" : "message",
+			},
 			transcriptOperations: operations,
 			operationPatches: [],
 			interactionPatches: [],
