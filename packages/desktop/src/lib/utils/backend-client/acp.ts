@@ -344,7 +344,7 @@ export const acp = {
 		const decodedSessionId = yield* decodeEffect(
 			"acp.archiveSession",
 			decodeSessionId
-		)(imported.resolvedSessionId ?? sessionId);
+		)(imported.resolvedSessionId);
 		const commandId = yield* nextCommandId("session-archive");
 		yield* withRpcClient("acp.archiveSession", (client) =>
 			client.dispatch({

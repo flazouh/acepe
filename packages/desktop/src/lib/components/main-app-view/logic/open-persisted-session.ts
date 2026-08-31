@@ -237,7 +237,7 @@ function hydrateProviderBackedSessionOnOpen(input: {
 			// The requested id resolved to the live aggregate claiming it via
 			// provider_session_id: the graph now lives under that id, so the
 			// panel must read it from there or it renders nothing.
-			if (result.canonicalSessionId !== undefined && result.canonicalSessionId !== sessionId) {
+			if (result.canonicalSessionId !== sessionId) {
 				sessionStore.loading.setSessionLoaded(result.canonicalSessionId);
 				bindPanelSession?.(panelId, result.canonicalSessionId);
 			}
@@ -245,7 +245,7 @@ function hydrateProviderBackedSessionOnOpen(input: {
 				source,
 				panelId,
 				sessionId,
-				canonicalSessionId: result.canonicalSessionId ?? sessionId,
+				canonicalSessionId: result.canonicalSessionId,
 				applied: result.applied,
 			});
 		})

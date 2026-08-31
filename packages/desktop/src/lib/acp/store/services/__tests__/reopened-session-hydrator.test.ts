@@ -68,7 +68,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			getSessionSnapshot: () => Effect.succeed(snapshot),
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.succeed({ resolvedSessionId: null });
+				return Effect.succeed({ resolvedSessionId: SESSION_ID });
 			},
 			applySessionStateEnvelope: (sessionId, envelope) => {
 				appliedEnvelopes.push({ sessionId, envelope });
@@ -78,7 +78,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
 
-		expect(result).toEqual({ applied: true });
+		expect(result).toEqual({ applied: true, canonicalSessionId: SESSION_ID });
 		expect(importCalls).toBe(0);
 		expect(appliedEnvelopes).toHaveLength(1);
 		expect(appliedEnvelopes[0]?.sessionId).toBe(SESSION_ID);
@@ -110,7 +110,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			},
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.succeed({ resolvedSessionId: null });
+				return Effect.succeed({ resolvedSessionId: SESSION_ID });
 			},
 			applySessionStateEnvelope: () => undefined,
 			getCurrentGraphRevision: () => null,
@@ -123,7 +123,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			)
 		);
 
-		expect(result).toEqual({ applied: true });
+		expect(result).toEqual({ applied: true, canonicalSessionId: SESSION_ID });
 		expect(importCalls).toBe(1);
 		expect(fetchCalls).toBe(2);
 	});
@@ -134,7 +134,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			getSessionSnapshot: () => Effect.succeed(emptyRpcSessionSnapshot(0)),
 			ensureProviderSessionImported: () => {
 				importCalls += 1;
-				return Effect.succeed({ resolvedSessionId: null });
+				return Effect.succeed({ resolvedSessionId: SESSION_ID });
 			},
 			applySessionStateEnvelope: () => undefined,
 			getCurrentGraphRevision: () => null,
@@ -142,7 +142,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
 
-		expect(result).toEqual({ applied: true });
+		expect(result).toEqual({ applied: true, canonicalSessionId: SESSION_ID });
 		expect(importCalls).toBe(0);
 	});
 
@@ -166,7 +166,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 			)
 		);
 
-		expect(result).toEqual({ applied: true });
+		expect(result).toEqual({ applied: true, canonicalSessionId: SESSION_ID });
 		expect(appliedEnvelopes).toHaveLength(1);
 	});
 
@@ -174,14 +174,14 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: (): Effect.Effect<RpcSessionSnapshot, AppError> =>
 				Effect.fail(new AgentError("acp.getSessionSnapshot", new Error("network down"))),
-			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: null }),
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: SESSION_ID }),
 			applySessionStateEnvelope: () => undefined,
 			getCurrentGraphRevision: () => null,
 		};
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
 
-		expect(result).toEqual({ applied: false });
+		expect(result).toEqual({ applied: false, canonicalSessionId: SESSION_ID });
 	});
 
 	// AC-263 issue #263 defect 2: reopening a session whose local graph
@@ -201,7 +201,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const appliedEnvelopes: SessionStateEnvelope[] = [];
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: () => Effect.succeed(snapshot),
-			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: null }),
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: SESSION_ID }),
 			applySessionStateEnvelope: (_sessionId, envelope) => {
 				appliedEnvelopes.push(envelope);
 			},
@@ -212,7 +212,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
 
-		expect(result).toEqual({ applied: true });
+		expect(result).toEqual({ applied: true, canonicalSessionId: SESSION_ID });
 		expect(appliedEnvelopes).toHaveLength(1);
 		const applied = appliedEnvelopes[0];
 		if (applied?.payload.kind !== "snapshot") {
@@ -295,6 +295,70 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		expect(payload.graph.interactions[0]?.id).toBe("perm-toolu-claimed-1");
 	});
 
+	// A soft-deleted session row (e.g. a twin the user deleted) still answers
+	// the snapshot fetch with session !== null. When the requested id has an
+	// on-disk source, the import/resolution step must still run so a claimed
+	// provider uuid resolves to the live aggregate instead of hydrating the
+	// deleted row's graph.
+	it("resolves through the import step when the requested id's session row is deleted", async () => {
+		const requestedUuid = "3c8bd13c-556e-428b-a155-ae33a1a0a0f6";
+		const claimingSessionId = SessionId.make("session-session-create-claimed-1");
+		const deletedTwinSnapshot: RpcSessionSnapshot = {
+			...withSession(emptyRpcSessionSnapshot(5), SessionId.make(requestedUuid)),
+		};
+		if (deletedTwinSnapshot.session === null) {
+			throw new Error("fixture must carry a session row");
+		}
+		const deletedSnapshot: RpcSessionSnapshot = {
+			...deletedTwinSnapshot,
+			session: { ...deletedTwinSnapshot.session, deletedAt: "2026-08-31T19:50:46.876Z" },
+		};
+		const claimingSnapshot = withSession(
+			{
+				...emptyRpcSessionSnapshot(10),
+				pendingApprovals: [
+					{
+						approvalRequestId: ApprovalRequestId.make("perm-toolu-claimed-2"),
+						sessionId: claimingSessionId,
+						sequence: 9,
+					},
+				],
+			},
+			claimingSessionId
+		);
+		const appliedEnvelopes: Array<{ sessionId: string; envelope: SessionStateEnvelope }> = [];
+		const deps: ReopenedSessionHydratorDeps = {
+			getSessionSnapshot: (sessionId) =>
+				Effect.succeed(sessionId === claimingSessionId ? claimingSnapshot : deletedSnapshot),
+			ensureProviderSessionImported: () =>
+				Effect.succeed({ resolvedSessionId: claimingSessionId }),
+			applySessionStateEnvelope: (sessionId, envelope) => {
+				appliedEnvelopes.push({ sessionId, envelope });
+			},
+			getCurrentGraphRevision: () => null,
+		};
+
+		const result = await Effect.runPromise(
+			hydrateReopenedSessionSnapshot(
+				{
+					...baseInput(),
+					sessionId: requestedUuid,
+					sourcePath: "/home/user/.claude/3c8bd13c.jsonl",
+				},
+				deps
+			)
+		);
+
+		expect(result).toEqual({ applied: true, canonicalSessionId: claimingSessionId });
+		expect(appliedEnvelopes).toHaveLength(1);
+		expect(appliedEnvelopes[0]?.sessionId).toBe(claimingSessionId);
+		const payload = appliedEnvelopes[0]?.envelope.payload;
+		if (payload?.kind !== "snapshot") {
+			throw new Error("expected a snapshot envelope");
+		}
+		expect(payload.graph.interactions).toHaveLength(1);
+	});
+
 	it("does not re-apply when the local graph's transcript is already at least as new", async () => {
 		const snapshot = withSession(
 			{ ...emptyRpcSessionSnapshot(3), messages: [userMessage("msg-1", "hello", 1)] },
@@ -303,7 +367,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const appliedEnvelopes: SessionStateEnvelope[] = [];
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: () => Effect.succeed(snapshot),
-			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: null }),
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: SESSION_ID }),
 			applySessionStateEnvelope: (_sessionId, envelope) => {
 				appliedEnvelopes.push(envelope);
 			},
@@ -312,7 +376,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 
 		const result = await Effect.runPromise(hydrateReopenedSessionSnapshot(baseInput(), deps));
 
-		expect(result).toEqual({ applied: false });
+		expect(result).toEqual({ applied: false, canonicalSessionId: SESSION_ID });
 		expect(appliedEnvelopes).toHaveLength(0);
 	});
 });

@@ -352,7 +352,7 @@ export const ensureProviderSessionImported = Effect.fn("history.ensureProviderSe
 		);
 		const projectPath = yield* findProviderSessionProjectPath(decodedSessionId);
 		if (Option.isNone(projectPath)) {
-			return { resolvedSessionId: null };
+			return { resolvedSessionId: sessionId };
 		}
 		// The result's sessionId is the resolution answer: the requested id for
 		// a plain import, or the claiming aggregate's id when a live session
@@ -378,7 +378,7 @@ const setSessionTitleEffect = Effect.fn("history.setSessionTitle")(function* (
 	const decodedSessionId = yield* decodeEffect(
 		"history.setSessionTitle",
 		decodeSessionId
-	)(imported.resolvedSessionId ?? sessionId);
+	)(imported.resolvedSessionId);
 	const decodedTitle = yield* decodeTrimmed("history.setSessionTitle", title);
 	const commandId = yield* nextCommandId("session-meta-update-title");
 	yield* withRpcClient("history.setSessionTitle", (client) =>
@@ -404,7 +404,7 @@ const setSessionPrNumberEffect = Effect.fn("history.setSessionPrNumber")(functio
 	const decodedSessionId = yield* decodeEffect(
 		"history.setSessionPrNumber",
 		decodeSessionId
-	)(imported.resolvedSessionId ?? sessionId);
+	)(imported.resolvedSessionId);
 	const decodedPrNumber =
 		prNumber === null
 			? null

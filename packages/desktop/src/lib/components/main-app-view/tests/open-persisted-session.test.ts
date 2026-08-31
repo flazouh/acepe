@@ -26,8 +26,8 @@ const getSessionSnapshotMock = mock(
 		Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
 );
 const ensureProviderSessionImportedMock = mock(
-	(_sessionId: string): Effect.Effect<{ resolvedSessionId: string | null }, AppError> =>
-		Effect.succeed({ resolvedSessionId: null })
+	(sessionId: string): Effect.Effect<{ resolvedSessionId: string }, AppError> =>
+		Effect.succeed({ resolvedSessionId: sessionId })
 );
 
 let openPersistedSession: typeof import("../logic/open-persisted-session.js").openPersistedSession;
@@ -111,8 +111,8 @@ describe("openPersistedSession", () => {
 			Effect.fail(new ConnectionError("session-1", new Error("not stubbed for this test")))
 		);
 		ensureProviderSessionImportedMock.mockReset();
-		ensureProviderSessionImportedMock.mockImplementation(() =>
-			Effect.succeed({ resolvedSessionId: null })
+		ensureProviderSessionImportedMock.mockImplementation((sessionId: string) =>
+			Effect.succeed({ resolvedSessionId: sessionId })
 		);
 
 		sessionStore = {
