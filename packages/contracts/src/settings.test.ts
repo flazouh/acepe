@@ -10,10 +10,14 @@ const decodeKey = Schema.decodeUnknownEffect(UserSettingKey)
 
 describe("UserSettingKey", () => {
 	it("decodes every shipping app_settings key", () => {
-		expect(USER_SETTING_KEYS).toHaveLength(41)
+		expect(USER_SETTING_KEYS).toHaveLength(42)
 		for (const key of USER_SETTING_KEYS) {
 			expect(Effect.runSync(decodeKey(key))).toBe(key)
 		}
+	})
+
+	it("includes seen_agent_ids so a newly listed agent can auto-enable", () => {
+		expect(Effect.runSync(decodeKey("seen_agent_ids"))).toBe("seen_agent_ids")
 	})
 
 	it("keeps the hyphenated notification-preferences storage key", () => {

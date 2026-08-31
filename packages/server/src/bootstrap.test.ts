@@ -235,7 +235,7 @@ Vitest.describe("live provider adapters", () => {
 				const adapters = yield* registry.adapters
 				Vitest.assert.deepStrictEqual(
 					Arr.map(adapters, (adapter) => adapter.providerId),
-					["claude-code", "codex", "opencode", "cursor", "copilot"]
+					["claude-code", "codex", "opencode", "cursor", "copilot", "grok-build"]
 				)
 			}).pipe(
 				// @effect-diagnostics-next-line strictEffectProvide:off

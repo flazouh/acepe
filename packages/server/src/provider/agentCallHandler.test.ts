@@ -51,6 +51,14 @@ const fakeUnknownProvider = makeFakeProviderAdapter({
 	updates: []
 })
 
+const fakeGrok = makeFakeProviderAdapter({
+	providerId: ProviderId.make("grok-build"),
+	capabilities: ProviderCapabilities.make({ enabled: ["toolCalls", "permissionRequests"] }),
+	installed: true,
+	authenticated: true,
+	updates: []
+})
+
 // routeAgentCall reads AgentInstaller for its install/uninstall ops, so
 // every caller carries it -- agent.list included. The unsupported-platform
 // installer stands in here: it never touches the network and never writes a
@@ -78,7 +86,7 @@ const fakeAuthenticatorLayer = (
 
 const TestLive = Layer.mergeAll(
 	ProviderRegistryLive.pipe(
-		Layer.provide(ProviderAdapterRegistryLive([fakeClaude, fakeCodex, fakeUnknownProvider]))
+		Layer.provide(ProviderAdapterRegistryLive([fakeClaude, fakeCodex, fakeUnknownProvider, fakeGrok]))
 	),
 	AgentInstallerUnsupportedPlatformLive("test-host"),
 	Layer.effect(
@@ -121,6 +129,12 @@ Vitest.layer(TestLive)("routeAgentCall", (it) => {
 						// with the copy the server owns, never a browser method
 						// nothing can run.
 						signIn: signInMethodForAgent("something-new")
+					},
+					{
+						id: "grok-build",
+						name: "Grok Build",
+						availabilityKind: { kind: "installable", installed: true },
+						signIn: { kind: "browser" }
 					}
 				]
 			})

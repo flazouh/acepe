@@ -41,7 +41,7 @@ import { SessionModelCatalog } from "./sessionModels.ts"
 // below reports no authenticated flag of its own.
 //
 // What actually signs an agent in is that agent's own CLI: `claude auth
-// login`, `codex login`, `copilot login`, `cursor-agent login`. Each opens
+// login`, `codex login`, `copilot login`, `cursor-agent login`, `grok login`. Each opens
 // the operator's browser, completes an OAuth round trip and writes a token
 // into its own credential store. Acepe spawns the command and waits for it
 // to exit; no token is ever read, logged, held or forwarded by Acepe. The

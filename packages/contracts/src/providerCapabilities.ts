@@ -164,6 +164,10 @@ export const CURSOR_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
 	{ id: "ask", name: "Ask", description: "Answers without changing anything", iconKind: "ask" }
 ]
 
+export const GROK_BUILD_PROVIDER_MODES: ReadonlyArray<ProviderModeDescriptor> = [
+	{ id: "agent", name: "Agent", description: "Edits and runs commands", iconKind: "agent" }
+]
+
 const CLAUDE_PROVIDER_IDS: ReadonlySet<string> = new Set(["claude", "claude-code", "claude_code"])
 
 /**
@@ -179,7 +183,8 @@ const MODES_BY_PROVIDER_ID: ReadonlyMap<string, ReadonlyArray<ProviderModeDescri
 	["copilot", COPILOT_PROVIDER_MODES],
 	["github-copilot", COPILOT_PROVIDER_MODES],
 	["cursor", CURSOR_PROVIDER_MODES],
-	["cursor-agent", CURSOR_PROVIDER_MODES]
+	["cursor-agent", CURSOR_PROVIDER_MODES],
+	["grok-build", GROK_BUILD_PROVIDER_MODES]
 ])
 
 /** The modes a provider offers, or an empty list for one that offers none. */

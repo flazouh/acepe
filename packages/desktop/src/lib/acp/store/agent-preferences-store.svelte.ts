@@ -1,7 +1,4 @@
-import {
-	AGENT_ENV_OVERRIDES_SETTING_KEY,
-	type AgentEnvOverridesByAgent,
-} from "@acepe/contracts";
+import { AGENT_ENV_OVERRIDES_SETTING_KEY, type AgentEnvOverridesByAgent } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import { getContext, setContext } from "svelte";
 import { SvelteSet } from "svelte/reactivity";
@@ -15,6 +12,7 @@ const AGENT_PREFERENCES_STORE_KEY = Symbol("agent-preferences-store");
 
 const HAS_COMPLETED_ONBOARDING_KEY: UserSettingKey = "has_completed_onboarding";
 const SELECTED_AGENT_IDS_KEY: UserSettingKey = "selected_agent_ids";
+const SEEN_AGENT_IDS_KEY: UserSettingKey = "seen_agent_ids";
 const CUSTOM_AGENT_CONFIGS_KEY: UserSettingKey = "custom_agent_configs";
 const AGENT_ENV_OVERRIDES_KEY: UserSettingKey = AGENT_ENV_OVERRIDES_SETTING_KEY;
 const DEFAULT_AGENT_ID_KEY: UserSettingKey = "default_agent_id";
@@ -25,6 +23,7 @@ export type AgentEnvOverrides = AgentEnvOverridesByAgent;
 export interface AgentPreferencesInitializationInput {
 	readonly persistedOnboardingCompleted: boolean | null;
 	readonly persistedSelectedAgentIds: readonly string[] | null;
+	readonly persistedSeenAgentIds: readonly string[] | null;
 	readonly projectCount: number | null;
 	readonly availableAgentIds: readonly string[];
 }
@@ -32,9 +31,25 @@ export interface AgentPreferencesInitializationInput {
 export interface AgentPreferencesInitializationState {
 	readonly onboardingCompleted: boolean;
 	readonly selectedAgentIds: string[];
+	readonly seenAgentIds: string[];
 	readonly shouldPersistOnboardingCompleted: boolean;
 	readonly shouldPersistSelectedAgentIds: boolean;
+	readonly shouldPersistSeenAgentIds: boolean;
 }
+
+/**
+ * First-class agents that shipped before `seen_agent_ids`. A null seen list
+ * treats these as already offered, so a new id such as grok-build auto-enables
+ * without turning a disabled legacy agent back on.
+ */
+export const LEGACY_FIRST_CLASS_AGENT_IDS = [
+	"claude-code",
+	"copilot",
+	"cursor",
+	"opencode",
+	"codex",
+	"forge",
+] as const;
 
 interface AgentScopedItem {
 	readonly agentId: string;
@@ -160,13 +175,31 @@ export function upsertAgentEnvOverrides(
 	return next;
 }
 
+function uniqueAgentIds(ids: readonly string[]): string[] {
+	return Array.from(new SvelteSet(ids));
+}
+
+function seenListChanged(
+	persistedSeenAgentIds: readonly string[] | null,
+	seenAgentIds: readonly string[]
+): boolean {
+	if (persistedSeenAgentIds === null) {
+		return true;
+	}
+	if (persistedSeenAgentIds.length !== seenAgentIds.length) {
+		return true;
+	}
+	const persisted = new SvelteSet(persistedSeenAgentIds);
+	return seenAgentIds.some((id) => !persisted.has(id));
+}
+
 /**
  * Computes onboarding + selected-agent initialization with migration defaults.
  */
 export function deriveAgentPreferencesInitializationState(
 	input: AgentPreferencesInitializationInput
 ): AgentPreferencesInitializationState {
-	const availableAgentIds = Array.from(new SvelteSet(input.availableAgentIds));
+	const availableAgentIds = uniqueAgentIds(input.availableAgentIds);
 
 	const onboardingCompleted =
 		input.persistedOnboardingCompleted !== null
@@ -180,12 +213,24 @@ export function deriveAgentPreferencesInitializationState(
 		? intersectSelectedAgentIds(input.persistedSelectedAgentIds, availableAgentIds)
 		: [];
 
+	const seenSeed =
+		input.persistedSeenAgentIds === null
+			? [...LEGACY_FIRST_CLASS_AGENT_IDS]
+			: uniqueAgentIds(input.persistedSeenAgentIds);
+	const alreadySeen = new SvelteSet(seenSeed);
+	const unseen = availableAgentIds.filter((id) => !alreadySeen.has(id));
+	const seenAgentIds = uniqueAgentIds([...seenSeed, ...availableAgentIds]);
+	const shouldPersistSeenAgentIds = seenListChanged(input.persistedSeenAgentIds, seenAgentIds);
+
 	if (persistedSelected.length > 0) {
+		const selectedAgentIds = uniqueAgentIds([...persistedSelected, ...unseen]);
 		return {
 			onboardingCompleted,
-			selectedAgentIds: persistedSelected,
+			selectedAgentIds,
+			seenAgentIds,
 			shouldPersistOnboardingCompleted,
-			shouldPersistSelectedAgentIds: false,
+			shouldPersistSelectedAgentIds: unseen.length > 0,
+			shouldPersistSeenAgentIds,
 		};
 	}
 
@@ -193,16 +238,20 @@ export function deriveAgentPreferencesInitializationState(
 		return {
 			onboardingCompleted,
 			selectedAgentIds: availableAgentIds,
+			seenAgentIds,
 			shouldPersistOnboardingCompleted,
 			shouldPersistSelectedAgentIds: true,
+			shouldPersistSeenAgentIds,
 		};
 	}
 
 	return {
 		onboardingCompleted,
 		selectedAgentIds: availableAgentIds,
+		seenAgentIds,
 		shouldPersistOnboardingCompleted,
 		shouldPersistSelectedAgentIds: false,
+		shouldPersistSeenAgentIds,
 	};
 }
 
@@ -238,6 +287,7 @@ export class AgentPreferencesStore {
 		const initState = deriveAgentPreferencesInitializationState({
 			persistedOnboardingCompleted: null,
 			persistedSelectedAgentIds: null,
+			persistedSeenAgentIds: null,
 			projectCount,
 			availableAgentIds,
 		});
@@ -256,6 +306,7 @@ export class AgentPreferencesStore {
 		return Effect.all([
 			backendClient.settings.get<boolean>(HAS_COMPLETED_ONBOARDING_KEY),
 			backendClient.settings.get<string[]>(SELECTED_AGENT_IDS_KEY),
+			backendClient.settings.get<string[]>(SEEN_AGENT_IDS_KEY),
 			backendClient.settings.get<CustomAgentConfig[]>(CUSTOM_AGENT_CONFIGS_KEY),
 			backendClient.settings.get<AgentEnvOverrides>(AGENT_ENV_OVERRIDES_KEY),
 			backendClient.settings.get<string>(DEFAULT_AGENT_ID_KEY),
@@ -264,6 +315,7 @@ export class AgentPreferencesStore {
 				([
 					persistedOnboardingCompleted,
 					persistedSelectedAgentIds,
+					persistedSeenAgentIds,
 					persistedCustom,
 					persistedAgentEnvOverrides,
 					persistedDefaultAgentId,
@@ -276,6 +328,7 @@ export class AgentPreferencesStore {
 					const initState = deriveAgentPreferencesInitializationState({
 						persistedOnboardingCompleted,
 						persistedSelectedAgentIds,
+						persistedSeenAgentIds,
 						projectCount,
 						availableAgentIds,
 					});
@@ -301,6 +354,11 @@ export class AgentPreferencesStore {
 					if (initState.shouldPersistSelectedAgentIds) {
 						persistOperations.push(
 							backendClient.settings.set(SELECTED_AGENT_IDS_KEY, initState.selectedAgentIds)
+						);
+					}
+					if (initState.shouldPersistSeenAgentIds) {
+						persistOperations.push(
+							backendClient.settings.set(SEEN_AGENT_IDS_KEY, initState.seenAgentIds)
 						);
 					}
 
@@ -450,5 +508,6 @@ export {
 	CUSTOM_AGENT_CONFIGS_KEY,
 	DEFAULT_AGENT_ID_KEY,
 	HAS_COMPLETED_ONBOARDING_KEY,
+	SEEN_AGENT_IDS_KEY,
 	SELECTED_AGENT_IDS_KEY,
 };

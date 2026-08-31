@@ -23,13 +23,18 @@ describe("signInPlanForAgent", () => {
 			binaryName: "cursor-agent",
 			args: ["login"]
 		})
+		expect(signInPlanForAgent("grok-build")).toMatchObject({
+			kind: "browser",
+			binaryName: "grok",
+			args: ["login"]
+		})
 	})
 
 	// The device-code flows print a one-time code Acepe would have to relay,
 	// which is the one thing this lane refuses to do. If a flag like this
 	// appears in a plan, the plan is asking Acepe to handle a credential.
 	it("never asks a CLI for a device-code flow", () => {
-		for (const agentId of ["claude-code", "codex", "copilot", "cursor"]) {
+		for (const agentId of ["claude-code", "codex", "copilot", "cursor", "grok-build"]) {
 			const plan = signInPlanForAgent(agentId)
 			expect(plan.kind).toBe("browser")
 			if (plan.kind === "browser") {

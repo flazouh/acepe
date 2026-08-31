@@ -301,6 +301,26 @@ describe("OrchestrationCanonicalBridge", () => {
 		}
 	});
 
+	it("keeps graph.agentId grok-build when SessionCreated carries providerId grok-build", () => {
+		const bridge = makeBridge();
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionCreated", {
+				sessionId,
+				projectId,
+				title: "Grok session",
+				providerId: "grok-build",
+			})
+		);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("snapshot");
+		if (payload.payload.kind === "snapshot") {
+			expect(payload.payload.graph.agentId).toBe("grok-build");
+		}
+	});
+
 	// #272: `currentModeId` is canonical-owned and folded from SessionModeSet,
 	// which can only ever come AFTER the SessionCreated that opens the session --
 	// so a live-created session has no canonical mode yet, and SessionCreatedPayload

@@ -107,7 +107,7 @@ export type ResumeSessionResponse = { models?: SessionModelState; modes?: Sessio
  * This enum represents all valid agent types in the system.
  * Parsers set the enum directly based on their context (no normalization needed).
  */
-export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" |
+export type CanonicalAgentId = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "forge" | "grok-build" |
 /**
  * Custom agent registered by user
  */
@@ -649,7 +649,7 @@ export type SessionStatePayload = { kind: "snapshot"; graph: SessionStateGraph }
 
 export type SessionStateEnvelope = { sessionId: string; graphRevision: number; lastEventSeq: number; payload: SessionStatePayload }
 
-export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "custom";
+export type ProviderBrand = "claude-code" | "copilot" | "cursor" | "opencode" | "codex" | "grok-build" | "custom";
 
 export type ProviderVariantGroup = "plain" | "reasoningEffort";
 

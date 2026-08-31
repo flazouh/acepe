@@ -90,6 +90,11 @@ export type UserSettingKey =
 	 */
 	| "selected_agent_ids"
 	/**
+	 * Agent IDs the user has already been offered, so a newly listed agent
+	 * can auto-enable without re-enabling one they turned off (JSON array)
+	 */
+	| "seen_agent_ids"
+	/**
 	 * Persisted custom agent configurations (JSON array)
 	 */
 	| "custom_agent_configs"

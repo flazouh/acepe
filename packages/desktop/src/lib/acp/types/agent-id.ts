@@ -21,6 +21,7 @@ export const AGENT_IDS = {
 	OPENCODE: "opencode",
 	CODEX: "codex",
 	FORGE: "forge",
+	GROK_BUILD: "grok-build",
 } as const satisfies Record<string, Extract<CanonicalAgentId, string>>;
 
 const BUILT_IN_AGENT_ID_VALUES = new Set<string>(Object.values(AGENT_IDS));

@@ -13,6 +13,7 @@ import { makeLiveClaudeAdapter } from "./Claude/Adapter.ts"
 import { makeLiveCodexAdapter } from "./Codex/Adapter.ts"
 import { makeLiveCopilotAdapter } from "./Copilot/Adapter.ts"
 import { makeLiveCursorAdapter } from "./Cursor/Adapter.ts"
+import { makeLiveGrokAdapter } from "./Grok/Adapter.ts"
 import { makeLiveOpenCodeAdapter } from "./OpenCode/Adapter.ts"
 
 // Presence is a live answer, not a boot-time snapshot.
@@ -211,6 +212,64 @@ Vitest.layer(Platform)("live adapter presence", (it) => {
 			Vitest.assert.strictEqual((yield* read).installed, false)
 			yield* fs.writeFileString(path.join(bin, "cursor-agent"), "stub")
 			Vitest.assert.strictEqual((yield* read).installed, true)
+		})
+	)
+
+	it.effect("Grok Build reports an install and a login that happen after construction", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const root = yield* fs.makeTempDirectoryScoped()
+			const bin = path.join(root, "bin")
+			const home = path.join(root, "home")
+			yield* fs.makeDirectory(bin, { recursive: true })
+			yield* fs.makeDirectory(home, { recursive: true })
+			const env = envLayer({ PATH: bin, HOME: home })
+
+			const adapter = yield* makeLiveGrokAdapter().pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(env)
+			)
+			const read = adapter.presence.pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(env)
+			)
+
+			Vitest.assert.strictEqual((yield* read).installed, false)
+			Vitest.assert.strictEqual((yield* read).authenticated, false)
+
+			yield* fs.writeFileString(path.join(bin, "grok"), "stub")
+			Vitest.assert.strictEqual((yield* read).installed, true)
+			Vitest.assert.strictEqual((yield* read).authenticated, false)
+
+			yield* fs.makeDirectory(path.join(home, ".grok"), { recursive: true })
+			yield* fs.writeFileString(path.join(home, ".grok", "auth.json"), "{}")
+			Vitest.assert.strictEqual((yield* read).authenticated, true)
+		})
+	)
+
+	it.effect("Grok Build treats XAI_API_KEY as authenticated without auth.json", () =>
+		Effect.gen(function*() {
+			const fs = yield* FileSystem.FileSystem
+			const path = yield* Path.Path
+			const root = yield* fs.makeTempDirectoryScoped()
+			const bin = path.join(root, "bin")
+			const home = path.join(root, "home")
+			yield* fs.makeDirectory(bin, { recursive: true })
+			yield* fs.makeDirectory(home, { recursive: true })
+			yield* fs.writeFileString(path.join(bin, "grok"), "stub")
+			const env = envLayer({ PATH: bin, HOME: home, XAI_API_KEY: "xai-test-key" })
+
+			const adapter = yield* makeLiveGrokAdapter().pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(env)
+			)
+			const presence = yield* adapter.presence.pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(env)
+			)
+			Vitest.assert.strictEqual(presence.installed, true)
+			Vitest.assert.strictEqual(presence.authenticated, true)
 		})
 	)
 })
