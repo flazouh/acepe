@@ -42,6 +42,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as ManagedRuntime from "effect/ManagedRuntime";
 import { loadQaSocketPath, qaPreloadScript } from "electrobun-qa";
+import { standardApplicationMenu } from "./application-menu.ts";
 import { keepQaHost, qaInternalMessageMap, qaWindowPreload } from "./qa-host.ts";
 import {
 	migrateLegacyTracerDb,
@@ -118,6 +119,11 @@ applyNativeWrapperCwdOrExit({
 
 const electrobun = await import("electrobun/bun");
 const electrobunNative = await import("../../node_modules/electrobun/dist/api/bun/proc/native.ts");
+
+// Without this macOS has no menu bar and therefore no key equivalents at all:
+// Cmd+Q, Cmd+A, copy/paste and undo are menu accelerators, not webview
+// behavior. See application-menu.ts.
+electrobun.ApplicationMenu.setApplicationMenu(standardApplicationMenu());
 
 const qaConfig = resolveElectrobunConfig();
 const qaEnabled = qaSurfaceEnabled(qaConfig);
