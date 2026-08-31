@@ -129,7 +129,7 @@
 					aria-hidden="true"
 				>
 					<!-- Duration/easing must match .thinking-collapsible or the caret and the panel desync. -->
-					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform duration-fast ease-smooth-out {collapsed ? '' : 'rotate-90'}"
+					<HugeiconsIcon name="chevron-right" class="size-3 shrink-0 text-muted-foreground transition-transform {collapsed ? '' : 'rotate-90'}"
 					/>
 				</button>
 			{/if}
@@ -165,8 +165,11 @@
 		display: grid;
 		grid-template-rows: 1fr;
 		opacity: 1;
+		/* 150ms both ways -- the disclosure timing Cursor ships for every
+		   tool-result collapse (grid rows at 150ms, decisive settle). 250ms
+		   read as laggy next to the rest of the panel's motion. */
 		transition:
-			grid-template-rows var(--duration-fast) var(--ease-smooth-out),
+			grid-template-rows var(--duration-quick) var(--ease-smooth-out),
 			opacity var(--duration-quick) var(--ease-smooth-out);
 	}
 

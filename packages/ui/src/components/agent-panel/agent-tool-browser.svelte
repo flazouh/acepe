@@ -95,7 +95,7 @@
 					{#snippet children()}
 						<HugeiconsIcon
 							name="chevron-down"
-							class="transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
+							class="transition-transform {isExpanded ? 'rotate-180' : ''}"
 						/>
 					{/snippet}
 				</Button>
@@ -200,10 +200,12 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.25rem;
-		background: color-mix(in srgb, var(--card) 80%, var(--muted));
+		/* Same surface as the rest of the tool card -- see the matching rule
+		   in agent-tool-execute.svelte. */
+		background: transparent;
 		border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 		padding: 6px 10px;
-		transition: max-height 0.15s ease-out;
+		transition: max-height var(--duration-quick) var(--ease-smooth-out);
 	}
 
 	.browser-output-collapsed {

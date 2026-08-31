@@ -156,7 +156,7 @@
 					{#snippet children()}
 						<HugeiconsIcon
 							name="chevron-down"
-							class="transition-transform duration-150 {isExpanded ? 'rotate-180' : ''}"
+							class="transition-transform {isExpanded ? 'rotate-180' : ''}"
 						/>
 					{/snippet}
 				</Button>
@@ -283,7 +283,7 @@
 		background: transparent;
 		border-top: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 		padding: 6px 10px;
-		transition: max-height 0.15s ease-out;
+		transition: max-height var(--duration-quick) var(--ease-smooth-out);
 	}
 
 	.execute-output-collapsed {
