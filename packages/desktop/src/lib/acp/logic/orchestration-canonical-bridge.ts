@@ -355,6 +355,14 @@ export class OrchestrationCanonicalBridge {
 				return Effect.succeed(
 					this.onSessionModelSet(event.payload.sessionId, event.payload.modelId)
 				);
+			case "SessionConfigOptionSet":
+				return Effect.succeed(
+					this.onSessionConfigOptionSet(
+						event.payload.sessionId,
+						event.payload.key,
+						event.payload.value
+					)
+				);
 			case "SessionMetaUpdated":
 				return Effect.succeed(this.onSessionMetaUpdated(event.payload.sessionId, event.metadata));
 			case "SessionArchived":
@@ -995,6 +1003,31 @@ export class OrchestrationCanonicalBridge {
 			graphRevision: toRevision.graphRevision,
 			lastEventSeq: toRevision.lastEventSeq,
 			payload: { kind: "sessionModel", currentModelId: modelId, revision: toRevision },
+		};
+		state.revision = toRevision;
+		return [toSessionStateAcpEnvelope(envelope)];
+	}
+
+	// The config-option third of onSessionModeSet above, and the last of the
+	// three composer selections to go live: SessionConfigOptionSet used to fall
+	// into translate's default branch, so a reasoning effort chosen mid-run
+	// existed only in the composer's provisional overlay until the next reopen
+	// read the server's folded config_options. The envelope carries the one
+	// key/value fact; pairing it with the provider's option catalog is the
+	// store fold's job (capabilities-with-session-config-option.ts), the same
+	// split the reopen path uses.
+	private onSessionConfigOptionSet(
+		sessionId: string,
+		configId: string,
+		value: string
+	): AcpEventEnvelope[] {
+		const state = this.stateFor(sessionId);
+		const toRevision = nextRevision(state.revision, false);
+		const envelope: SessionStateEnvelope = {
+			sessionId,
+			graphRevision: toRevision.graphRevision,
+			lastEventSeq: toRevision.lastEventSeq,
+			payload: { kind: "sessionConfigOption", configId, value, revision: toRevision },
 		};
 		state.revision = toRevision;
 		return [toSessionStateAcpEnvelope(envelope)];

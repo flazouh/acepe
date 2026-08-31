@@ -20,6 +20,7 @@ import {
 import { applyTranscriptDeltaToSnapshot } from "../transcript-delta.js";
 import type { SessionTransientProjection } from "../types.js";
 import { buildCanonicalUsageTelemetry } from "./canonical-usage-telemetry.js";
+import { capabilitiesWithSessionConfigOption } from "./capabilities-with-session-config-option.js";
 import { capabilitiesWithSessionMode } from "./capabilities-with-session-mode.js";
 import {
 	capabilitiesWithSessionModel,
@@ -112,6 +113,8 @@ export function reduceCommand(
 			return reduceApplySessionModel(snapshot, command);
 		case "applySessionModels":
 			return reduceApplySessionModels(snapshot, command);
+		case "applySessionConfigOption":
+			return reduceApplySessionConfigOption(snapshot, command);
 		case "applySessionArchive":
 			return reduceApplySessionArchive(snapshot, command);
 		case "applyTelemetry":
@@ -269,6 +272,36 @@ function reduceApplySessionModels(
 		snapshot,
 		revision: command.revision,
 		fold: (previous) => capabilitiesWithSessionModels(previous, command.availableModels),
+	});
+}
+
+/**
+ * The live path for one canonical config option value, the third single-fact
+ * capabilities writer beside the mode and model above. Until this existed a
+ * SessionConfigOptionSet reached only the composer's provisional overlay:
+ * the canonical projection kept the previous value until the next reopen
+ * read the server's folded config_options.
+ *
+ * The graph's agentId rides along so the fold can pair the value with the
+ * provider's contract option catalog when no canonical catalog exists yet --
+ * see capabilitiesWithSessionConfigOption. `capabilitiesMaterialized` stays
+ * untouched for the same reason it does for a mode: one field is not a
+ * materialized capability set.
+ */
+function reduceApplySessionConfigOption(
+	snapshot: EnvelopeReducerSnapshot,
+	command: Extract<SessionStateCommand, { kind: "applySessionConfigOption" }>
+): readonly EnvelopePatch[] {
+	const agentId = snapshot.previousGraph?.agentId ?? null;
+	return patchCapabilities({
+		snapshot,
+		revision: command.revision,
+		alreadyApplied: (previous) =>
+			previous.configOptions?.some(
+				(option) => option.id === command.configId && option.currentValue === command.value
+			) === true,
+		fold: (previous) =>
+			capabilitiesWithSessionConfigOption(previous, agentId, command.configId, command.value),
 	});
 }
 

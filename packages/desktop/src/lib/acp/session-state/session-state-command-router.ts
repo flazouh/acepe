@@ -73,6 +73,16 @@ export type SessionStateCommand =
 			revision: SessionGraphRevision;
 	  }
 	| {
+			// One config option value a session chose, on its own, for the same
+			// reason as the mode and model above: capabilities otherwise reach
+			// the store whole, and a reasoning effort arriving mid-run must not
+			// wipe the models and commands this envelope does not know.
+			kind: "applySessionConfigOption";
+			configId: string;
+			value: string;
+			revision: SessionGraphRevision;
+	  }
+	| {
 			// Archived-ness is a SessionCold field, not graph state, so this
 			// command carries no revision: the server owns `archived_at` and
 			// the event that reports it is the only writer.
@@ -378,6 +388,24 @@ export function routeSessionStateEnvelope(
 				{
 					kind: "applySessionModels",
 					availableModels: envelope.payload.availableModels,
+					revision: envelope.payload.revision,
+				},
+			];
+		case "sessionConfigOption":
+			if (!envelopeFrontierMatchesRevision(envelope, envelope.payload.revision)) {
+				return [
+					{
+						kind: "refreshSnapshot",
+						fromRevision: envelope.payload.revision.graphRevision,
+						toRevision: envelope.graphRevision,
+					},
+				];
+			}
+			return [
+				{
+					kind: "applySessionConfigOption",
+					configId: envelope.payload.configId,
+					value: envelope.payload.value,
 					revision: envelope.payload.revision,
 				},
 			];

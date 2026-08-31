@@ -275,6 +275,173 @@ describe("reduceCommand", () => {
 		expect(patches).toEqual([]);
 	});
 
+	// The config-option counterpart of the mode tests above. A live
+	// SessionConfigOptionSet used to reach only the composer's provisional
+	// overlay; the canonical projection kept the previous value until a reopen
+	// read the server's folded config_options.
+	it("patches a config option value on an existing canonical catalog, touching nothing else", () => {
+		const capabilities: SessionGraphCapabilities = {
+			models: null,
+			modes: { currentModeId: "build" },
+			availableCommands: [{ name: "compact", description: "Compact session" }],
+			configOptions: [
+				{
+					id: "reasoning_effort",
+					name: "Reasoning Effort",
+					category: "reasoning_effort",
+					type: "select",
+					currentValue: "auto",
+					options: [
+						{ name: "Auto", value: "auto" },
+						{ name: "High", value: "high" },
+					],
+					presentation: "compactReasoning",
+				},
+			],
+			autonomousEnabled: true,
+		};
+
+		const patches = reduceCommand(
+			createSnapshot({
+				previousProjection: createProjection({ capabilities }),
+				previousGraph: createGraph({ capabilities }),
+			}),
+			{
+				kind: "applySessionConfigOption",
+				configId: "reasoning_effort",
+				value: "high",
+				revision: newerRevision,
+			},
+			1_700_000_000_000
+		);
+
+		const projectionPatch = patches.find((patch) => patch.kind === "setCanonicalProjection");
+		const graphPatch = patches.find((patch) => patch.kind === "setSessionStateGraph");
+		if (projectionPatch?.kind !== "setCanonicalProjection") {
+			throw new Error("expected a canonical projection patch");
+		}
+		if (graphPatch?.kind !== "setSessionStateGraph") {
+			throw new Error("expected a session state graph patch");
+		}
+		const nextOptions = projectionPatch.projection.capabilities.configOptions ?? [];
+		expect(nextOptions[0]?.currentValue).toBe("high");
+		expect(nextOptions[0]?.options).toEqual(capabilities.configOptions?.[0]?.options);
+		expect(projectionPatch.projection.capabilities.modes).toEqual(capabilities.modes);
+		expect(projectionPatch.projection.capabilities.availableCommands).toEqual(
+			capabilities.availableCommands
+		);
+		expect(graphPatch.graph.capabilities).toEqual(projectionPatch.projection.capabilities);
+	});
+
+	// No provider publishes an option catalog live, so mid-run the canonical
+	// configOptions is empty until a reopen installs the snapshot's pairing.
+	// The fold seeds the catalog from the provider contract fact with the
+	// value applied -- the same pairing the reopen path performs.
+	it("seeds the contract catalog with the chosen value when no canonical catalog exists", () => {
+		const capabilities: SessionGraphCapabilities = {
+			models: null,
+			modes: null,
+			availableCommands: [],
+			configOptions: null,
+			autonomousEnabled: null,
+		};
+
+		const patches = reduceCommand(
+			createSnapshot({
+				previousProjection: createProjection({ capabilities }),
+				previousGraph: createGraph({ capabilities, agentId: "claude-code" }),
+			}),
+			{
+				kind: "applySessionConfigOption",
+				configId: "reasoning_effort",
+				value: "max",
+				revision: newerRevision,
+			},
+			1_700_000_000_000
+		);
+
+		const projectionPatch = patches.find((patch) => patch.kind === "setCanonicalProjection");
+		if (projectionPatch?.kind !== "setCanonicalProjection") {
+			throw new Error("expected a canonical projection patch");
+		}
+		const options = projectionPatch.projection.capabilities.configOptions ?? [];
+		const reasoning = options.find((option) => option.id === "reasoning_effort");
+		expect(reasoning?.currentValue).toBe("max");
+		expect(reasoning?.presentation).toBe("compactReasoning");
+		expect((reasoning?.options ?? []).map((value) => value.value)).toContain("max");
+	});
+
+	// A provider with no contract catalog gives the fold no descriptor
+	// authority to pair the value with; inventing a bare entry would hand the
+	// widget a select with no choices. configOptions stays null while the
+	// revision still advances with the envelope frontier.
+	it("keeps configOptions null for a provider without a contract catalog", () => {
+		const capabilities: SessionGraphCapabilities = {
+			models: null,
+			modes: null,
+			availableCommands: [],
+			configOptions: null,
+			autonomousEnabled: null,
+		};
+
+		const patches = reduceCommand(
+			createSnapshot({
+				previousProjection: createProjection({ capabilities }),
+				previousGraph: createGraph({ capabilities, agentId: "codex" }),
+			}),
+			{
+				kind: "applySessionConfigOption",
+				configId: "reasoning_effort",
+				value: "high",
+				revision: newerRevision,
+			},
+			1_700_000_000_000
+		);
+
+		const projectionPatch = patches.find((patch) => patch.kind === "setCanonicalProjection");
+		if (projectionPatch?.kind !== "setCanonicalProjection") {
+			throw new Error("expected a canonical projection patch");
+		}
+		expect(projectionPatch.projection.capabilities.configOptions ?? null).toBe(null);
+		expect(projectionPatch.projection.revision).toEqual(newerRevision);
+	});
+
+	it("returns no config-option patches when the value is already the current one", () => {
+		const capabilities: SessionGraphCapabilities = {
+			models: null,
+			modes: null,
+			availableCommands: [],
+			configOptions: [
+				{
+					id: "reasoning_effort",
+					name: "Reasoning Effort",
+					category: "reasoning_effort",
+					type: "select",
+					currentValue: "high",
+					options: [{ name: "High", value: "high" }],
+					presentation: "compactReasoning",
+				},
+			],
+			autonomousEnabled: null,
+		};
+
+		const patches = reduceCommand(
+			createSnapshot({
+				previousProjection: createProjection({ capabilities }),
+				previousGraph: createGraph({ capabilities }),
+			}),
+			{
+				kind: "applySessionConfigOption",
+				configId: "reasoning_effort",
+				value: "high",
+				revision,
+			},
+			1_700_000_000_000
+		);
+
+		expect(patches).toEqual([]);
+	});
+
 	it("returns no telemetry patches for stale revisions", () => {
 		const patches = reduceCommand(
 			createSnapshot({

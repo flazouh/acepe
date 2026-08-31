@@ -32,6 +32,7 @@ const SESSION_STATE_ENVELOPE_MAX_BYTES_BY_KIND = {
 	lifecycle: 8_000,
 	sessionMode: 8_000,
 	sessionModel: 8_000,
+	sessionConfigOption: 8_000,
 	// A catalog carries an id, a name and a description per model. Claude
 	// reports around a dozen, and the largest catalog in the five providers is
 	// OpenCode's multiplexed one, which runs to a few hundred.

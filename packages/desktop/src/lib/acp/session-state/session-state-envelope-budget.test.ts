@@ -181,6 +181,7 @@ describe("session-state envelope byte budgets", () => {
 			"lifecycle",
 			"plan",
 			"sessionArchive",
+			"sessionConfigOption",
 			"sessionMode",
 			"sessionModel",
 			"sessionModels",

@@ -574,6 +574,58 @@ describe("OrchestrationCanonicalBridge", () => {
 		]);
 	});
 
+	// The config-option counterpart of the two narrow kinds above. A
+	// SessionConfigOptionSet used to fall into translate's default branch, so a
+	// reasoning effort chosen mid-run reached only the composer's provisional
+	// overlay -- the canonical projection kept the previous value until the
+	// session was reopened (only reopen-snapshot-graph.ts read the server's
+	// folded config_options).
+	it("emits a session-config-option envelope for a live SessionConfigOptionSet", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionConfigOptionSet", { sessionId, key: "reasoning_effort", value: "high" })
+		);
+
+		expect(envelopes).toHaveLength(1);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+		expect(payload.payload.kind).toBe("sessionConfigOption");
+		if (payload.payload.kind === "sessionConfigOption") {
+			expect(payload.payload.configId).toBe("reasoning_effort");
+			expect(payload.payload.value).toBe("high");
+			// A config option change appends no transcript row, exactly like a
+			// mode change.
+			expect(payload.payload.revision.transcriptRevision).toBe(0);
+		}
+	});
+
+	it("routes a live SessionConfigOptionSet into an applySessionConfigOption command", () => {
+		const bridge = makeBridge();
+		runTranslate(bridge, makeEvent("SessionCreated", { sessionId, projectId, title: "s" }));
+		const envelopes = runTranslate(
+			bridge,
+			makeEvent("SessionConfigOptionSet", { sessionId, key: "reasoning_effort", value: "max" })
+		);
+		const payload = envelopes[0]?.payload as SessionStateEnvelope;
+
+		const commands = routeSessionStateEnvelope(
+			sessionId,
+			{ graphRevision: 0, transcriptRevision: 0, lastEventSeq: 0 },
+			payload
+		);
+
+		expect(commands).toEqual([
+			{
+				kind: "applySessionConfigOption",
+				configId: "reasoning_effort",
+				value: "max",
+				revision: { graphRevision: 1, transcriptRevision: 0, lastEventSeq: 1 },
+			},
+		]);
+	});
+
 	/**
 	 * These three cases used to assert the opposite: that an event for an
 	 * unknown session produced nothing. A real Claude Code session showed what
