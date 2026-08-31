@@ -162,10 +162,11 @@ export function hydrateReopenedSessionSnapshot(
 			// arrives at a revision the client has already passed, the router
 			// reads a frontier mismatch, and the session stops applying anything
 			// while the server keeps committing tool calls and approvals.
-			// snapshotSequence rides along as the replay watermark: the events(0)
-			// full replay re-delivers this session's own history on every page
-			// load, and re-translating it (SessionCreated included) would reset
-			// the realigned bridge state and desync every live event after it.
+			// snapshotSequence rides along as the replay watermark: any
+			// re-delivery of this session's own history on the broadcast events
+			// channel (e.g. a capture run's events(0) replay) would otherwise
+			// re-translate it -- SessionCreated included, which resets the
+			// realigned bridge state and desyncs every live event after it.
 			realignCanonicalSession(resolvedSessionId, revisionForApply, snapshot.snapshotSequence);
 			return { applied: true, canonicalSessionId: resolvedSessionId };
 		}),
