@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import type { Attachment } from "../components/agent-input/types/attachment.js";
 import type { AppError } from "../errors/app-error.js";
 import { ConnectionError, SessionNotFoundError } from "../errors/app-error.js";
-import { createLogger } from "../utils/logger.js";
+import { createLogger, type Logger } from "../utils/logger.js";
 import { canActivateCreatedSessionWithFirstPrompt } from "./services/first-send-activation.js";
 import type { SessionMessagingService } from "./services/session-messaging-service.js";
 import type { SessionCreationCoordinator } from "./session-creation-coordinator.svelte.js";
@@ -35,13 +35,17 @@ export type SessionMessagingOrchestratorDeps = {
 		updates: SessionMutableColdUpdates,
 		options?: { touchUpdatedAt?: boolean }
 	) => void;
+	/** Injectable for tests; defaults to the module logger. */
+	readonly logger?: Pick<Logger, "debug" | "info" | "warn">;
 };
 
 export class SessionMessagingOrchestrator {
 	readonly #deps: SessionMessagingOrchestratorDeps;
+	readonly #logger: Pick<Logger, "debug" | "info" | "warn">;
 
 	constructor(deps: SessionMessagingOrchestratorDeps) {
 		this.#deps = deps;
+		this.#logger = deps.logger ?? logger;
 	}
 
 	sendMessage(
@@ -66,13 +70,15 @@ export class SessionMessagingOrchestrator {
 		const sessionIdentity = this.#deps.getSessionIdentity(sessionId);
 		const sessionMetadata = this.#deps.getSessionMetadata(sessionId);
 		if (!sessionIdentity) {
+			this.#logger.warn("sendMessage: rejected, no session identity", { sessionId });
 			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		if (!sessionMetadata) {
+			this.#logger.warn("sendMessage: rejected, no session metadata", { sessionId });
 			return Effect.fail(new SessionNotFoundError(sessionId));
 		}
 		const canonicalCanSend = this.#deps.getSessionCanSend(sessionId);
-		logger.info("sendMessage: store entrypoint", {
+		this.#logger.info("sendMessage: store entrypoint", {
 			sessionId,
 			canSend: canonicalCanSend,
 			transcriptRevisionBeforeSend: this.#deps.getGraphTranscriptRevision(sessionId) ?? null,
@@ -83,26 +89,26 @@ export class SessionMessagingOrchestrator {
 			this.#deps.messagingSvc.sendMessage(sessionId, content, attachments).pipe(
 				Effect.map(() => {
 					const currentTitle = this.#deps.getSessionMetadata(sessionId)?.title;
-					logger.debug("[sendMessage] After message sent, checking title update", {
+					this.#logger.debug("[sendMessage] After message sent, checking title update", {
 						sessionId,
 						currentTitle: currentTitle?.substring(0, 100),
 					});
 					if (!currentTitle) {
-						logger.debug("[sendMessage] No current title, skipping title update");
+						this.#logger.debug("[sendMessage] No current title, skipping title update");
 						return;
 					}
 
 					const derivedTitle = getTitleUpdateFromUserMessage(currentTitle, content);
-					logger.debug("[sendMessage] Title derivation result", {
+					this.#logger.debug("[sendMessage] Title derivation result", {
 						derivedTitle,
 						willUpdate: !!derivedTitle,
 					});
 					if (!derivedTitle) {
-						logger.debug("[sendMessage] No derived title, skipping update");
+						this.#logger.debug("[sendMessage] No derived title, skipping update");
 						return;
 					}
 
-					logger.debug("[sendMessage] Updating session title", { derivedTitle });
+					this.#logger.debug("[sendMessage] Updating session title", { derivedTitle });
 					this.#deps.updateSession(sessionId, { title: derivedTitle });
 				})
 			);
@@ -117,6 +123,12 @@ export class SessionMessagingOrchestrator {
 		if (canSend || canActivateFirstPrompt) {
 			return send();
 		}
+		this.#logger.warn("sendMessage: rejected, session cannot send", {
+			sessionId,
+			canSend: canonicalCanSend,
+			lifecycleStatus,
+			sessionLifecycleState: sessionMetadata.sessionLifecycleState,
+		});
 		return Effect.fail(new ConnectionError(sessionId));
 	}
 }

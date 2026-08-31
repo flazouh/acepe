@@ -185,6 +185,21 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		return result.success;
 	}
 
+	/**
+	 * A failed send must never silently swallow the message: put the captured
+	 * draft back in the composer, log the failure, and tell the user.
+	 */
+	function restoreAndSurfaceSendFailure(
+		restoreSnapshot: ComposerRestoreSnapshot,
+		error: Error,
+		logMessage: string,
+		logContext: Record<string, unknown>
+	): void {
+		applyComposerRestoreSnapshot(restoreSnapshot);
+		host.logger.error(logMessage, { ...logContext, error });
+		toast.error(`Failed to send message: ${error.message}`);
+	}
+
 	async function handleSend(forceAction?: DefaultSubmitAction) {
 		const t0 = performance.now();
 		const props = host.getProps();
@@ -514,8 +529,15 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 							props.onWorktreeCreateFailed?.(failureMessage);
 						}
 						props.onSendError?.(effectivePanelId);
-					} else if (shouldClearDraftEarly && props.panelId) {
-						host.panelStore.setMessageDraft(props.panelId, prepared.content);
+					} else {
+						// Failed send on an existing session (or a pre-session failure
+						// that is not a creation error).
+						restoreAndSurfaceSendFailure(
+							restoreSnapshot,
+							error,
+							"handleSend: send failed, restored composer draft",
+							{ panelId: props.panelId ?? null, sessionId: props.sessionId ?? null }
+						);
 					}
 					return error;
 				}),
@@ -543,6 +565,7 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 		});
 		props.onWillSend?.();
 
+		const restoreSnapshot = createComposerRestoreSnapshot();
 		const prepared = captureAndClearInput();
 		if (!prepared) return;
 		clearDraft();
@@ -558,7 +581,12 @@ export function createAgentInputController(host: AgentInputControllerHost): Agen
 					)
 				),
 				Effect.mapError((error) => {
-					console.error("Steer failed:", error);
+					restoreAndSurfaceSendFailure(
+						restoreSnapshot,
+						error,
+						"handleSteer: steer failed, restored composer draft",
+						{ sessionId }
+					);
 					return error;
 				}),
 				Effect.catch(() => Effect.succeed(undefined))
