@@ -644,11 +644,16 @@ export function scrollToTop() {
 >
 	{#snippet renderAssistantBlock(context: AssistantRenderBlockContext)}
 		{#if context.group.type === "text"}
-			<ContentBlockRouter
-				block={{ type: "text", text: context.group.text }}
-				isStreaming={context.isStreaming}
-				{projectPath}
-			/>
+			<!-- px-2.5 matches the execute card's output gutter (padding: 6px 10px
+			     in agent-tool-execute.svelte), so prose and command output share
+			     one left edge. -->
+			<div class="px-2.5">
+				<ContentBlockRouter
+					block={{ type: "text", text: context.group.text }}
+					isStreaming={context.isStreaming}
+					{projectPath}
+				/>
+			</div>
 		{:else}
 			<ContentBlockRouter block={context.group.block} {projectPath} />
 		{/if}
