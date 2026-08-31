@@ -187,6 +187,11 @@ export const rowFromEvent = (
 					})
 				),
 			TokenAppended: ignoreEvent,
+			// Thought deltas are transcript-bearing on the LIVE path only (the
+			// desktop bridge appends them as "thought" segments). The persisted
+			// message projection has no thought row kind yet, so a reopened
+			// session's snapshot does not carry thinking content.
+			ThoughtAppended: ignoreEvent,
 			ProjectCreated: ignoreEvent,
 			ProjectMetaUpdated: ignoreEvent,
 			ProjectDeleted: ignoreEvent,

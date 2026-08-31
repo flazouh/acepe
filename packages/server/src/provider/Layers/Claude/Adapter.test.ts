@@ -411,6 +411,44 @@ Vitest.describe("ClaudeAdapter", () => {
 		})
 	)
 
+	// Reproduces the live bug: a real Claude thinking phase streamed
+	// thinking_delta facts that publishFact folded into generic
+	// SessionMetaUpdated metadata, which no transcript consumer reads -- a
+	// long thinking phase produced zero visible content. Thought content is
+	// transcript product truth, so it must ship as its own ThoughtAppended
+	// event, exactly like text ships as TokenAppended.
+	Vitest.it.effect("streams ThoughtAppended from fake transport thinking deltas", () =>
+		Effect.gen(function*() {
+			const inbound = yield* Queue.unbounded<Json, Done>()
+			const interrupts = yield* Ref.make(0)
+			const { adapter, events } = yield* openPromptedSession({
+				createQuery: () => Effect.succeed(fakeHandle(inbound, interrupts)),
+				prompt: "Hi"
+			})
+			yield* Queue.offer(inbound, {
+				type: "stream_event",
+				session_id: "sdk-session-1",
+				event: {
+					type: "content_block_delta",
+					delta: {
+						type: "thinking_delta",
+						thinking: "Weighing the options"
+					}
+				}
+			})
+			const thoughtEvent = yield* takeEventOfType(events, "ThoughtAppended")
+			Vitest.assert.strictEqual(thoughtEvent.type, "ThoughtAppended")
+			if (thoughtEvent.type === "ThoughtAppended") {
+				Vitest.assert.strictEqual(thoughtEvent.payload.token, "Weighing the options")
+				Vitest.assert.strictEqual(
+					thoughtEvent.payload.messageId,
+					tracerAssistantMessageId(messageId)
+				)
+			}
+			yield* adapter.cancelTurn({ sessionId })
+		})
+	)
+
 	// Reproduces the live bug: a real Claude turn's reply fully lands (the SDK
 	// stream delivers a `result` message once Claude finishes replying) but
 	// nothing closed projection_turns for it — no TurnCompleted event ever

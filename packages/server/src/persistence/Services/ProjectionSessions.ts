@@ -19,6 +19,7 @@ import {
 	SessionUnarchivedPayload,
 	StoredSessionModelCatalog,
 	TokenAppendedPayload,
+	ThoughtAppendedPayload,
 	TrimmedNonEmptyString,
 	TurnCancelledPayload,
 	TurnCompletedPayload
@@ -464,6 +465,16 @@ const projectTokenAppended = (
 		Effect.map(() => mapExisting(current, (session) => touch(session, event.occurredAt)))
 	)
 
+// A thinking-heavy turn can stream thought deltas for minutes before the
+// first text token, and the session is just as alive during that stretch.
+const projectThoughtAppended = (
+	current: Option.Option<ProjectedSession>,
+	event: Extract<OrchestrationEvent, { readonly type: "ThoughtAppended" }>
+): Effect.Effect<Option.Option<ProjectedSession>, Schema.SchemaError> =>
+	decodePayload(ThoughtAppendedPayload, event.payload).pipe(
+		Effect.map(() => mapExisting(current, (session) => touch(session, event.occurredAt)))
+	)
+
 const projectTurnCancelled = (
 	current: Option.Option<ProjectedSession>,
 	event: Extract<OrchestrationEvent, { readonly type: "TurnCancelled" }>
@@ -547,6 +558,7 @@ export const evolveProjectedSession = (
 			SessionDeleted: (deleted) => projectSessionDeleted(current, deleted),
 			MessageSent: (sent) => projectMessageSent(current, sent),
 			TokenAppended: (appended) => projectTokenAppended(current, appended),
+			ThoughtAppended: (appended) => projectThoughtAppended(current, appended),
 			TurnCancelled: (cancelled) => projectTurnCancelled(current, cancelled),
 			TurnCompleted: (completed) => projectTurnCompleted(current, completed),
 			CheckpointCreated: () => Effect.succeed(current),

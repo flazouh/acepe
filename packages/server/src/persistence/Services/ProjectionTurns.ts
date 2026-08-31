@@ -7,6 +7,7 @@ import {
 	Sequence,
 	SessionId,
 	TokenAppendedPayload,
+	ThoughtAppendedPayload,
 	type TranscriptFactOrigin,
 	TrimmedNonEmptyString,
 	TurnCancelledPayload,
@@ -311,6 +312,27 @@ const projectTokenAppended = (
 		})
 	)
 
+// Thinking output is billed output, so the streaming-event proxy counts it
+// like text tokens. Unlike projectTokenAppended there is no turn-starting
+// fallback: thought deltas only ever stream inside a live turn, so with no
+// open turn there is nothing honest to attribute them to.
+const projectThoughtAppended = (
+	current: ReadonlyArray<ProjectedTurn>,
+	event: Extract<OrchestrationEvent, { readonly type: "ThoughtAppended" }>
+): Effect.Effect<ReadonlyArray<ProjectedTurn>, Schema.SchemaError> =>
+	decodePayload(ThoughtAppendedPayload, event.payload).pipe(
+		Effect.map((payload) => {
+			if (!forThisSession(current, payload.sessionId)) {
+				return current
+			}
+			const open = findOpenTurn(current)
+			return Option.match(open, {
+				onNone: () => current,
+				onSome: (turn) => replaceTurn(current, addOutputToken(turn))
+			})
+		})
+	)
+
 const projectTurnCancelled = (
 	current: ReadonlyArray<ProjectedTurn>,
 	event: Extract<OrchestrationEvent, { readonly type: "TurnCancelled" }>
@@ -455,6 +477,7 @@ export const evolveProjectedTurns = (
 			SessionDeleted: () => Effect.succeed(current),
 			MessageSent: (sent) => projectMessageSent(current, sent),
 			TokenAppended: (appended) => projectTokenAppended(current, appended),
+			ThoughtAppended: (appended) => projectThoughtAppended(current, appended),
 
 			TurnCancelled: (cancelled) => projectTurnCancelled(current, cancelled),
 			TurnCompleted: (completed) => projectTurnCompleted(current, completed),

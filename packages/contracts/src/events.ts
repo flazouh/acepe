@@ -85,6 +85,7 @@ export const OrchestrationEventType = Schema.Literals([
 	"SessionDeleted",
 	"MessageSent",
 	"TokenAppended",
+	"ThoughtAppended",
 	"TurnCancelled",
 	"TurnCompleted",
 	"CheckpointCreated",
@@ -222,6 +223,21 @@ export const TokenAppendedPayload = Schema.Struct({
 	origin: Schema.optionalKey(TranscriptFactOrigin),
 })
 export type TokenAppendedPayload = typeof TokenAppendedPayload.Type
+
+// A streamed slice of the model's extended-thinking output. Deliberately the
+// same shape as TokenAppendedPayload: thought and text deltas interleave in
+// one assistant turn and differ only in which transcript segment kind they
+// append to. Kept as its own event (not folded into SessionMetaUpdated
+// metadata) because thought content is transcript product truth -- a metadata
+// bag is invisible to every transcript consumer and was exactly the silent
+// drop that motivated this event.
+export const ThoughtAppendedPayload = Schema.Struct({
+	sessionId: SessionId,
+	messageId: MessageId,
+	token: StreamToken,
+	origin: Schema.optionalKey(TranscriptFactOrigin),
+})
+export type ThoughtAppendedPayload = typeof ThoughtAppendedPayload.Type
 
 export const TurnCancelledPayload = Schema.Struct({
 	sessionId: SessionId,
@@ -561,6 +577,14 @@ export const TokenAppendedEvent = defineOrchestrationEvent({
 	aggregateId: SessionId,
 })
 export type TokenAppendedEvent = typeof TokenAppendedEvent.Type
+
+export const ThoughtAppendedEvent = defineOrchestrationEvent({
+	type: "ThoughtAppended",
+	payload: ThoughtAppendedPayload,
+	aggregateKind: "session",
+	aggregateId: SessionId,
+})
+export type ThoughtAppendedEvent = typeof ThoughtAppendedEvent.Type
 
 export const TurnCancelledEvent = defineOrchestrationEvent({
 	type: "TurnCancelled",
@@ -1056,6 +1080,7 @@ export const OrchestrationEvent = Schema.Union([
 	SessionDeletedEvent,
 	MessageSentEvent,
 	TokenAppendedEvent,
+	ThoughtAppendedEvent,
 	TurnCancelledEvent,
 	TurnCompletedEvent,
 	CheckpointCreatedEvent,

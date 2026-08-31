@@ -112,6 +112,7 @@ export const evolveProjectedTerminal = (
 			SessionDeleted: () => ignoreEvent(current),
 			MessageSent: () => ignoreEvent(current),
 			TokenAppended: () => ignoreEvent(current),
+			ThoughtAppended: () => ignoreEvent(current),
 			TurnCancelled: () => ignoreEvent(current),
 			TurnCompleted: () => ignoreEvent(current),
 			CheckpointCreated: () => ignoreEvent(current),

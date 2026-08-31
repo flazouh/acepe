@@ -441,6 +441,7 @@ export const evolveProjectedProjects = (
 			SessionDeleted: (deleted) => projectSessionDeleted(current, deleted),
 			MessageSent: () => Effect.succeed(current),
 			TokenAppended: () => Effect.succeed(current),
+			ThoughtAppended: () => Effect.succeed(current),
 
 			TurnCancelled: () => Effect.succeed(current),
 			TurnCompleted: () => Effect.succeed(current),

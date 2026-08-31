@@ -360,6 +360,10 @@ export const projectEvent = (
 			SessionDeleted: (deleted) => projectSessionDeleted(model, deleted),
 			MessageSent: (sent) => projectMessageSent(model, sent),
 			TokenAppended: (appended) => projectTokenAppended(model, appended),
+			// Thinking output is not part of the assistant message text this
+			// read model accumulates -- the live transcript carries it as its
+			// own segment kind.
+			ThoughtAppended: () => Effect.succeed(model),
 			TurnCancelled: (cancelled) => projectTurnCancelled(model, cancelled),
 			TurnCompleted: (completed) => projectTurnCompleted(model, completed),
 			CheckpointCreated: (created) => projectCheckpointCreated(model, created),

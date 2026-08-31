@@ -106,6 +106,7 @@ export const reviewProjectionActionForEvent = (
 			SessionDeleted: () => noop,
 			MessageSent: () => noop,
 			TokenAppended: () => noop,
+			ThoughtAppended: () => noop,
 			TurnCancelled: () => noop,
 			TurnCompleted: () => noop,
 			CheckpointCreated: () => noop,

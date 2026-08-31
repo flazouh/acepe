@@ -13,6 +13,7 @@ import {
 	OrchestrationEvent,
 	ProjectCreatedPayload,
 	TokenAppendedPayload,
+	ThoughtAppendedPayload,
 	ProjectDeletedPayload,
 	ProjectMetaUpdatedPayload,
 	SessionArchivedPayload,
@@ -103,6 +104,7 @@ const v1EventTypes = [
 	"SessionDeleted",
 	"MessageSent",
 	"TokenAppended",
+	"ThoughtAppended",
 	"TurnCancelled",
 	"TurnCompleted",
 	"CheckpointCreated",
@@ -484,6 +486,14 @@ const memberCases = [
 			sessionId,
 			messageId,
 			token: "Hello",
+		}),
+	},
+	{
+		payloadSchema: ThoughtAppendedPayload,
+		event: sessionEvent("ThoughtAppended", {
+			sessionId,
+			messageId,
+			token: "Considering the options",
 		}),
 	},
 	{

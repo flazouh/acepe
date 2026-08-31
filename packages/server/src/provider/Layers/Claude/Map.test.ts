@@ -35,6 +35,31 @@ Vitest.describe("mapSdkMessage", () => {
 		Vitest.assert.strictEqual(mapped.state.sawTextDelta, true)
 	})
 
+	Vitest.it("maps stream thinking deltas to thought facts", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "stream_event",
+			session_id: "sdk-session-1",
+			event: {
+				type: "content_block_delta",
+				delta: {
+					type: "thinking_delta",
+					thinking: "Weighing the options"
+				}
+			}
+		})
+		Vitest.assert.deepStrictEqual(mapped.facts, [
+			{
+				contractKind: "provider_session",
+				providerSessionId: "sdk-session-1"
+			},
+			{
+				contractKind: "thought_delta",
+				token: "Weighing the options"
+			}
+		])
+		Vitest.assert.strictEqual(mapped.state.sawThinkingDelta, true)
+	})
+
 	Vitest.it("skips assistant text when stream deltas were already seen", () => {
 		const afterStream = mapSdkMessage(emptyClaudeStreamState, {
 			type: "stream_event",
