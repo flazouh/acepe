@@ -134,6 +134,7 @@ Vitest.layer(TestLive)("routeAgentCall", (it) => {
 						id: "grok-build",
 						name: "Grok Build",
 						availabilityKind: { kind: "installable", installed: true },
+						authenticated: true,
 						signIn: { kind: "browser" }
 					}
 				]
