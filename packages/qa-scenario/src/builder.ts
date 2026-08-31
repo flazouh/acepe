@@ -213,6 +213,22 @@ export class ScenarioBuilder {
 		return this
 	}
 
+	/** One streamed slice of the model's thinking. Use `thoughts` for a phase. */
+	thought(messageId: MessageId, token: string): this {
+		return this.push(
+			{ type: "ThoughtAppended", aggregateKind: "session", aggregateId: this.options.sessionId },
+			{ sessionId: this.options.sessionId, messageId, token },
+		)
+	}
+
+	/** A streamed thinking phase. `perTokenMs` is the gap the replay reproduces. */
+	thoughts(messageId: MessageId, parts: ReadonlyArray<string>, perTokenMs: number): this {
+		for (const part of parts) {
+			this.advance(perTokenMs).thought(messageId, part)
+		}
+		return this
+	}
+
 	toolCall(input: {
 		readonly activityId: ActivityId
 		readonly toolCallId: ToolCallId
