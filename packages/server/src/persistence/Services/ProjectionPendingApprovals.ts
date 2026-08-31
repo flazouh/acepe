@@ -162,11 +162,31 @@ const projectAnswered = (
 	return Arr.filter(current, (row) => row.approvalRequestId !== fact.approvalRequestId)
 }
 
+// SessionDeleted is terminal, so its outstanding approvals can never be
+// answered and must not survive as orphan rows. SessionArchived stays a
+// no-op on purpose: an archived session can be unarchived, and this fold
+// consumes each event once, so rows dropped on archive could never come
+// back on unarchive.
+const projectSessionDeleted = (
+	current: ReadonlyArray<ProjectedPendingApproval>,
+	event: OrchestrationEvent,
+	deletedSessionId: SessionId
+): ReadonlyArray<ProjectedPendingApproval> => {
+	if (factAppliesToCurrent(current, event, deletedSessionId) === false) {
+		return current
+	}
+	const next = Arr.filter(current, (row) => row.sessionId !== deletedSessionId)
+	return next.length === current.length ? current : next
+}
+
 export const evolveProjectedPendingApprovals = (
 	current: ReadonlyArray<ProjectedPendingApproval>,
 	event: OrchestrationEvent
-): Effect.Effect<ReadonlyArray<ProjectedPendingApproval>, Schema.SchemaError> =>
-	pendingApprovalFactFromEvent(event).pipe(
+): Effect.Effect<ReadonlyArray<ProjectedPendingApproval>, Schema.SchemaError> => {
+	if (event.type === "SessionDeleted") {
+		return Effect.succeed(projectSessionDeleted(current, event, event.payload.sessionId))
+	}
+	return pendingApprovalFactFromEvent(event).pipe(
 		Effect.map((fact) =>
 			Option.match(fact, {
 				onNone: () => current,
@@ -180,3 +200,4 @@ export const evolveProjectedPendingApprovals = (
 			})
 		)
 	)
+}

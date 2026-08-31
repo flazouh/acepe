@@ -35,6 +35,7 @@ import projectionProjectsSortOrder from "./Migrations/0033_projection_projects_s
 import projectionSessionsEphemeral from "./Migrations/0034_projection_sessions_ephemeral.ts"
 import projectionProjectsIcon from "./Migrations/0035_projection_projects_icon.ts"
 import projectionSessionsConfigOptions from "./Migrations/0036_projection_sessions_config_options.ts"
+import repairOrphanPendingApprovals from "./Migrations/0037_repair_orphan_pending_approvals.ts"
 
 const MIGRATIONS_TABLE = "_migrations"
 
@@ -74,7 +75,8 @@ const loader = SqliteMigrator.fromRecord({
 	"0033_projection_projects_sort_order": projectionProjectsSortOrder,
 	"0034_projection_sessions_ephemeral": projectionSessionsEphemeral,
 	"0035_projection_projects_icon": projectionProjectsIcon,
-	"0036_projection_sessions_config_options": projectionSessionsConfigOptions
+	"0036_projection_sessions_config_options": projectionSessionsConfigOptions,
+	"0037_repair_orphan_pending_approvals": repairOrphanPendingApprovals
 })
 
 export const runMigrations = SqliteMigrator.run({

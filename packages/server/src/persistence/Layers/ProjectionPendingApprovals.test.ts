@@ -81,7 +81,7 @@ const answeredFact = (
 
 type SessionEventType = Extract<
 	OrchestrationEvent["type"],
-	"SessionCreated" | "SessionMetaUpdated"
+	"SessionCreated" | "SessionMetaUpdated" | "SessionDeleted"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -173,6 +173,18 @@ const answerEvent = (
 			commandId: answerCommandId,
 			metadata: pendingApprovalMetadata(answeredFact(id, targetSessionId))
 		}
+	)
+
+const deleteEvent = (
+	sequence: number,
+	targetSessionId: SessionId = sessionId
+): OrchestrationEvent =>
+	sessionEvent(
+		sequence,
+		"SessionDeleted",
+		END,
+		{ sessionId: targetSessionId },
+		{ aggregateId: targetSessionId }
 	)
 
 const DumpRow = Schema.Struct({
@@ -452,6 +464,23 @@ Vitest.layer(isolatedApprovals())("answer removes the outstanding row", (it) => 
 			yield* approvals.apply(requestEvent(3), sql)
 			yield* approvals.apply(requestEvent(4, secondApprovalRequestId, sessionTwoId), sql)
 			yield* approvals.apply(answerEvent(5), sql)
+			Vitest.assert.strictEqual(statusOf(yield* approvals.get(approvalRequestId)), "missing")
+			Vitest.assert.strictEqual(
+				statusOf(yield* approvals.get(secondApprovalRequestId)),
+				"outstanding"
+			)
+		})
+	)
+})
+
+Vitest.layer(isolatedApprovals())("session delete clears its outstanding rows", (it) => {
+	it.effect("removes the deleted session's rows and keeps the other session outstanding", () =>
+		Effect.gen(function*() {
+			const sql = yield* SqlClient.SqlClient
+			const approvals = yield* ProjectionPendingApprovals
+			yield* approvals.apply(requestEvent(3), sql)
+			yield* approvals.apply(requestEvent(4, secondApprovalRequestId, sessionTwoId), sql)
+			yield* approvals.apply(deleteEvent(5), sql)
 			Vitest.assert.strictEqual(statusOf(yield* approvals.get(approvalRequestId)), "missing")
 			Vitest.assert.strictEqual(
 				statusOf(yield* approvals.get(secondApprovalRequestId)),

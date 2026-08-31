@@ -51,7 +51,7 @@ const answeredFact = (
 
 type SessionEventType = Extract<
 	OrchestrationEvent["type"],
-	"SessionCreated" | "SessionMetaUpdated" | "MessageSent"
+	"SessionCreated" | "SessionMetaUpdated" | "MessageSent" | "SessionArchived" | "SessionDeleted"
 >
 
 const sessionEvent = <const Type extends SessionEventType, Payload>(
@@ -143,6 +143,24 @@ const answerEvent = (
 			commandId: answerCommandId,
 			metadata: pendingApprovalMetadata(answeredFact(id, targetSessionId, decision))
 		}
+	)
+
+const archiveEvent = (sequence: number, targetSessionId: SessionId = sessionId) =>
+	sessionEvent(
+		sequence,
+		"SessionArchived",
+		END,
+		{ sessionId: targetSessionId },
+		{ aggregateId: targetSessionId }
+	)
+
+const deleteEvent = (sequence: number, targetSessionId: SessionId = sessionId) =>
+	sessionEvent(
+		sequence,
+		"SessionDeleted",
+		END,
+		{ sessionId: targetSessionId },
+		{ aggregateId: targetSessionId }
 	)
 
 const fold = (events: ReadonlyArray<OrchestrationEvent>) =>
@@ -253,6 +271,46 @@ Vitest.describe("evolveProjectedPendingApprovals", () => {
 			])
 			Vitest.assert.strictEqual(rows.length, 1)
 			Vitest.assert.strictEqual(rows[0]?.approvalRequestId, approvalRequestId)
+		})
+	)
+
+	Vitest.it.effect("clears every outstanding approval when the session is deleted", () =>
+		Effect.gen(function*() {
+			const rows = yield* fold([
+				sessionCreated(2),
+				requestEvent(3),
+				requestEvent(4, secondApprovalRequestId),
+				deleteEvent(5)
+			])
+			Vitest.assert.deepStrictEqual(rows, [])
+		})
+	)
+
+	Vitest.it.effect("leaves outstanding approvals when another session is deleted", () =>
+		Effect.gen(function*() {
+			const rows = yield* fold([
+				sessionCreated(2),
+				requestEvent(3),
+				deleteEvent(4, otherSessionId)
+			])
+			Vitest.assert.strictEqual(rows.length, 1)
+			Vitest.assert.strictEqual(rows[0]?.approvalRequestId, approvalRequestId)
+		})
+	)
+
+	Vitest.it.effect("keeps outstanding approvals when the session is archived", () =>
+		Effect.gen(function*() {
+			const rows = yield* fold([sessionCreated(2), requestEvent(3), archiveEvent(4)])
+			Vitest.assert.strictEqual(rows.length, 1)
+			Vitest.assert.strictEqual(requireApproval(rows, approvalRequestId).sequence, 3)
+		})
+	)
+
+	Vitest.it.effect("returns the same rows when a delete finds nothing outstanding", () =>
+		Effect.gen(function*() {
+			const current = Arr.empty<ProjectedPendingApproval>()
+			const rows = yield* evolveProjectedPendingApprovals(current, deleteEvent(2))
+			Vitest.assert.strictEqual(rows, current)
 		})
 	)
 
