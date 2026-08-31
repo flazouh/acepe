@@ -8,6 +8,7 @@ import {
 	CLAUDE_ISOLATED_SETTING_SOURCES,
 	CLAUDE_STRICT_MCP_CONFIG,
 	type ClaudeMode,
+	type ClaudeReasoningEffort,
 	DEFAULT_CLAUDE_MODE
 } from "./Provider.ts"
 
@@ -106,6 +107,14 @@ export const buildClaudeQueryOptions = (
 		// "add nothing", and then no `env` is passed at all so the SDK keeps
 		// its documented default of inheriting process.env untouched.
 		readonly envOverrides?: AgentEnvOverrides
+		// The session's chosen reasoning effort (the reasoning_effort config
+		// option), already parsed by claudeReasoningEffortFromConfig. Absent
+		// and none both mean "let the SDK decide". Passed at launch because
+		// the SDK has no live effort setter, and keyword triggers
+		// ("ultrathink") only work on CLI argv prompts, never on the SDK's
+		// stream-json stdin path -- without this option a session can never
+		// produce thinking output.
+		readonly reasoningEffort?: Option.Option<Exclude<ClaudeReasoningEffort, "auto">>
 	},
 	isolation: ClaudeQueryIsolation
 ): ClaudeSdkOptions => ({
@@ -130,6 +139,9 @@ export const buildClaudeQueryOptions = (
 	// over process.env, with the override winning on a name collision.
 	...(input.envOverrides !== undefined && Record.size(input.envOverrides) > 0
 		? { env: mergeAgentEnv(process.env, input.envOverrides) }
+		: {}),
+	...(input.reasoningEffort !== undefined && Option.isSome(input.reasoningEffort)
+		? { effort: input.reasoningEffort.value }
 		: {}),
 	canUseTool: (toolName, toolInput, options) =>
 		input.canUseTool(toolName, jsonObjectFromValue(toolInput), {

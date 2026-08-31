@@ -12,8 +12,10 @@ import {
 	CLAUDE_REASONING_PRESENTATION,
 	claudePreconnectionConfigOptions,
 	claudePresence,
+	claudeReasoningEffortFromConfig,
 	isClaudePlanCapabilityEnabled
 } from "./Provider.ts"
+import * as Option from "effect/Option"
 
 Vitest.describe("ClaudeProvider", () => {
 	Vitest.it("uses the claude-code provider id", () => {
@@ -59,5 +61,33 @@ Vitest.describe("ClaudeProvider", () => {
 		Vitest.assert.strictEqual(presence.providerId, CLAUDE_PROVIDER_ID)
 		Vitest.assert.strictEqual(presence.installed, true)
 		Vitest.assert.strictEqual(presence.authenticated, false)
+	})
+
+	// The one place that decides what a session's stored reasoning_effort
+	// selection means for the SDK: "auto" and anything unrecognized both mean
+	// "let the SDK decide" (no effort option), and only the catalog's own
+	// values pass through.
+	Vitest.describe("claudeReasoningEffortFromConfig", () => {
+		Vitest.it("reads a chosen effort from the session's config options", () => {
+			Vitest.assert.deepStrictEqual(
+				claudeReasoningEffortFromConfig({ reasoning_effort: "max" }),
+				Option.some("max")
+			)
+		})
+
+		Vitest.it("treats auto as no explicit effort", () => {
+			Vitest.assert.deepStrictEqual(
+				claudeReasoningEffortFromConfig({ reasoning_effort: "auto" }),
+				Option.none()
+			)
+		})
+
+		Vitest.it("ignores an absent or unrecognized value", () => {
+			Vitest.assert.deepStrictEqual(claudeReasoningEffortFromConfig({}), Option.none())
+			Vitest.assert.deepStrictEqual(
+				claudeReasoningEffortFromConfig({ reasoning_effort: "turbo" }),
+				Option.none()
+			)
+		})
 	})
 })

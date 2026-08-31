@@ -10,6 +10,7 @@ import {
 	SessionCreateCommand,
 	SessionId,
 	AgentEnvOverridesByAgent,
+	SessionSetConfigOptionCommand,
 	SessionSetModelCommand,
 	SessionSetModeCommand,
 	SettingsSetCommand,
@@ -1244,6 +1245,106 @@ Vitest.describe("ProviderBridge", () => {
 						events.some((event) => event.type === "ProviderSessionFailed"),
 						"the follow-up must not fail with a duplicate event_id either"
 					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase2Live),
+					Effect.scoped
+				)
+			}).pipe(
+				// @effect-diagnostics-next-line strictEffectProvide:off
+				Effect.provide(Layer.mergeAll(BunFileSystem.layer, BunPath.layer))
+			),
+		{ timeout: 20_000 }
+	)
+
+	// The bug this closes: the Reasoning Effort picker committed a canonical
+	// SessionConfigOptionSet event that no adapter ever read, so the choice
+	// showed in the composer while every Claude query launched without it and
+	// the session could never produce thinking output. The bridge records the
+	// latest value per key -- across restarts, via the same startup replay
+	// modes and models ride -- and hands the map to adapter.startSession at
+	// the session's next lazy (re)open, where the launch options are built.
+	Vitest.it.live(
+		"hands the recorded config options to the adapter when a session reopens after a reboot",
+		() =>
+			Effect.gen(function*() {
+				const fs = yield* FileSystem.FileSystem
+				const path = yield* Path.Path
+				const dir = yield* fs.makeTempDirectoryScoped()
+				const EngineAt = restartableEngine(path.join(dir, "acepe-config-option-test.db"))
+
+				// PHASE 1: create the session and pick an effort. The eager open
+				// on session.create predates the pick, which is exactly the real
+				// sequence -- the recorded value is for the NEXT open.
+				const phase1 = yield* makeScriptedAdapter(fakeProviderId)
+				const Phase1Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([phase1.adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project-config"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session-config"),
+							sessionId,
+							projectId,
+							title: "Real provider session",
+							providerId: fakeProviderId
+						})
+					)
+					yield* waitUntil(Ref.get(phase1.startSessionCount), (value) => value >= 1)
+					yield* engine.dispatch(
+						SessionSetConfigOptionCommand.make({
+							type: "session.set-config-option",
+							commandId: CommandId.make("cmd-config-option"),
+							sessionId,
+							key: "reasoning_effort",
+							value: "max"
+						})
+					)
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(Phase1Live),
+					Effect.scoped
+				)
+
+				// PHASE 2 ("reboot"): replay records the choice; the first live
+				// message lazily reopens the session, and that open must carry it.
+				const phase2 = yield* makeScriptedAdapter(fakeProviderId)
+				const Phase2Live = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([phase2.adapter])),
+					Layer.provideMerge(EngineAt)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-config"),
+							sessionId,
+							messageId: MessageId.make("message-config-reopen"),
+							text: "Reopen with the chosen effort"
+						})
+					)
+					yield* waitUntil(Ref.get(phase2.startSessionCount), (value) => value >= 1)
+					const request = yield* Ref.get(phase2.lastStartRequest)
+					Vitest.assert.isTrue(Option.isSome(request))
+					if (Option.isNone(request)) {
+						return
+					}
+					Vitest.assert.deepStrictEqual(request.value.configOptions, {
+						reasoning_effort: "max"
+					})
 				}).pipe(
 					// @effect-diagnostics-next-line strictEffectProvide:off
 					Effect.provide(Phase2Live),

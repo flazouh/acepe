@@ -54,6 +54,31 @@ Vitest.describe("buildClaudeQueryOptions", () => {
 		Vitest.assert.strictEqual(options.pathToClaudeCodeExecutable, "/usr/local/bin/claude")
 	})
 
+	// The chosen reasoning effort must reach the SDK's own `effort` option:
+	// keyword triggers ("ultrathink") only work on CLI argv prompts, not on
+	// the stream-json stdin path the SDK uses, so without this option a
+	// Claude session can never produce thinking output -- verified live
+	// against the real CLI both ways.
+	Vitest.it("passes the session's reasoning effort to the SDK", () => {
+		const options = buildClaudeQueryOptions(
+			{
+				cwd: "/workspace/repo",
+				canUseTool: fakeCanUseTool,
+				reasoningEffort: Option.some("max" as const)
+			},
+			{ pathToClaudeCodeExecutable: Option.none(), mcpServers: {} }
+		)
+		Vitest.assert.strictEqual(options.effort, "max")
+	})
+
+	Vitest.it("omits effort when no reasoning effort is chosen", () => {
+		const options = buildClaudeQueryOptions(
+			{ cwd: "/workspace/repo", canUseTool: fakeCanUseTool, reasoningEffort: Option.none() },
+			{ pathToClaudeCodeExecutable: Option.none(), mcpServers: {} }
+		)
+		Vitest.assert.isUndefined(options.effort)
+	})
+
 	// The session's mode belongs in the LAUNCH options, not only in the live
 	// setPermissionMode control request: a replacement query (a cancel, a
 	// watchdog stall recovery) would otherwise start in the SDK's default

@@ -56,6 +56,11 @@ export type SessionRuntime = {
 	// environment, so a session that lost its configured API key on the
 	// second query would be the same bug in a slower form.
 	readonly envOverrides: AgentEnvOverrides
+	// The session's canonical config-option selections, carried on the
+	// runtime for the same reason envOverrides is: every attachQuery
+	// (cancel, watchdog recovery) builds a NEW SDK query, and each one must
+	// launch with the same chosen reasoning effort.
+	readonly configOptions: Readonly<Record<string, string>>
 	// Epoch-ms captured ONCE when openSession builds this runtime -- see
 	// stamp()'s use of it below for why. Deliberately NOT reset by attachQuery
 	// (cancel/watchdog recovery reuse the SAME runtime and its sequence

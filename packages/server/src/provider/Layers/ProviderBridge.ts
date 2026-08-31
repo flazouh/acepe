@@ -7,6 +7,7 @@ import {
 	type OrchestrationEvent,
 	type ProjectId,
 	ProviderSessionFailedEvent,
+	type SessionConfigOptionSetEvent,
 	type SessionCreatedEvent,
 	type SessionId,
 	type SessionModelSetEvent,
@@ -177,6 +178,14 @@ type BridgeState = {
 	// session opens lazily, long after the event that chose the model was
 	// committed, so openSession applies whatever is recorded here.
 	readonly sessionModels: Ref.Ref<HashMap.HashMap<SessionId, SetModelRequest["modelId"]>>
+	// The latest SessionConfigOptionSet value per key, per session, recorded
+	// for exactly the reason sessionModes/sessionModels are: the session opens
+	// lazily, long after the event that chose the option was committed, so
+	// openSession hands whatever is recorded here to the adapter. There is no
+	// live re-apply -- a config option (e.g. Claude's reasoning_effort, an SDK
+	// query-launch option) takes effect the next time the adapter session
+	// (re)opens. See considerSessionConfigOptionSet.
+	readonly sessionConfigOptions: Ref.Ref<HashMap.HashMap<SessionId, Readonly<Record<string, string>>>>
 	readonly projectRoots: Ref.Ref<HashMap.HashMap<ProjectId, WorkspaceRoot>>
 	// The raw `agent_env_overrides` setting value, taken straight off the
 	// canonical SettingsUpdated events the bridge already replays and
@@ -407,6 +416,11 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 	)
 	yield* Ref.update(state.sessionAdapters, (current) => HashMap.set(current, sessionId, adapter))
 	yield* Ref.update(state.sessionProjects, (current) => HashMap.set(current, sessionId, projectId))
+	const configOptionsBySession = yield* Ref.get(state.sessionConfigOptions)
+	const configOptions = Option.getOrElse(
+		HashMap.get(configOptionsBySession, sessionId),
+		(): Readonly<Record<string, string>> => ({})
+	)
 	const fiber = yield* forwardAdapterEvents(
 		state,
 		sessionId,
@@ -416,7 +430,8 @@ const openSession = Effect.fn("ProviderBridge.openSession")(function*(
 			sessionId,
 			projectId,
 			workspaceRoot: workspaceRoot.value,
-			envOverrides
+			envOverrides,
+			configOptions
 		})
 	).pipe(Effect.forkIn(state.layerScope, { startImmediately: true }))
 	yield* Ref.update(state.sessionFibers, (current) => HashMap.set(current, sessionId, fiber))
@@ -802,6 +817,30 @@ const considerSessionModeSet = Effect.fn("ProviderBridge.considerSessionModeSet"
 	)
 })
 
+// The config option's counterpart of considerSessionModeSet above, and the
+// reaction that makes a config selection (e.g. Claude's reasoning_effort)
+// mean anything: session.set-config-option committed a SessionConfigOptionSet
+// event that no adapter ever read, so the picker showed the choice while the
+// provider ran without it. Recorded on both phases -- replay's job is to
+// leave the last value behind for openSession to hand down. Unlike mode and
+// model there is no live apply: these are query-launch options (the Claude
+// SDK has no live effort setter), so the recorded value takes effect on the
+// session's next lazy (re)open.
+const considerSessionConfigOptionSet = Effect.fn("ProviderBridge.considerSessionConfigOptionSet")(
+	function*(state: BridgeState, event: SessionConfigOptionSetEvent) {
+		yield* Ref.update(state.sessionConfigOptions, (current) => {
+			const existing = Option.getOrElse(
+				HashMap.get(current, event.payload.sessionId),
+				(): Readonly<Record<string, string>> => ({})
+			)
+			return HashMap.set(current, event.payload.sessionId, {
+				...existing,
+				[event.payload.key]: event.payload.value
+			})
+		})
+	}
+)
+
 // The model's counterpart of considerSessionModeSet above, and the reaction
 // that makes picking a model mean anything: session.set-model used to commit a
 // SessionModelSet event that no projection and no adapter read.
@@ -874,6 +913,8 @@ const consider = Effect.fn("ProviderBridge.consider")(function*(
 			return yield* considerSessionModeSet(state, event, phase)
 		case "SessionModelSet":
 			return yield* considerSessionModelSet(state, event, phase)
+		case "SessionConfigOptionSet":
+			return yield* considerSessionConfigOptionSet(state, event)
 		case "ProjectCreated":
 			return yield* Ref.update(state.projectRoots, (current) =>
 				HashMap.set(current, event.payload.projectId, event.payload.workspaceRoot))
@@ -916,6 +957,9 @@ export const makeProviderBridge = Effect.fn("makeProviderBridge")(function*() {
 		sessionProjects: yield* Ref.make(HashMap.empty<SessionId, ProjectId>()),
 		sessionModes: yield* Ref.make(HashMap.empty<SessionId, SetModeRequest["modeId"]>()),
 		sessionModels: yield* Ref.make(HashMap.empty<SessionId, SetModelRequest["modelId"]>()),
+		sessionConfigOptions: yield* Ref.make(
+			HashMap.empty<SessionId, Readonly<Record<string, string>>>()
+		),
 		projectRoots: yield* Ref.make(HashMap.empty<ProjectId, WorkspaceRoot>()),
 		agentEnvSetting: yield* Ref.make({ value: "", sequence: 0 as Sequence }),
 		claimedSessions: yield* Ref.make(HashSet.empty<string>()),

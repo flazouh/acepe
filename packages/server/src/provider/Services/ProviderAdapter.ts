@@ -60,7 +60,13 @@ export const StartSessionRequest = Schema.Struct({
 	// child process already inherits; an override with the same name wins.
 	// These are credentials — see provider/AgentEnv.ts for the rules that
 	// keep them out of logs, errors and events.
-	envOverrides: AgentEnvOverrides
+	envOverrides: AgentEnvOverrides,
+	// The session's canonical config-option selections: the latest
+	// SessionConfigOptionSet value per key, resolved once by ProviderBridge
+	// and handed down at open the way envOverrides is. A provider reads only
+	// the keys it itself declared as config options (e.g. Claude's
+	// reasoning_effort) and ignores the rest.
+	configOptions: Schema.optionalKey(Schema.Record(Schema.String, Schema.String))
 })
 export type StartSessionRequest = typeof StartSessionRequest.Type
 

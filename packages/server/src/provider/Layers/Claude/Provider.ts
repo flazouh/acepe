@@ -76,6 +76,22 @@ export const buildClaudeReasoningConfigOptions = (
 export const claudePreconnectionConfigOptions = (): ReadonlyArray<ConfigOptionData> =>
 	buildClaudeReasoningConfigOptions(defaultClaudeReasoningConfigState())
 
+// The one place that turns a session's stored reasoning_effort selection into
+// the SDK's `effort` option value. "auto" and anything unrecognized both mean
+// "let the SDK decide" (no effort option passed), so a stale stored value can
+// never break a query launch. The catalog values line up with the SDK's own
+// EffortLevel union by construction -- see CLAUDE_REASONING_OPTIONS.
+export const claudeReasoningEffortFromConfig = (
+	configOptions: Readonly<Record<string, string>>
+): Option.Option<Exclude<ClaudeReasoningEffort, "auto">> => {
+	const stored = configOptions[CLAUDE_REASONING_CONFIG_ID]
+	const match = Arr.findFirst(
+		CLAUDE_REASONING_OPTIONS,
+		(row) => row.value === stored && row.value !== CLAUDE_REASONING_AUTO_VALUE
+	)
+	return Option.map(match, (row) => row.value as Exclude<ClaudeReasoningEffort, "auto">)
+}
+
 export const CLAUDE_CAPABILITIES: ProviderCapabilities = ProviderCapabilities.make({
 	enabled: Arr.fromIterable(PROVIDER_CAPABILITY_NAMES)
 })

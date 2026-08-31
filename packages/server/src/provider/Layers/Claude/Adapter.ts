@@ -51,6 +51,7 @@ import {
 	CLAUDE_PROVIDER_ID,
 	CLAUDE_SESSION_MCP_SERVERS,
 	type ClaudeMode,
+	claudeReasoningEffortFromConfig,
 	DEFAULT_CLAUDE_MODE,
 	probeClaudePresence,
 	resolveClaudeExecutablePath,
@@ -185,7 +186,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			resume,
 			permissionMode,
 			model,
-			envOverrides: runtime.envOverrides
+			envOverrides: runtime.envOverrides,
+			reasoningEffort: claudeReasoningEffortFromConfig(runtime.configOptions)
 		})
 		yield* Ref.set(runtime.promptQueueRef, promptQueue)
 		yield* Ref.set(runtime.queryRef, queryHandle)
@@ -296,7 +298,8 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 				resume: Option.none(),
 				permissionMode: DEFAULT_CLAUDE_MODE,
 				model: Option.none(),
-				envOverrides: {}
+				envOverrides: {},
+				reasoningEffort: Option.none()
 			})
 			const catalog = yield* handle.supportedModels.pipe(
 				Effect.timeoutOrElse({
@@ -349,6 +352,7 @@ export const makeClaudeAdapter = Effect.fn("makeClaudeAdapter")(function*(
 			sessionId: request.sessionId,
 			workspaceRoot: request.workspaceRoot,
 			envOverrides: request.envOverrides,
+			configOptions: request.configOptions ?? {},
 			openEpochMs,
 			outbound,
 			streamState,

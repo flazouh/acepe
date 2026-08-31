@@ -11,7 +11,7 @@ import * as Str from "effect/String"
 import type { ProviderAdapterError } from "../../Services/ProviderAdapter.ts"
 import type { AgentEnvOverrides } from "../../AgentEnv.ts"
 import type { Json } from "../Json.ts"
-import { adapterError, type ClaudeMode } from "./Provider.ts"
+import { adapterError, type ClaudeMode, type ClaudeReasoningEffort } from "./Provider.ts"
 import {
 	buildClaudeQueryOptions,
 	type ClaudeCanUseTool,
@@ -43,6 +43,12 @@ export type ClaudeQueryInput = {
 	// — the SDK REPLACES the child environment when `env` is given, so the
 	// merge is not optional.
 	readonly envOverrides: AgentEnvOverrides
+	// The session's chosen reasoning effort, parsed once upstream by
+	// claudeReasoningEffortFromConfig. A query-launch option (the SDK has no
+	// live effort setter), so every replacement query a cancel or a watchdog
+	// recovery builds must carry it too or the session silently stops
+	// thinking.
+	readonly reasoningEffort: Option.Option<Exclude<ClaudeReasoningEffort, "auto">>
 }
 
 export type ClaudeQueryHandle = {
