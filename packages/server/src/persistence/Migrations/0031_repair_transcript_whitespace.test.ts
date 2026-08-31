@@ -109,7 +109,9 @@ const seedCorruptedInstall = Effect.fn("seedCorruptedInstall")(function*() {
 	// shape, written before assistant content became an ordered parts array.
 	// Seeding it verbatim also exercises the versioned decode that lifts a
 	// legacy row into a single text part.
-	const content = JSON.stringify({ text: CORRUPTED_TEXT })
+	const content = Schema.encodeSync(Schema.fromJsonString(Schema.Struct({ text: Schema.String })))(
+		{ text: CORRUPTED_TEXT }
+	)
 	yield* sql`
 		INSERT INTO projection_session_messages (
 			session_id,
