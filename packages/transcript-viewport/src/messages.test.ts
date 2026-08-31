@@ -30,7 +30,7 @@ const assistant = (input: {
 	messageId: MessageId.make(input.messageId),
 	turnId: null,
 	rowType: "assistant",
-	content: { text: input.text },
+	content: { parts: [{ kind: "text", text: input.text }] },
 })
 
 const compaction = (input: {

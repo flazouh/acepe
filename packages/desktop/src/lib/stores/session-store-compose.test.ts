@@ -171,7 +171,7 @@ describe("composeSessionStore", () => {
 				const assistant = snapshot.messages[1];
 				expect(assistant?.rowType).toBe("assistant");
 				if (assistant?.rowType === "assistant") {
-					expect(assistant.content.text).toBe("Hello");
+					expect(assistant.content).toEqual({ parts: [{ kind: "text", text: "Hello" }] });
 				}
 			})
 		));

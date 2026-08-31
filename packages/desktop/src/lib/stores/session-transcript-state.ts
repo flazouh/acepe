@@ -1,4 +1,5 @@
 import type { RpcProjectedMessage, RpcSessionSnapshot } from "@acepe/contracts";
+import { assistantReplyText } from "@acepe/contracts";
 import type { TracerTranscriptRow } from "@acepe/ui/tracer-transcript";
 import * as Arr from "effect/Array";
 
@@ -13,5 +14,8 @@ export const transcriptRowsFromSnapshot = (
 	Arr.map(Arr.filter(snapshot.messages, isTranscriptMessage), (message) => ({
 		key: message.messageId,
 		role: message.rowType,
-		text: message.content.text,
+		text:
+			message.rowType === "assistant"
+				? assistantReplyText(message.content)
+				: message.content.text,
 	}));

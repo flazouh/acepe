@@ -1,4 +1,4 @@
-import type { RpcProjectedMessage } from "@acepe/contracts"
+import { assistantReplyText, type RpcProjectedMessage } from "@acepe/contracts"
 import * as Match from "effect/Match"
 
 /**
@@ -28,7 +28,7 @@ const textFor = (message: RpcProjectedMessage): string | null =>
 	Match.value(message).pipe(
 		Match.discriminatorsExhaustive("rowType")({
 			user: (row) => row.content.text,
-			assistant: (row) => row.content.text,
+			assistant: (row) => assistantReplyText(row.content),
 			compaction: (row) => row.content.summary,
 		}),
 	)

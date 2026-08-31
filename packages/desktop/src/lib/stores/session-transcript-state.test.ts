@@ -57,7 +57,12 @@ describe("transcriptRowsFromSnapshot", () => {
 					messageId: MessageId.make("message-assistant"),
 					turnId: null,
 					rowType: "assistant",
-					content: { text: "Hello from Acepe." },
+					content: {
+						parts: [
+							{ kind: "thought", text: "Considering." },
+							{ kind: "text", text: "Hello from Acepe." },
+						],
+					},
 				},
 			],
 			turns: [],

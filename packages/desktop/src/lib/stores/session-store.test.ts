@@ -182,7 +182,7 @@ describe("createSessionStore", () => {
 					expect(user.content.text).toBe("Ping");
 				}
 				if (assistant?.rowType === "assistant") {
-					expect(assistant.content.text).toBe(TRACER_REPLY_TEXT);
+					expect(assistant.content).toEqual({ parts: [{ kind: "text", text: TRACER_REPLY_TEXT }] });
 					expect(assistant.sequence).toBe(4);
 				}
 			})
@@ -225,7 +225,7 @@ describe("createSessionStore", () => {
 				const assistant = store.snapshot.current.messages[1];
 				expect(assistant?.rowType).toBe("assistant");
 				if (assistant?.rowType === "assistant") {
-					expect(assistant.content.text).toBe("Hello");
+					expect(assistant.content).toEqual({ parts: [{ kind: "text", text: "Hello" }] });
 				}
 			})
 		));
