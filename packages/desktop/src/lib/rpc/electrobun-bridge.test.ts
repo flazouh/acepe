@@ -1,16 +1,22 @@
 import { describe, expect, it } from "bun:test";
+import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type { ElectrobunRpcBridge } from "./client.ts";
 import {
 	bindElectrobunBridge,
 	installElectrobunWebviewRpc,
+	probeTransportReady,
+	READY_PING_MESSAGE,
 	isElectrobunRpcBridge,
 	readElectrobunBridge,
 } from "./electrobun-bridge.ts";
 
-const fakeBridge = (): ElectrobunRpcBridge => ({
+const fakeBridge = (
+	ping: ElectrobunRpcBridge["request"]["ping"] = () =>
+		Promise.resolve({ echo: "desktop round trip" })
+): ElectrobunRpcBridge => ({
 	request: {
-		ping: () => Promise.resolve({ echo: "desktop round trip" }),
+		ping,
 		dispatch: () => Promise.resolve(undefined),
 		snapshot: () => Promise.resolve(undefined),
 		events: () => Promise.resolve(undefined),
@@ -80,6 +86,50 @@ describe("electrobun-bridge", () => {
 				bindElectrobunBridge(bridge);
 				const installed = yield* installElectrobunWebviewRpc();
 				expect(installed).toBe(bridge);
+			})
+		));
+
+	// The reek this closes: readiness used to mean "the bridge object exists",
+	// a synchronous shape check, not "the transport round-trips". In the
+	// bundled build the socket connects a beat after the object appears, so the
+	// first burst of init RPCs (session updates, agents, voice, inbound) raced
+	// the handshake and failed hard. The gate proves readiness with one real
+	// ping before the client is handed out.
+	it("probeTransportReady resolves once a ping round-trips", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				let attempts = 0;
+				const bridge = fakeBridge(() => {
+					attempts += 1;
+					if (attempts < 3) {
+						return Promise.reject(new Error("socket not connected yet"));
+					}
+					return Promise.resolve({ echo: READY_PING_MESSAGE });
+				});
+				yield* probeTransportReady(bridge, { attempts: 5, delay: Duration.millis(1) });
+				expect(attempts).toBe(3);
+			})
+		));
+
+	it("probeTransportReady fails after the deadline when the transport never answers", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const bridge = fakeBridge(() => Promise.reject(new Error("socket dead")));
+				const result = yield* Effect.flip(
+					probeTransportReady(bridge, { attempts: 3, delay: Duration.millis(1) })
+				);
+				expect(result._tag).toBe("RpcTransportError");
+			})
+		));
+
+	it("probeTransportReady rejects a wrong echo as not-ready", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const bridge = fakeBridge(() => Promise.resolve({ echo: "not-the-handshake" }));
+				const result = yield* Effect.flip(
+					probeTransportReady(bridge, { attempts: 2, delay: Duration.millis(1) })
+				);
+				expect(result._tag).toBe("RpcTransportError");
 			})
 		));
 });

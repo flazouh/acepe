@@ -88,6 +88,69 @@ const transportErrorFrom = (cause: unknown): RpcTransportError => {
 	return new RpcTransportError({ reason: "electrobun webview rpc failed" });
 };
 
+// The handshake message. The shell's ping handler echoes it back, so a
+// matching echo proves the whole window -> socket -> shell -> socket -> window
+// path is live -- not merely that the bridge object exists.
+export const READY_PING_MESSAGE = "acepe-transport-ready";
+
+// The socket connects a beat after Electroview is constructed. 40 x 50ms gives
+// the connection two seconds to come up -- the same budget the install import
+// already allows -- and no more, so a genuinely dead transport fails fast
+// instead of hanging the app.
+const DEFAULT_READY_ATTEMPTS = 40;
+const DEFAULT_READY_DELAY = Duration.millis(50);
+
+export interface TransportReadyOptions {
+	readonly attempts?: number;
+	readonly delay?: Duration.Duration;
+}
+
+const pingEchoesHandshake = (value: unknown): boolean =>
+	Predicate.isObject(value) && (value as { readonly echo?: unknown }).echo === READY_PING_MESSAGE;
+
+const pingRoundTrips = (bridge: ElectrobunRpcBridge): Effect.Effect<void, RpcTransportError> =>
+	Effect.tryPromise({
+		try: () => bridge.request.ping({ message: READY_PING_MESSAGE }),
+		catch: transportErrorFrom,
+	}).pipe(
+		Effect.flatMap((response) =>
+			pingEchoesHandshake(response)
+				? Effect.void
+				: Effect.fail(new RpcTransportError({ reason: "transport ping echo mismatch" }))
+		)
+	);
+
+/**
+ * Waits for the transport to actually round-trip a ping before the client is
+ * handed out.
+ *
+ * The reek this replaces: readiness was inferred from the bridge OBJECT
+ * existing (a synchronous shape check), while the socket behind it connects
+ * asynchronously. In the bundled build the object appears first and the socket
+ * a beat later, so the first burst of startup RPCs -- session updates, agents,
+ * voice, the inbound-request handler -- raced the handshake and failed hard,
+ * one initialization-failed card for whichever lost. Every one of those callers
+ * reaches the transport through the single memoised `appRpcClient()`, so gating
+ * that one accessor on a proven round-trip makes readiness deterministic for
+ * all of them at once, with no per-caller retry.
+ */
+export const probeTransportReady = (
+	bridge: ElectrobunRpcBridge,
+	options: TransportReadyOptions = {}
+): Effect.Effect<void, RpcTransportError> => {
+	const attempts = options.attempts ?? DEFAULT_READY_ATTEMPTS;
+	const delay = options.delay ?? DEFAULT_READY_DELAY;
+	const loop = (remaining: number): Effect.Effect<void, RpcTransportError> =>
+		pingRoundTrips(bridge).pipe(
+			Effect.catch((error) =>
+				remaining <= 0
+					? Effect.fail(error)
+					: Effect.sleep(delay).pipe(Effect.flatMap(() => loop(remaining - 1)))
+			)
+		);
+	return loop(attempts);
+};
+
 export const installElectrobunWebviewRpc = (): Effect.Effect<
 	ElectrobunRpcBridge,
 	RpcTransportError
@@ -139,6 +202,11 @@ export const installElectrobunWebviewRpc = (): Effect.Effect<
 			markBoot("mismatch");
 			return yield* new RpcTransportError({ reason: "electrobun webview rpc shape mismatch" });
 		}
+		// Prove the socket round-trips before binding: a bound bridge is then
+		// always a connected one, so every consumer of appRpcClient() is
+		// guaranteed a live transport rather than racing the handshake.
+		markBoot("probing");
+		yield* probeTransportReady(loaded);
 		bindElectrobunBridge(loaded);
 		markBoot("bound");
 		return loaded;
