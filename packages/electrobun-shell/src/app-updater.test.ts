@@ -262,64 +262,76 @@ test("appBundlePathFromExecutable answers null outside a bundle", () => {
 // very build under test -- and the apply path relaunches the app, which is
 // also a way for a closed app to come back. A local build now carries an
 // inert updater: it reports its own version and does nothing else.
-test("a local build's updater never reports an update", async () => {
-	let checked = 0
-	const port = localBuildUpdaterPort({
-		localInfo: async () => ({ version: "2026.3.33", channel: "stable" }),
-		checkForUpdate: async () => {
-			checked += 1
-			return { version: "9999.0.0", updateAvailable: true, error: "" }
-		},
-		downloadUpdate: async () => undefined,
-		applyUpdate: async () => undefined,
-		relaunch: () => undefined,
-		onDownloadProgress: () => undefined,
-	})
-	const check = await port.checkForUpdate()
-	expect(check.updateAvailable).toBe(false)
-	expect(check.version).toBe("")
-	// The real check must not even run: no request to the release URL.
-	expect(checked).toBe(0)
-})
+test("a local build's updater never reports an update", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			let checked = 0
+			const port = localBuildUpdaterPort({
+				localInfo: () => Promise.resolve({ version: "2026.3.33", channel: "stable" }),
+				checkForUpdate: () => {
+					checked += 1
+					return Promise.resolve(updateAvailable)
+				},
+				downloadUpdate: () => Promise.resolve(undefined),
+				applyUpdate: () => Promise.resolve(undefined),
+				relaunch: () => undefined,
+				onDownloadProgress: () => undefined,
+			})
+			const check = yield* Effect.promise(() => port.checkForUpdate())
+			expect(check.updateAvailable).toBe(false)
+			expect(check.version).toBe("")
+			// The real check must not even run: no request to the release URL.
+			expect(checked).toBe(0)
+		})
+	))
 
-test("a local build's updater still reports its own version", async () => {
-	const port = localBuildUpdaterPort({
-		localInfo: async () => ({ version: "2026.3.33", channel: "stable" }),
-		checkForUpdate: async () => ({ version: "", updateAvailable: false, error: "" }),
-		downloadUpdate: async () => undefined,
-		applyUpdate: async () => undefined,
-		relaunch: () => undefined,
-		onDownloadProgress: () => undefined,
-	})
-	expect(await port.localInfo()).toEqual({ version: "2026.3.33", channel: "stable" })
-})
+test("a local build's updater still reports its own version", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const port = localBuildUpdaterPort({
+				localInfo: () => Promise.resolve({ version: "2026.3.33", channel: "stable" }),
+				checkForUpdate: () => Promise.resolve(noUpdate),
+				downloadUpdate: () => Promise.resolve(undefined),
+				applyUpdate: () => Promise.resolve(undefined),
+				relaunch: () => undefined,
+				onDownloadProgress: () => undefined,
+			})
+			const info = yield* Effect.promise(() => port.localInfo())
+			expect(info).toEqual({ version: "2026.3.33", channel: "stable" })
+		})
+	))
 
-test("a local build's updater cannot download, apply, or relaunch", async () => {
-	let downloaded = 0
-	let applied = 0
-	let relaunched = 0
-	const port = localBuildUpdaterPort({
-		localInfo: async () => ({ version: "2026.3.33", channel: "stable" }),
-		checkForUpdate: async () => ({ version: "", updateAvailable: false, error: "" }),
-		downloadUpdate: async () => {
-			downloaded += 1
-		},
-		applyUpdate: async () => {
-			applied += 1
-		},
-		relaunch: () => {
-			relaunched += 1
-		},
-		onDownloadProgress: () => undefined,
-	})
-	await port.downloadUpdate()
-	await port.applyUpdate()
-	port.relaunch()
-	expect(downloaded).toBe(0)
-	expect(applied).toBe(0)
-	// The one that matters most: a closed app can never be reopened by this.
-	expect(relaunched).toBe(0)
-})
+test("a local build's updater cannot download, apply, or relaunch", () =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			let downloaded = 0
+			let applied = 0
+			let relaunched = 0
+			const port = localBuildUpdaterPort({
+				localInfo: () => Promise.resolve({ version: "2026.3.33", channel: "stable" }),
+				checkForUpdate: () => Promise.resolve(noUpdate),
+				downloadUpdate: () => {
+					downloaded += 1
+					return Promise.resolve(undefined)
+				},
+				applyUpdate: () => {
+					applied += 1
+					return Promise.resolve(undefined)
+				},
+				relaunch: () => {
+					relaunched += 1
+				},
+				onDownloadProgress: () => undefined,
+			})
+			yield* Effect.promise(() => port.downloadUpdate())
+			yield* Effect.promise(() => port.applyUpdate())
+			port.relaunch()
+			expect(downloaded).toBe(0)
+			expect(applied).toBe(0)
+			// The one that matters most: a closed app can never be reopened by this.
+			expect(relaunched).toBe(0)
+		})
+	))
 
 // The gate: only a real signed release drives the live updater.
 test("the live updater runs only for a signed release build", () => {
