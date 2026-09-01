@@ -1,6 +1,4 @@
 export { executeCli, printCliResult } from "./cli.ts"
-export { qaArtifactsForBuild, qaSurfaceEnabled } from "./build-flag.ts"
-export type { QaArtifacts, QaBuildFlag } from "./build-flag.ts"
 export {
 	QaAppNotRunning,
 	QaElementNotFound,
