@@ -100,9 +100,16 @@ VOICE_CMD="${ACEPE_VOICE_STT_COMMAND:-$ROOT/scripts/voice-stt-parakeet.sh}"
 # readDevWindowUrl in packages/desktop/src/bun/index.ts). PATH is forwarded
 # because launchd strips it and the Claude adapter resolves the `claude` CLI
 # from the app's PATH.
+# Remove any stale launchd job from before this app was detached this way.
 launchctl remove "$APP_LABEL" 2>/dev/null || true
-launchctl submit -l "$APP_LABEL" -o "$APP_LOG" -e "$APP_LOG" -- \
-  /bin/sh -c "PATH='$PATH' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' exec '$APP_BIN' acepe-instance=$APP_ID"
+# Detached with nohup, NOT launchd-managed. launchd keeps a submitted job
+# alive and respawns it when the process exits, so closing the window used to
+# relaunch the app a second later. nohup + disown lets the app outlive this
+# shell without launchd owning it, so a close (or a crash) stays closed.
+# `stop`/`status` match it by its `acepe-instance=` marker with pkill/pgrep,
+# not by a launchd label, so they still work.
+nohup bash -c "PATH='$PATH' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' '$APP_BIN' acepe-instance=$APP_ID" >"$APP_LOG" 2>&1 &
+disown
 
 for _ in $(seq 1 30); do
   [ -S "$SOCKET" ] && break

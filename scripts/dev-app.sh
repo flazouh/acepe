@@ -165,8 +165,18 @@ if [ -n "${ELECTROBUN_QA_FAKE_AUDIO_PATH:-}" ]; then
   FAKE_AUDIO_ENV="${FAKE_AUDIO_ENV}ELECTROBUN_QA_FAKE_AUDIO_PATH='$ELECTROBUN_QA_FAKE_AUDIO_PATH' "
 fi
 
-launchctl submit -l "$APP_LABEL" -o "$APP_LOG" -e "$APP_LOG" -- \
-  /bin/sh -c "PATH='$PATH' ACEPE_DEV_URL='$DEV_URL' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' ${FAKE_AUDIO_ENV}exec '$APP_BIN' acepe-instance=$APP_ID"
+# Remove any stale launchd job from before this app was detached this way.
+launchctl remove "$APP_LABEL" 2>/dev/null || true
+# Detached with nohup, NOT launchd-managed. launchd keeps a submitted job
+# alive and respawns it when the process exits, so closing the window used to
+# relaunch the app a second later. nohup + disown lets the app outlive this
+# shell without launchd owning it, so a close (or a crash) stays closed. When
+# the app exits, tear down the dev-server label too, so closing the window
+# stops the whole dev stack rather than leaving vite running headless.
+# `stop`/`status` match the app by its `acepe-instance=` marker with
+# pkill/pgrep, so they still work.
+nohup bash -c "PATH='$PATH' ACEPE_DEV_URL='$DEV_URL' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' ${FAKE_AUDIO_ENV}'$APP_BIN' acepe-instance=$APP_ID; launchctl remove '$LABEL' 2>/dev/null || true" >"$APP_LOG" 2>&1 &
+disown
 
 for _ in $(seq 1 30); do
   [ -S "$SOCKET" ] && break
