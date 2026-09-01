@@ -5,9 +5,9 @@ import type { ElectrobunRpcBridge } from "./client.ts";
 import {
 	bindElectrobunBridge,
 	installElectrobunWebviewRpc,
+	isElectrobunRpcBridge,
 	probeTransportReady,
 	READY_PING_MESSAGE,
-	isElectrobunRpcBridge,
 	readElectrobunBridge,
 } from "./electrobun-bridge.ts";
 
