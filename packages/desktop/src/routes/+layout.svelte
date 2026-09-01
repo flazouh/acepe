@@ -3,9 +3,13 @@ import { fromPromise } from "@acepe/effect-result/fromPromise";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { onMount } from "svelte";
-import { registerCursorThemeForPierreDiffs } from "$lib/acp/utils/pierre-diffs-theme.js";
-import { ensureWorkerPoolInitialized } from "$lib/acp/utils/worker-pool-singleton.js";
-import { initAnalytics } from "$lib/analytics.js";
+// One self-accepting HMR boundary for the layout's boot-only modules, so an
+// edit to any of them cannot remount the whole app (see $lib/boot/layout-boot.ts).
+import {
+	ensureWorkerPoolInitialized,
+	initAnalytics,
+	registerCursorThemeForPierreDiffs,
+} from "$lib/boot/layout-boot.ts";
 import ErrorBoundary from "$lib/components/error-boundary.svelte";
 import { Toaster } from "$lib/components/ui/sonner/index.js";
 import { TooltipProvider } from "@acepe/ui/tooltip";

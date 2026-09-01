@@ -3,17 +3,22 @@ import { makeResumingRpcClient, type RpcClient } from "@acepe/contracts";
 import * as Effect from "effect/Effect";
 import { onMount } from "svelte";
 import MainAppView from "$lib/components/main-app-view.svelte";
-import { makeElectrobunRpcTransport } from "$lib/rpc/client.ts";
-import { provideAppRpcClient } from "$lib/rpc/app-client.ts";
-import { installElectrobunWebviewRpc } from "$lib/rpc/electrobun-bridge.ts";
-import { desktopShellKind, type DesktopShellKind } from "$lib/rpc/electrobun-shell-window.ts";
-import { installQaDispatchHook } from "$lib/rpc/qa-dispatch-hook.ts";
+// Boot modules come through one self-accepting HMR boundary, so editing a
+// transport or QA file cannot remount the root (see $lib/boot/desktop-boot.ts).
+import {
+	type DesktopShellKind,
+	desktopShellKind,
+	installElectrobunWebviewRpc,
+	installQaDispatchHook,
+	installQaScenarioHook,
+	listScenarios,
+	makeElectrobunRpcTransport,
+	provideAppRpcClient,
+	readQaMode,
+	startQaScenario,
+} from "$lib/boot/desktop-boot.ts";
 import type { QaScenario, ScenarioSession } from "@acepe/qa-scenario";
 import QaOverlayPanel from "$lib/qa/qa-overlay.svelte";
-import { startQaScenario } from "$lib/qa/qa-boot.ts";
-import { listScenarios } from "$lib/qa/scenario-library.ts";
-import { readQaMode } from "$lib/qa/qa-mode.ts";
-import { installQaScenarioHook } from "$lib/qa/qa-scenario-hook.ts";
 
 let rpcClient = $state<RpcClient | null>(null);
 let shell = $state<DesktopShellKind>("pending");

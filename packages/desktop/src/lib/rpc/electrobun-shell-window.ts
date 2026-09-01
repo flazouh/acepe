@@ -29,3 +29,11 @@ export const desktopShellKind = (
 	}
 	return "web";
 };
+
+// HMR: self-accepting, like the rest of src/lib/rpc. Its only state is on
+// globalThis (the window.__acepeQa* hooks) / it is pure, so re-evaluating in
+// place is safe, and it stops an edit here from propagating to the component
+// that imports it and remounting the app.
+if (import.meta.hot) {
+	import.meta.hot.accept();
+}

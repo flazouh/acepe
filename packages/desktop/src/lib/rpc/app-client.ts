@@ -33,3 +33,12 @@ export const provideAppRpcClient = (next: RpcClient | null): void => {
 
 /** Test seam: swap the client without touching the webview bridge. */
 export const setAppRpcClientForTest = provideAppRpcClient;
+
+// HMR: self-accepting. This module's live state is on globalThis (the bound
+// bridge) or re-derivable (the client wrapper), so re-evaluating in place is
+// safe, and it stops a transport edit from propagating up through every store
+// to every component -- which remounted the whole app. Importers keep the
+// references they hold; new transport code loads on the next reload.
+if (import.meta.hot) {
+	import.meta.hot.accept();
+}
