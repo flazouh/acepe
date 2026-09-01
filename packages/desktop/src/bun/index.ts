@@ -8,6 +8,7 @@ import {
 	downloadProgressFromStatus,
 	joinPathSegments,
 	qaSurfaceEnabled,
+	qaSurfaceRequested,
 	RPC_ROUNDTRIP_MESSAGE,
 	RPC_ROUNDTRIP_PREFIX,
 	readDevWindowUrl,
@@ -127,7 +128,9 @@ const electrobunNative = await import("../../node_modules/electrobun/dist/api/bu
 electrobun.ApplicationMenu.setApplicationMenu(standardApplicationMenu());
 
 const qaConfig = resolveElectrobunConfig();
-const qaEnabled = qaSurfaceEnabled(qaConfig);
+// Instrumentation is opt-in, so a locally built app behaves like the release
+// it stands in for unless someone explicitly asks to drive it.
+const qaEnabled = qaSurfaceEnabled(qaConfig, qaSurfaceRequested(process.env));
 
 const tracerDb = Effect.runSync(loadTracerDbPath());
 writeLine(

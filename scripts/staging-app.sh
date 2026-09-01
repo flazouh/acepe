@@ -108,22 +108,51 @@ launchctl remove "$APP_LABEL" 2>/dev/null || true
 # shell without launchd owning it, so a close (or a crash) stays closed.
 # `stop`/`status` match it by its `acepe-instance=` marker with pkill/pgrep,
 # not by a launchd label, so they still work.
-nohup bash -c "PATH='$PATH' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' '$APP_BIN' acepe-instance=$APP_ID" >"$APP_LOG" 2>&1 &
+# Staging is the release, built here: it runs UNINSTRUMENTED by default, so
+# what you test is what ships. No preload script, no QA socket -- the same app
+# a user gets. `ELECTROBUN_QA_APP_ID` still rides along, but only to name this
+# instance's own tracer DB (never the real one); it no longer implies QA.
+# Opt in deliberately when a run has to be driven:
+#   ACEPE_QA_SURFACE=1 scripts/staging-app.sh
+QA_SURFACE_ENV=""
+if [ "${ACEPE_QA_SURFACE:-}" = "1" ]; then
+  QA_SURFACE_ENV="ACEPE_QA_SURFACE=1 "
+fi
+
+nohup bash -c "PATH='$PATH' ${QA_SURFACE_ENV}ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' '$APP_BIN' acepe-instance=$APP_ID" >"$APP_LOG" 2>&1 &
 disown
 
-for _ in $(seq 1 30); do
-  [ -S "$SOCKET" ] && break
-  sleep 1
-done
-
-if [ ! -S "$SOCKET" ]; then
-  echo "staging app did not open its QA socket at $SOCKET:" >&2
-  tail -5 "$APP_LOG" >&2
-  exit 1
+# An uninstrumented run opens no QA socket -- that is the point -- so the
+# readiness signal is the app process itself. Only an opted-in run waits for
+# the socket, which is the thing its caller actually needs.
+if [ -n "$QA_SURFACE_ENV" ]; then
+  for _ in $(seq 1 30); do
+    [ -S "$SOCKET" ] && break
+    sleep 1
+  done
+  if [ ! -S "$SOCKET" ]; then
+    echo "staging app did not open its QA socket at $SOCKET:" >&2
+    tail -5 "$APP_LOG" >&2
+    exit 1
+  fi
+else
+  for _ in $(seq 1 30); do
+    pgrep -f "acepe-instance=$APP_ID" >/dev/null 2>&1 && break
+    sleep 1
+  done
+  if ! pgrep -f "acepe-instance=$APP_ID" >/dev/null 2>&1; then
+    echo "staging app did not start:" >&2
+    tail -5 "$APP_LOG" >&2
+    exit 1
+  fi
 fi
 
 echo "staging app started ($APP_ID) from $APP"
 echo "  frontend: bundled build (no dev server) -- rebuild to pick up changes"
 echo "  DB:       $DB_PATH"
-echo "  QA:       ELECTROBUN_QA_APP_ID=$APP_ID bun run qa doctor"
+if [ -n "$QA_SURFACE_ENV" ]; then
+  echo "  QA:       instrumented -- ELECTROBUN_QA_APP_ID=$APP_ID bun run qa doctor"
+else
+  echo "  QA:       off (release-identical). Drive it with: ACEPE_QA_SURFACE=1 scripts/staging-app.sh"
+fi
 echo "Stop with: scripts/staging-app.sh stop   Fresh DB: scripts/staging-app.sh reset"

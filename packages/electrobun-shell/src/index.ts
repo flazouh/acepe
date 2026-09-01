@@ -3,6 +3,7 @@ export {
 	loadElectrobunConfig,
 	makeElectrobunConfig,
 	qaSurfaceEnabled,
+	qaSurfaceRequested,
 	electrobunReleaseChannel,
 	electrobunCliBuildArgs,
 } from "./electrobun-config.ts"

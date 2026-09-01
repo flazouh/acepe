@@ -175,7 +175,11 @@ launchctl remove "$APP_LABEL" 2>/dev/null || true
 # stops the whole dev stack rather than leaving vite running headless.
 # `stop`/`status` match the app by its `acepe-instance=` marker with
 # pkill/pgrep, so they still work.
-nohup bash -c "PATH='$PATH' ACEPE_DEV_URL='$DEV_URL' ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' ${FAKE_AUDIO_ENV}'$APP_BIN' acepe-instance=$APP_ID; launchctl remove '$LABEL' 2>/dev/null || true" >"$APP_LOG" 2>&1 &
+# ACEPE_QA_SURFACE=1: the dev app is the app agents and QA runs drive, so it
+# opts in to the QA surface (preload script + QA socket). It is an explicit
+# choice now rather than a side effect of the build being unsigned -- see
+# qaSurfaceEnabled in packages/electrobun-shell/src/electrobun-config.ts.
+nohup bash -c "PATH='$PATH' ACEPE_DEV_URL='$DEV_URL' ACEPE_QA_SURFACE=1 ELECTROBUN_QA_APP_ID='$APP_ID' ACEPE_VOICE_STT_COMMAND='$VOICE_CMD' ${FAKE_AUDIO_ENV}'$APP_BIN' acepe-instance=$APP_ID; launchctl remove '$LABEL' 2>/dev/null || true" >"$APP_LOG" 2>&1 &
 disown
 
 for _ in $(seq 1 30); do

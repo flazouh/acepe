@@ -2,7 +2,7 @@ import { expect, test } from "bun:test"
 import * as ConfigProvider from "effect/ConfigProvider"
 import * as Effect from "effect/Effect"
 
-import { makeElectrobunConfig, loadElectrobunConfig, electrobunReleaseChannel, electrobunCliBuildArgs, qaSurfaceEnabled } from "./electrobun-config.ts"
+import { makeElectrobunConfig, loadElectrobunConfig, electrobunReleaseChannel, electrobunCliBuildArgs, qaSurfaceEnabled, qaSurfaceRequested } from "./electrobun-config.ts"
 
 test("config opens a bun process and copies the svelte bundle", () => {
 	const config = makeElectrobunConfig({
@@ -84,22 +84,50 @@ test("release builds use the stable electrobun channel", () => {
 	expect(electrobunCliBuildArgs).toEqual(["build", `--env=${electrobunReleaseChannel}`])
 })
 
-test("qa surface is enabled on an unsigned config", () => {
-	const config = makeElectrobunConfig({
+const unsignedConfig = () =>
+	makeElectrobunConfig({
 		version: "2026.3.33",
 		codesign: false,
 		notarize: false,
 		baseUrl: "https://example.com",
 	})
-	expect(qaSurfaceEnabled(config)).toBe(true)
-})
 
-test("qa surface is disabled on a signed config", () => {
-	const config = makeElectrobunConfig({
+const signedConfig = () =>
+	makeElectrobunConfig({
 		version: "2026.3.33",
 		codesign: true,
 		notarize: true,
 		baseUrl: "https://example.com",
 	})
-	expect(qaSurfaceEnabled(config)).toBe(false)
+
+// A locally built app must behave like the release it stands in for. The QA
+// surface used to switch itself on for EVERY unsigned build, so a local
+// staging run carried a preload script and a QA socket that no release has --
+// the app under test was not the app that ships. Asking for it is now
+// explicit.
+test("qa surface stays off on an unsigned config nobody asked to instrument", () => {
+	expect(qaSurfaceEnabled(unsignedConfig(), false)).toBe(false)
+})
+
+test("qa surface turns on for an unsigned config when it is explicitly requested", () => {
+	expect(qaSurfaceEnabled(unsignedConfig(), true)).toBe(true)
+})
+
+// The safety property that must survive the change: a signed/release build
+// can never expose the QA surface, however loudly the environment asks.
+test("qa surface stays off on a signed config even when requested", () => {
+	expect(qaSurfaceEnabled(signedConfig(), true)).toBe(false)
+})
+
+test("qa surface is disabled on a signed config", () => {
+	expect(qaSurfaceEnabled(signedConfig(), false)).toBe(false)
+})
+
+test("qa surface is requested only by the explicit opt-in variable", () => {
+	expect(qaSurfaceRequested({ ACEPE_QA_SURFACE: "1" })).toBe(true)
+	expect(qaSurfaceRequested({ ACEPE_QA_SURFACE: "0" })).toBe(false)
+	expect(qaSurfaceRequested({})).toBe(false)
+	// An instance id alone must NOT instrument the app: staging sets it purely
+	// to get its own tracer DB.
+	expect(qaSurfaceRequested({ ELECTROBUN_QA_APP_ID: "com.acepe.app.staging" })).toBe(false)
 })

@@ -95,5 +95,31 @@ export const loadElectrobunConfig = Effect.all({
 
 export const resolveElectrobunConfig = (): AcepeElectrobunConfig => Effect.runSync(loadElectrobunConfig)
 
-export const qaSurfaceEnabled = (config: AcepeElectrobunConfig): boolean =>
-	config.build.mac.codesign === false
+/**
+ * Whether the QA surface (the injected preload script and the QA socket) is
+ * live for this run.
+ *
+ * Two conditions, and both are load-bearing.
+ *
+ * `codesign === false` is the safety half, unchanged: a signed release can
+ * never expose the QA surface, however loudly the environment asks for it.
+ *
+ * `requested` is the parity half. This used to be unsigned-implies-QA, which
+ * meant a locally built staging app carried instrumentation no release has --
+ * the app under test was not the app that ships. A local build is now a
+ * faithful stand-in for the release by default, and instrumenting it is an
+ * explicit choice (see `qaSurfaceRequested`).
+ */
+export const qaSurfaceEnabled = (config: AcepeElectrobunConfig, requested: boolean): boolean =>
+	config.build.mac.codesign === false && requested === true
+
+/**
+ * The explicit opt-in, read from the process environment.
+ *
+ * Deliberately its own variable rather than a side effect of
+ * `ELECTROBUN_QA_APP_ID`: staging sets that id purely to get its own tracer DB
+ * and QA-socket name, and must not be instrumented just for asking to be
+ * isolated.
+ */
+export const qaSurfaceRequested = (env: Record<string, string | undefined>): boolean =>
+	env.ACEPE_QA_SURFACE === "1"
