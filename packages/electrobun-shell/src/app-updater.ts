@@ -189,6 +189,39 @@ export const downloadProgressFromStatus = (
 }
 
 /**
+ * Whether the live updater runs at all.
+ *
+ * Only a signed release build updates itself. A locally built app is the thing
+ * under test: letting it check the release feed put an "Update" button on a
+ * staging window, and one click would download the published release over the
+ * very build being tested. The apply path also relaunches the app, so a build
+ * nobody wanted could reopen after it was closed.
+ */
+export const releaseUpdaterEnabled = (build: { readonly codesign: boolean }): boolean =>
+	build.codesign === true
+
+/**
+ * The updater a locally built app gets: inert.
+ *
+ * It answers with its own version, so the UI still shows what is running, and
+ * refuses everything else. No release-feed request, so no "Update" button
+ * appears. No download, no apply, so the local bundle can never be replaced by
+ * a published one. No relaunch, so closing the app is the end of it.
+ *
+ * The wrapped port is never called for those operations -- this is a real
+ * refusal, not a flag the underlying updater is trusted to honour.
+ */
+export const localBuildUpdaterPort = (port: ShellUpdaterPort): ShellUpdaterPort => ({
+	localInfo: port.localInfo,
+	checkForUpdate: () =>
+		Promise.resolve({ version: "", updateAvailable: false, error: "" }),
+	downloadUpdate: () => Promise.resolve(),
+	applyUpdate: () => Promise.resolve(),
+	relaunch: () => undefined,
+	onDownloadProgress: () => undefined,
+})
+
+/**
  * The relaunch command for macOS and Linux.
  *
  * `open` on an app bundle that is still running only activates the existing

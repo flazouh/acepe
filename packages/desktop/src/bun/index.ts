@@ -7,12 +7,14 @@ import {
 	describeJsonSafety,
 	downloadProgressFromStatus,
 	joinPathSegments,
+	localBuildUpdaterPort,
 	qaSurfaceEnabled,
 	qaSurfaceRequested,
 	RPC_ROUNDTRIP_MESSAGE,
 	RPC_ROUNDTRIP_PREFIX,
 	readDevWindowUrl,
 	relaunchCommand,
+	releaseUpdaterEnabled,
 	resolveElectrobunConfig,
 	SHELL_PROOF_LOG_PATH,
 	SHELL_STARTUP_FAILED_PREFIX,
@@ -190,6 +192,17 @@ const acepeUpdaterPort: ShellUpdaterPort = {
 	},
 };
 
+// Only a signed release updates itself. A locally built app (dev or staging)
+// gets the inert port: it reports its own version and refuses to check,
+// download, apply, or relaunch -- so a local build can never be overwritten by
+// the published release, and closing it can never bring it back.
+const shellUpdaterPort = releaseUpdaterEnabled({ codesign: qaConfig.build.mac.codesign })
+	? acepeUpdaterPort
+	: localBuildUpdaterPort(acepeUpdaterPort);
+writeLine(
+	`acepe-updater: ${releaseUpdaterEnabled({ codesign: qaConfig.build.mac.codesign }) ? "live (signed release)" : "inert (local build)"}`
+);
+
 const launched = startElectrobunAcepeApp(
 	{
 		defineRPC: (input) =>
@@ -202,7 +215,7 @@ const launched = startElectrobunAcepeApp(
 			}),
 		BrowserWindow: electrobun.BrowserWindow,
 		setDockIconVisible: electrobun.Utils.setDockIconVisible,
-		updater: acepeUpdaterPort,
+		updater: shellUpdaterPort,
 	},
 	{
 		writeError: (line) => {

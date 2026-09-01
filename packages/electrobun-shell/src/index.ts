@@ -65,7 +65,9 @@ export {
 	checkForUpdateResponse,
 	downloadProgressFromStatus,
 	makeUpdaterRpcHandlers,
+	localBuildUpdaterPort,
 	relaunchCommand,
+	releaseUpdaterEnabled,
 } from "./app-updater.ts"
 export type {
 	AcepeUpdaterRpcHandlers,
