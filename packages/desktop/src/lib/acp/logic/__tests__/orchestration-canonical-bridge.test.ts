@@ -2024,9 +2024,7 @@ describe("OrchestrationCanonicalBridge -> session-state-command-router (reopened
 					appended += command.delta.operations.filter((op) => op.kind === "appendEntry").length;
 				} else if (command.kind === "applyGraphPatches") {
 					currentRevision = command.revision;
-					if (
-						command.interactionPatches.some((interaction) => interaction.state === "Pending")
-					) {
+					if (command.interactionPatches.some((interaction) => interaction.state === "Pending")) {
 						pendingApprovalSeen = true;
 					}
 				} else if (command.kind === "refreshSnapshot") {

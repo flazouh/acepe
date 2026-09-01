@@ -25,9 +25,7 @@ export interface SharedEventSource<Envelope, Error> {
 }
 
 export function shareEventSource<Envelope, Error>(
-	openUnderlying: (
-		onEnvelope: (envelope: Envelope) => void
-	) => Effect.Effect<() => void, Error>,
+	openUnderlying: (onEnvelope: (envelope: Envelope) => void) => Effect.Effect<() => void, Error>,
 	toError: (error: unknown) => Error
 ): SharedEventSource<Envelope, Error> {
 	const callbacks = new Set<(envelope: Envelope) => void>();

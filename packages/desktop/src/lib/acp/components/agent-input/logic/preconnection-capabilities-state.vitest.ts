@@ -3,18 +3,17 @@ import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentError, type AppError } from "$lib/acp/errors/app-error.js";
+import * as agentModelPrefs from "$lib/acp/store/agent-model-preferences-store.svelte.js";
 import type { ProviderMetadataProjection, ResolvedCapabilities } from "$lib/services/acp-types.js";
 import {
 	effectivePreconnectionCapabilityMode,
 	PreconnectionCapabilitiesState,
 	resetForTesting,
 } from "./preconnection-capabilities-state.svelte.js";
-import * as agentModelPrefs from "$lib/acp/store/agent-model-preferences-store.svelte.js";
 
 vi.mock("$lib/acp/store/agent-model-preferences-store.svelte.js", () => ({
 	updateModelsCache: vi.fn(),
 }));
-
 
 function createDeferred<T>() {
 	let resolve!: (value: T) => void;
@@ -227,9 +226,7 @@ describe("resolved capability persistence", () => {
 	});
 
 	it("does not touch the cache when the answer has no models", async () => {
-		fetchFn.mockReturnValue(
-			Effect.succeed({ ...makeResolvedCapabilities(), availableModels: [] })
-		);
+		fetchFn.mockReturnValue(Effect.succeed({ ...makeResolvedCapabilities(), availableModels: [] }));
 		const state = new PreconnectionCapabilitiesState(fetchFn);
 		await runToResult(
 			state.ensureLoaded({

@@ -83,7 +83,10 @@ $effect(() => {
 					agentId: agent.id,
 					hasConnectedSession: false,
 					projectPath: null,
-					preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(agent.id, providerMetadata),
+					preconnectionCapabilityMode: effectivePreconnectionCapabilityMode(
+						agent.id,
+						providerMetadata
+					),
 				})
 				.pipe(
 					Effect.catch((error) => {

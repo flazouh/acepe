@@ -15,7 +15,5 @@ export const transcriptRowsFromSnapshot = (
 		key: message.messageId,
 		role: message.rowType,
 		text:
-			message.rowType === "assistant"
-				? assistantReplyText(message.content)
-				: message.content.text,
+			message.rowType === "assistant" ? assistantReplyText(message.content) : message.content.text,
 	}));

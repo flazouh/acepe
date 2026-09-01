@@ -261,8 +261,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 					sessionId === claimingSessionId ? claimingSnapshot : emptyRpcSessionSnapshot(0)
 				);
 			},
-			ensureProviderSessionImported: () =>
-				Effect.succeed({ resolvedSessionId: claimingSessionId }),
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: claimingSessionId }),
 			applySessionStateEnvelope: (sessionId, envelope) => {
 				appliedEnvelopes.push({ sessionId, envelope });
 			},
@@ -330,8 +329,7 @@ describe("hydrateReopenedSessionSnapshot", () => {
 		const deps: ReopenedSessionHydratorDeps = {
 			getSessionSnapshot: (sessionId) =>
 				Effect.succeed(sessionId === claimingSessionId ? claimingSnapshot : deletedSnapshot),
-			ensureProviderSessionImported: () =>
-				Effect.succeed({ resolvedSessionId: claimingSessionId }),
+			ensureProviderSessionImported: () => Effect.succeed({ resolvedSessionId: claimingSessionId }),
 			applySessionStateEnvelope: (sessionId, envelope) => {
 				appliedEnvelopes.push({ sessionId, envelope });
 			},

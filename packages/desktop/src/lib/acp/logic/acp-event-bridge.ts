@@ -139,14 +139,12 @@ function openUnderlyingAcpEventSource(
 ): Effect.Effect<() => void, AcpError> {
 	return appRpcClient().pipe(
 		Effect.flatMap((client) =>
-			client
-				.snapshot(librarySnapshotRequest())
-				.pipe(
-					Effect.mapError(
-						(error) => new ProtocolError(`Event source snapshot failed: ${String(error)}`, error)
-					),
-					Effect.map((snapshot) => ({ client, fromSequence: snapshot.snapshotSequence }))
-				)
+			client.snapshot(librarySnapshotRequest()).pipe(
+				Effect.mapError(
+					(error) => new ProtocolError(`Event source snapshot failed: ${String(error)}`, error)
+				),
+				Effect.map((snapshot) => ({ client, fromSequence: snapshot.snapshotSequence }))
+			)
 		),
 		// Tail subscription, like every other store (settings/library/review/
 		// voice all ride events(snapshotSequence)): the past is the reopen

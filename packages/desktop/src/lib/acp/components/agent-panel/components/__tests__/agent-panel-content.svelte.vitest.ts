@@ -373,7 +373,7 @@ describe("AgentPanelContent", () => {
 			applySessionStateEnvelope: () => undefined,
 			getTranscriptEntries: () => null,
 			getOperations: () => null,
-		getLiveStreamingTail: () => null,
+			getLiveStreamingTail: () => null,
 		});
 		globalThis.__agentPanelContentSessionStoreState.viewportController = viewportController;
 

@@ -159,10 +159,7 @@ function observedStatusFromActivityStatus(status: string | undefined): ObservedT
  * today's behavior: the row stays live, which is the answerable default #268
  * requires.
  */
-function isAbandonedAtSequence(
-	turns: ReadonlyArray<RpcProjectedTurn>,
-	sequence: number
-): boolean {
+function isAbandonedAtSequence(turns: ReadonlyArray<RpcProjectedTurn>, sequence: number): boolean {
 	let covering: RpcProjectedTurn | null = null;
 	for (const turn of turns) {
 		if (turn.sequence <= sequence && (covering === null || turn.sequence > covering.sequence)) {
@@ -561,10 +558,7 @@ function capabilitiesFromSnapshot(snapshot: RpcSessionSnapshot): SessionGraphCap
 		const catalog = providerConfigOptions(snapshot.session?.provider);
 		if (catalog.length > 0) {
 			capabilities.configOptions = catalog.map((option) =>
-				configOptionDataFromDescriptor(
-					option,
-					configOptionValues[option.id] ?? option.currentValue
-				)
+				configOptionDataFromDescriptor(option, configOptionValues[option.id] ?? option.currentValue)
 			);
 		}
 	}

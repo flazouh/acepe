@@ -1522,7 +1522,9 @@ describe("routeSessionStateEnvelope pre-baseline turn failure", () => {
 	}
 
 	it("keeps the failure a delta reports for a session with no canonical baseline", () => {
-		expect(routeSessionStateEnvelope("session-1", undefined, createFailedTurnDeltaEnvelope())).toEqual([
+		expect(
+			routeSessionStateEnvelope("session-1", undefined, createFailedTurnDeltaEnvelope())
+		).toEqual([
 			{
 				kind: "applyPreBaselineTurnFailure",
 				failure,

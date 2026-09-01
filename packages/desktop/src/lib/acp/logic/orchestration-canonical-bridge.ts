@@ -1119,7 +1119,6 @@ export class OrchestrationCanonicalBridge {
 		return [toSessionStateAcpEnvelope(envelope)];
 	}
 
-
 	// The session's lifecycle, spent one revision at a time. The auth park is
 	// the "detached awaiting authentication" state the lifecycle contract
 	// already documents ("parked awaiting user action ... rendered as a

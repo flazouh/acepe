@@ -7,8 +7,8 @@ import {
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import type { ConfigOptionData } from "../../../../services/converted-session-types.js";
-import { configOptionDataFromDescriptor } from "../../../logic/provider-config-option-data.js";
 import type { PreconnectionAgentSkillsStore } from "../../../../skills/store/preconnection-agent-skills-store.svelte.js";
+import { configOptionDataFromDescriptor } from "../../../logic/provider-config-option-data.js";
 import * as agentModelPrefs from "../../../store/agent-model-preferences-store.svelte.js";
 import type { AgentStore } from "../../../store/agent-store.svelte.js";
 import type { PanelStore } from "../../../store/panel-store.svelte.js";

@@ -674,11 +674,8 @@ describe("acp backend client", () => {
 							),
 					})
 				);
-				const result = yield* Effect.result(
-					acp.listPreconnectionCapabilities("/tmp/p", "codex")
-				);
+				const result = yield* Effect.result(acp.listPreconnectionCapabilities("/tmp/p", "codex"));
 				expect(Result.isFailure(result)).toBe(true);
 			})
 		));
 });
-
