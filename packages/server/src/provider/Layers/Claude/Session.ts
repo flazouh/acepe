@@ -8,6 +8,7 @@ import {
 	SessionId,
 	SessionMetaUpdatedEvent,
 	type SessionModelCatalog,
+	SessionModelSetEvent,
 	sessionModelsListedFact,
 	ThoughtAppendedEvent,
 	TokenAppendedEvent,
@@ -258,6 +259,35 @@ export const makeMetaEvent = (runtime: SessionRuntime, fact: ClaudeContractFact)
  */
 export const makeSessionModelsEvent = (runtime: SessionRuntime, models: SessionModelCatalog) =>
 	makeMetaEventWithMetadata(runtime, encodeSessionModelsFact(sessionModelsListedFact(models)))
+
+/**
+ * The model the SDK reports it is running, as the canonical SessionModelSet
+ * event ProjectionSessions folds into currentModelId. Read from system/init
+ * (see Map.ts's current_model fact), so a session shows its real model from
+ * the first turn instead of the agent-name fallback until the user picks one.
+ */
+export const makeSessionModelSet = Effect.fn("ClaudeAdapter.makeSessionModelSet")(function*(
+	runtime: SessionRuntime,
+	modelId: string
+) {
+	const header = yield* stamp(runtime)
+	return SessionModelSetEvent.make({
+		sequence: header.sequence,
+		eventId: header.eventId,
+		aggregateKind: "session",
+		aggregateId: runtime.sessionId,
+		occurredAt: header.occurredAt,
+		commandId: header.commandId,
+		causationEventId: null,
+		correlationId: header.commandId,
+		metadata: EMPTY_JSON_OBJECT,
+		type: "SessionModelSet",
+		payload: {
+			sessionId: runtime.sessionId,
+			modelId
+		}
+	})
+})
 
 export const makeMessageSent = Effect.fn("ClaudeAdapter.makeMessageSent")(function*(
 	runtime: SessionRuntime,
@@ -569,6 +599,14 @@ export const publishFact = Effect.fn("ClaudeAdapter.publishFact")(function*(
 	// folded into the generic makeMetaEvent branch.
 	if (fact.contractKind === "usage") {
 		return yield* publishTurnUsageObserved(runtime, fact)
+	}
+	// The model the SDK reports it runs must reach ProjectionSessions as a
+	// SessionModelSet event (folded into currentModelId), not a generic
+	// SessionMetaUpdated one -- else the composer's model slot never learns the
+	// real model and shows the agent name as a fallback.
+	if (fact.contractKind === "current_model") {
+		const event = yield* makeSessionModelSet(runtime, fact.modelId)
+		return yield* offerOutbound(runtime, event)
 	}
 	const event = yield* makeMetaEvent(runtime, fact)
 	return yield* offerOutbound(runtime, event)

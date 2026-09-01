@@ -2198,4 +2198,99 @@ Vitest.describe("ProviderBridge", () => {
 			),
 		{ timeout: 20_000 }
 	)
+	// The composer's model slot showed the agent's own name ("Claude Code")
+	// instead of a model for a live Claude session, because the adapter never
+	// reported the model the SDK actually runs. The SDK announces it on the
+	// system/init message; the adapter now promotes that to a SessionModelSet
+	// event (folded into currentModelId), so the model is known from the first
+	// turn without the user having to pick one. Driven through a real
+	// ClaudeAdapter with a scripted createQuery standing in for the SDK.
+	Vitest.it.live(
+		"reports the SDK init model as a SessionModelSet event",
+		() =>
+			Effect.gen(function*() {
+				const claudeProviderId = ProviderId.make("claude-code")
+				const initModelId = "claude-sonnet-4-6"
+				const scriptedCreateQuery = (_input: unknown) =>
+					Effect.gen(function*() {
+						const inbound = yield* Queue.unbounded<Json, Done>()
+						yield* Queue.offer(inbound, {
+							type: "system",
+							subtype: "init",
+							session_id: "sdk-claude-init-model",
+							model: initModelId,
+							cwd: "/tmp",
+							tools: [],
+							permissionMode: "default"
+						})
+						yield* Queue.offer(inbound, {
+							type: "result",
+							session_id: "sdk-claude-init-model",
+							is_error: false,
+							usage: { input_tokens: 1, output_tokens: 1 }
+						})
+						return {
+							messages: Stream.fromQueue(inbound),
+							interrupt: Effect.void,
+							setPermissionMode: () => Effect.void,
+							setModel: () => Effect.void,
+							supportedModels: Effect.succeed([]),
+							close: Queue.end(inbound).pipe(Effect.asVoid)
+						} satisfies ClaudeQueryHandle
+					})
+				const adapter = yield* makeClaudeAdapter({
+					presence: Effect.succeed(claudePresence(true, true)),
+					createQuery: scriptedCreateQuery
+				})
+				const TestLive = ProviderBridgeLive.pipe(
+					Layer.provideMerge(ProviderAdapterRegistryLive([adapter])),
+					Layer.provideMerge(EngineLive)
+				)
+				yield* Effect.gen(function*() {
+					const engine = yield* OrchestrationEngine
+					const store = yield* OrchestrationEventStore
+					yield* engine.dispatch(
+						ProjectCreateCommand.make({
+							type: "project.create",
+							commandId: CommandId.make("cmd-project-init-model"),
+							projectId,
+							title: "Acepe",
+							workspaceRoot: "/tmp"
+						})
+					)
+					yield* engine.dispatch(
+						SessionCreateCommand.make({
+							type: "session.create",
+							commandId: CommandId.make("cmd-session-init-model"),
+							sessionId,
+							projectId,
+							title: "Claude init-model session",
+							providerId: claudeProviderId
+						})
+					)
+					yield* engine.dispatch(
+						MessageSendCommand.make({
+							type: "message.send",
+							commandId: CommandId.make("cmd-message-init-model"),
+							sessionId,
+							messageId: userMessageId,
+							text: "Ping"
+						})
+					)
+					const events = yield* waitUntil(
+						Stream.runCollect(store.readFrom(0, 200)),
+						(collected) => collected.some((event) => event.type === "SessionModelSet")
+					)
+					const modelSet = events.find((event) => event.type === "SessionModelSet")
+					Vitest.assert.isDefined(modelSet)
+					if (modelSet?.type === "SessionModelSet") {
+						Vitest.assert.strictEqual(modelSet.payload.modelId, initModelId)
+					}
+				}).pipe(
+					// @effect-diagnostics-next-line strictEffectProvide:off
+					Effect.provide(TestLive)
+				)
+			}),
+		{ timeout: 20_000 }
+	)
 })

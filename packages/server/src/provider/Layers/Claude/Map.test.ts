@@ -544,3 +544,84 @@ Vitest.describe("permissionRequestFact", () => {
 		}
 	})
 })
+
+Vitest.describe("mapSdkMessage system init model", () => {
+	// The composer's model slot showed the agent's own name ("Claude Code")
+	// instead of a model for a live session, because nothing ever reported the
+	// model Claude was actually running. The SDK's system/init message carries
+	// the real model id; promote it so currentModelId (folded from
+	// SessionModelSet) is set from the first turn, not only when the user
+	// picks a model.
+	Vitest.it("promotes the SDK init model to a current_model fact", () => {
+		const mapped = mapSdkMessage(emptyClaudeStreamState, {
+			type: "system",
+			subtype: "init",
+			session_id: "provider-session-init",
+			model: "claude-sonnet-4-6",
+			cwd: "/tmp/acepe",
+			tools: [],
+			permissionMode: "default"
+		})
+		const modelFact = mapped.facts.find((fact) => fact.contractKind === "current_model")
+		Vitest.assert.isDefined(modelFact)
+		if (modelFact?.contractKind === "current_model") {
+			Vitest.assert.strictEqual(modelFact.modelId, "claude-sonnet-4-6")
+		}
+	})
+
+	// A new query (each turn, plus every cancel/stall recovery) re-emits
+	// system/init with the same model. Reporting the model every time would
+	// spend a SessionModelSet event per turn for no change, so only a real
+	// change emits.
+	Vitest.it("does not re-report an unchanged init model", () => {
+		const first = mapSdkMessage(emptyClaudeStreamState, {
+			type: "system",
+			subtype: "init",
+			session_id: "provider-session-init",
+			model: "claude-sonnet-4-6",
+			cwd: "/tmp/acepe",
+			tools: [],
+			permissionMode: "default"
+		})
+		const second = mapSdkMessage(first.state, {
+			type: "system",
+			subtype: "init",
+			session_id: "provider-session-init",
+			model: "claude-sonnet-4-6",
+			cwd: "/tmp/acepe",
+			tools: [],
+			permissionMode: "default"
+		})
+		Vitest.assert.isUndefined(
+			second.facts.find((fact) => fact.contractKind === "current_model")
+		)
+	})
+
+	// A model the user switches to mid-session reaches the SDK, which reports
+	// it on the next init -- that IS a real change and must be reported.
+	Vitest.it("reports a changed init model", () => {
+		const first = mapSdkMessage(emptyClaudeStreamState, {
+			type: "system",
+			subtype: "init",
+			session_id: "provider-session-init",
+			model: "claude-sonnet-4-6",
+			cwd: "/tmp/acepe",
+			tools: [],
+			permissionMode: "default"
+		})
+		const second = mapSdkMessage(first.state, {
+			type: "system",
+			subtype: "init",
+			session_id: "provider-session-init",
+			model: "claude-opus-4-8",
+			cwd: "/tmp/acepe",
+			tools: [],
+			permissionMode: "default"
+		})
+		const modelFact = second.facts.find((fact) => fact.contractKind === "current_model")
+		Vitest.assert.isDefined(modelFact)
+		if (modelFact?.contractKind === "current_model") {
+			Vitest.assert.strictEqual(modelFact.modelId, "claude-opus-4-8")
+		}
+	})
+})

@@ -211,6 +211,13 @@ export const contractFactToAcpSessionUpdate = (fact: ClaudeContractFact): JsonOb
 	if (fact.contractKind === "provider_session") {
 		return { type: "provider_session", providerSessionId: fact.providerSessionId }
 	}
+	// Unreachable via this path in practice: current_model comes only from the
+	// SDK's system/init (Map.ts), never from an ACP session update that
+	// acpSessionUpdateToFact could produce. Handled for exhaustiveness, and
+	// symmetric with provider_session above so it round-trips its own data.
+	if (fact.contractKind === "current_model") {
+		return { type: "current_model", modelId: fact.modelId }
+	}
 	if (fact.contractKind === "turn_complete") {
 		return { type: "turn_complete" }
 	}

@@ -126,6 +126,16 @@ export const DeferredOpenFact = Schema.Struct({
 })
 export type DeferredOpenFact = typeof DeferredOpenFact.Type
 
+// The model the SDK reports it is actually running, read from the system/init
+// message. Promotes to a SessionModelSet event so currentModelId is known from
+// the first turn -- without it the composer's model slot fell back to the
+// agent's own name ("Claude Code") until the user explicitly picked a model.
+export const CurrentModelFact = Schema.Struct({
+	contractKind: Schema.Literal("current_model"),
+	modelId: Schema.String.check(Schema.isNonEmpty())
+})
+export type CurrentModelFact = typeof CurrentModelFact.Type
+
 export const ProviderSessionFact = Schema.Struct({
 	contractKind: Schema.Literal("provider_session"),
 	providerSessionId: Schema.String.check(Schema.isNonEmpty())
@@ -160,11 +170,17 @@ export const ClaudeContractFact = Schema.Union([
 	UsageFact,
 	DeferredOpenFact,
 	ProviderSessionFact,
+	CurrentModelFact,
 	TurnCompleteFact,
 	TurnErrorFact,
 	AuthRequiredFact
 ])
 export type ClaudeContractFact = typeof ClaudeContractFact.Type
+
+export const currentModelFact = (modelId: string): CurrentModelFact => ({
+	contractKind: "current_model",
+	modelId
+})
 
 export const planProposalFact = (input: {
 	readonly planMarkdown: string

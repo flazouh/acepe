@@ -23,6 +23,7 @@ import {
 	type ClaudeCompactionTrigger,
 	type ClaudeContractFact,
 	type CompactionFact,
+	currentModelFact,
 	type PermissionRequestFact,
 	type ToolCallUpdateFact,
 	type UsageFact
@@ -46,13 +47,17 @@ export type ClaudeStreamState = {
 	readonly sawThinkingDelta: boolean
 	readonly toolBlocks: ReadonlyArray<StreamToolBlock>
 	readonly providerSessionId: Option.Option<string>
+	// The last model reported by a system/init message, so an unchanged model
+	// on the next query's init does not spend a redundant SessionModelSet.
+	readonly lastReportedModel: Option.Option<string>
 }
 
 export const emptyClaudeStreamState: ClaudeStreamState = {
 	sawTextDelta: false,
 	sawThinkingDelta: false,
 	toolBlocks: Arr.empty(),
-	providerSessionId: Option.none()
+	providerSessionId: Option.none(),
+	lastReportedModel: Option.none()
 }
 
 export type ClaudeMapResult = {
@@ -71,7 +76,8 @@ const withProviderSession = (
 		sawTextDelta: state.sawTextDelta,
 		sawThinkingDelta: state.sawThinkingDelta,
 		toolBlocks: state.toolBlocks,
-		providerSessionId: sessionId
+		providerSessionId: sessionId,
+		lastReportedModel: state.lastReportedModel
 	}
 }
 
@@ -79,14 +85,16 @@ const withTextDelta = (state: ClaudeStreamState): ClaudeStreamState => ({
 	sawTextDelta: true,
 	sawThinkingDelta: state.sawThinkingDelta,
 	toolBlocks: state.toolBlocks,
-	providerSessionId: state.providerSessionId
+	providerSessionId: state.providerSessionId,
+	lastReportedModel: state.lastReportedModel
 })
 
 const withThinkingDelta = (state: ClaudeStreamState): ClaudeStreamState => ({
 	sawTextDelta: state.sawTextDelta,
 	sawThinkingDelta: true,
 	toolBlocks: state.toolBlocks,
-	providerSessionId: state.providerSessionId
+	providerSessionId: state.providerSessionId,
+	lastReportedModel: state.lastReportedModel
 })
 
 const upsertToolBlock = (state: ClaudeStreamState, block: StreamToolBlock): ClaudeStreamState => ({
@@ -96,14 +104,16 @@ const upsertToolBlock = (state: ClaudeStreamState, block: StreamToolBlock): Clau
 		Arr.filter(state.toolBlocks, (existing) => existing.index !== block.index),
 		block
 	),
-	providerSessionId: state.providerSessionId
+	providerSessionId: state.providerSessionId,
+	lastReportedModel: state.lastReportedModel
 })
 
 const removeToolBlock = (state: ClaudeStreamState, index: number): ClaudeStreamState => ({
 	sawTextDelta: state.sawTextDelta,
 	sawThinkingDelta: state.sawThinkingDelta,
 	toolBlocks: Arr.filter(state.toolBlocks, (existing) => existing.index !== index),
-	providerSessionId: state.providerSessionId
+	providerSessionId: state.providerSessionId,
+	lastReportedModel: state.lastReportedModel
 })
 
 const toolBlockAt = (state: ClaudeStreamState, index: number): Option.Option<StreamToolBlock> =>
@@ -586,6 +596,20 @@ const mapSystem = (state: ClaudeStreamState, record: JsonObject): ClaudeMapResul
 			]),
 			state: promoted.state
 		}
+	}
+	if (subtype === "init") {
+		const model = stringField(record, "model")
+		const changed =
+			Option.isSome(model) &&
+			(Option.isNone(state.lastReportedModel) ||
+				state.lastReportedModel.value !== model.value)
+		if (changed && Option.isSome(model)) {
+			return {
+				facts: appendFacts(promoted.facts, [currentModelFact(model.value)]),
+				state: { ...promoted.state, lastReportedModel: model }
+			}
+		}
+		return promoted
 	}
 	if (subtype === "usage_update" && Option.isSome(sessionId)) {
 		const usage = usageFromRecord(record, sessionId.value)
