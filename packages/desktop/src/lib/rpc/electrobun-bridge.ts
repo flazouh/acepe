@@ -99,20 +99,35 @@ export const READY_PING_MESSAGE = "acepe-transport-ready";
 // instead of hanging the app.
 const DEFAULT_READY_ATTEMPTS = 40;
 const DEFAULT_READY_DELAY = Duration.millis(50);
+// A ping the transport accepted but never answered returns a promise that
+// never settles. Without this deadline attempt 1 never finished and attempts
+// 2..N never ran: the install hung, the page never bound, the window stayed
+// black. Generous enough for a slow-but-live socket, short enough to retry.
+const DEFAULT_READY_PING_TIMEOUT = Duration.millis(500);
 
 export interface TransportReadyOptions {
 	readonly attempts?: number;
 	readonly delay?: Duration.Duration;
+	/** Deadline for ONE ping. A ping the socket queued but never answers counts as a failed attempt. */
+	readonly timeout?: Duration.Duration;
 }
 
 const pingEchoesHandshake = (value: unknown): boolean =>
 	Predicate.isObject(value) && (value as { readonly echo?: unknown }).echo === READY_PING_MESSAGE;
 
-const pingRoundTrips = (bridge: ElectrobunRpcBridge): Effect.Effect<void, RpcTransportError> =>
+const pingRoundTrips = (
+	bridge: ElectrobunRpcBridge,
+	timeout: Duration.Duration
+): Effect.Effect<void, RpcTransportError> =>
 	Effect.tryPromise({
 		try: () => bridge.request.ping({ message: READY_PING_MESSAGE }),
 		catch: transportErrorFrom,
 	}).pipe(
+		Effect.timeoutOrElse({
+			duration: timeout,
+			orElse: () =>
+				Effect.fail(new RpcTransportError({ reason: "transport ping did not answer in time" })),
+		}),
 		Effect.flatMap((response) =>
 			pingEchoesHandshake(response)
 				? Effect.void
@@ -140,8 +155,9 @@ export const probeTransportReady = (
 ): Effect.Effect<void, RpcTransportError> => {
 	const attempts = options.attempts ?? DEFAULT_READY_ATTEMPTS;
 	const delay = options.delay ?? DEFAULT_READY_DELAY;
+	const timeout = options.timeout ?? DEFAULT_READY_PING_TIMEOUT;
 	const loop = (remaining: number): Effect.Effect<void, RpcTransportError> =>
-		pingRoundTrips(bridge).pipe(
+		pingRoundTrips(bridge, timeout).pipe(
 			Effect.catch((error) =>
 				remaining <= 0
 					? Effect.fail(error)
@@ -151,15 +167,18 @@ export const probeTransportReady = (
 	return loop(attempts);
 };
 
-export const installElectrobunWebviewRpc = (): Effect.Effect<
-	ElectrobunRpcBridge,
-	RpcTransportError
-> =>
+// The one install in flight, shared by every caller that arrives before it
+// binds. The memo used to live only on the RESULT (a bound bridge), so two
+// callers racing through the un-bound window each imported electrobun and
+// constructed their own Electroview -- registering a second RPC schema against
+// the same window, exactly what app-client.ts warns must never happen. The
+// readiness probe made that window seconds wide instead of microseconds, and
+// the loser's ping never answered: its install hung, the page's `rpcClient`
+// stayed null, and the window rendered black over a bridge that worked.
+let installInFlight: Promise<ElectrobunRpcBridge> | null = null;
+
+const buildElectrobunWebviewRpc = (): Effect.Effect<ElectrobunRpcBridge, RpcTransportError> =>
 	Effect.gen(function* () {
-		const existing = readElectrobunBridge();
-		if (existing !== null) {
-			return existing;
-		}
 		markBoot("install");
 		const loaded = yield* Effect.tryPromise({
 			try: () => {
@@ -210,4 +229,24 @@ export const installElectrobunWebviewRpc = (): Effect.Effect<
 		bindElectrobunBridge(loaded);
 		markBoot("bound");
 		return loaded;
+	});
+
+export const installElectrobunWebviewRpc = (): Effect.Effect<
+	ElectrobunRpcBridge,
+	RpcTransportError
+> =>
+	Effect.suspend(() => {
+		const existing = readElectrobunBridge();
+		if (existing !== null) {
+			return Effect.succeed(existing);
+		}
+		if (installInFlight === null) {
+			installInFlight = Effect.runPromise(buildElectrobunWebviewRpc()).finally(() => {
+				// Success leaves a bound bridge behind, so later callers take the
+				// fast path above; failure clears the slot so the next caller can
+				// try again rather than inheriting a dead promise for good.
+				installInFlight = null;
+			});
+		}
+		return Effect.tryPromise({ try: () => installInFlight!, catch: transportErrorFrom });
 	});

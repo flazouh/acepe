@@ -132,4 +132,46 @@ describe("electrobun-bridge", () => {
 				expect(result._tag).toBe("RpcTransportError");
 			})
 		));
+
+	// A ping that never settles used to hang the probe for good: the loop awaited
+	// a promise with no deadline, so attempt 1 never finished and attempts 2..N
+	// never ran. Live, that stranded the page's own install inside the probe --
+	// `rpcClient` stayed null and the window rendered the empty pending shell (a
+	// black app) while a second, racing install bound a working bridge behind it.
+	// Each attempt is now time-boxed, so a dead ping is retried like a failed one.
+	it("probeTransportReady retries a ping that never settles", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				let attempts = 0;
+				const bridge = fakeBridge(() => {
+					attempts += 1;
+					if (attempts < 2) {
+						// Never settles: the socket accepted the call and went quiet.
+						return new Promise(() => undefined);
+					}
+					return Promise.resolve({ echo: READY_PING_MESSAGE });
+				});
+				yield* probeTransportReady(bridge, {
+					attempts: 4,
+					delay: Duration.millis(1),
+					timeout: Duration.millis(20),
+				});
+				expect(attempts).toBe(2);
+			})
+		));
+
+	it("probeTransportReady gives up when every ping hangs", () =>
+		Effect.runPromise(
+			Effect.gen(function* () {
+				const bridge = fakeBridge(() => new Promise(() => undefined));
+				const result = yield* Effect.flip(
+					probeTransportReady(bridge, {
+						attempts: 2,
+						delay: Duration.millis(1),
+						timeout: Duration.millis(20),
+					})
+				);
+				expect(result._tag).toBe("RpcTransportError");
+			})
+		));
 });
