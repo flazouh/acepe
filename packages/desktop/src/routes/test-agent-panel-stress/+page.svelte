@@ -9,7 +9,6 @@ import {
 } from "@acepe/ui/agent-panel";
 import SceneContentViewport from "$lib/acp/components/agent-panel/components/scene-content-viewport.svelte";
 import { deriveCanonicalAgentPanelSessionState } from "$lib/acp/components/agent-panel/logic/session-status-mapper.js";
-import { hasTrailingCompletedTool } from "$lib/acp/components/agent-panel/logic/transcript-viewport-row-facts.js";
 import type { LocalPlaceholderMode } from "$lib/acp/components/agent-panel/logic/local-placeholder-mode.js";
 import type { TurnState } from "$lib/acp/store/types.js";
 import type {
@@ -1050,7 +1049,6 @@ function derivePlanningBetweenToolsMode(
 			turnState: "Running",
 		},
 		hasEntries: targetFixture.rowsProjection.rows.length > 0,
-		hasTrailingCompletedTool: hasTrailingCompletedTool(targetFixture.rowsProjection.rows),
 	}).localPlaceholderMode;
 }
 
